@@ -3,6 +3,11 @@ name = "fog-of-war"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+2d = []
+3d = []
+
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [
@@ -39,3 +44,9 @@ bevy = { version = "0.15", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+bevy-inspector-egui = "0.28"
+
+[[example]]
+name = "fog_of_war_2d"
+path = "examples/2d.rs"
+required-features = ["2d"]
