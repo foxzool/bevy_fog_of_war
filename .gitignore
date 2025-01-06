@@ -1,0 +1,8 @@
+debug/
+target/
+/.idea
+/.vscode
+Cargo.lock
+.cargo/config
+.cargo/config.toml
+**/*.rs.bk
