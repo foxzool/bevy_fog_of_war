@@ -42,9 +42,11 @@ bevy = { version = "0.15", default-features = false, features = [
     "webgl2",
     "x11"
 ] }
+bytemuck = "1.21.0"
 
 [dev-dependencies]
 bevy-inspector-egui = "0.28"
+bevy_mod_debugdump = "0.12"
 
 [[example]]
 name = "fog_of_war_2d"
