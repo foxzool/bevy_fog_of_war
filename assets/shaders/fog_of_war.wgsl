@@ -31,7 +31,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let inner_radius = 0.3;
     let outer_radius = 0.5;
     
-    let alpha = smoothstep(inner_radius, outer_radius, distance);
+    let alpha = smoothstep(inner_radius, outer_radius, distance) * settings.color.a;
 
     return vec4f(settings.color.rgb, alpha);
 }

@@ -18,7 +18,7 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn((Camera2d::default(), FogOfWarSettings {
-        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.5).into(),
+        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
     }));
 
     let shapes = [
