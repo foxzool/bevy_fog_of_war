@@ -1,3 +1,7 @@
+use bevy::ecs::component::ComponentHook;
+use bevy::ecs::world::DeferredWorld;
+use bevy::render::extract_component::{ComponentUniforms, DynamicUniformIndex};
+use bevy::render::render_resource::BufferBindingType;
 use bevy::{
     app::{App, Plugin},
     asset::DirectAssetAccessExt,
@@ -74,42 +78,63 @@ struct FogOfWarLabel;
 
 #[derive(Component, Debug, Clone, Reflect, ExtractComponent, ShaderType)]
 pub struct FogOfWarSettings {
-    pub fog_color: Vec4,
+    pub fog_color: LinearRgba,
 }
 
 impl Default for FogOfWarSettings {
     fn default() -> Self {
         Self {
-            fog_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+            fog_color: Color::BLACK.into(),
         }
     }
 }
 
 #[derive(Default)]
-struct FogOfWar2dNode {}
+struct FogOfWar2dNode;
 
 impl ViewNode for FogOfWar2dNode {
-    type ViewQuery = (&'static ExtractedCamera, &'static ViewTarget);
+    type ViewQuery = (
+        &'static ViewTarget,
+        &'static FogOfWarSettings,
+        &'static DynamicUniformIndex<FogOfWarSettings>,
+    );
 
-    fn run<'w>(
+    fn run(
         &self,
-        graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext<'w>,
-        (camera, target): QueryItem<'w, Self::ViewQuery>,
-        world: &'w World,
+        _graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
+        (view_target, _fog_of_war_settings, settings_index): QueryItem<Self::ViewQuery>,
+        world: &World,
     ) -> Result<(), NodeRunError> {
-        println!("Fog of War render pass is running");
-
-        let pipeline_res = world.resource::<FogOfWar2dPipeline>();
+        let fog_of_war_pipeline = world.resource::<FogOfWar2dPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id) else {
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(fog_of_war_pipeline.pipeline_id)
+        else {
             println!("Failed to get pipeline");
             return Ok(());
         };
 
-        let view = target.main_texture_view();
-        // println!("View format: {:?}", view.format());
+        let settings_uniforms = world.resource::<ComponentUniforms<FogOfWarSettings>>();
+        let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
+            return Ok(());
+        };
+
+        let view = view_target.main_texture_view();
+
+        let bind_group = render_context.render_device().create_bind_group(
+            "post_process_bind_group",
+            &fog_of_war_pipeline.bind_group_layout,
+            // It's important for this to match the BindGroupLayout defined in the PostProcessPipeline
+            &BindGroupEntries::sequential((
+                // // Make sure to use the source view
+                // view,
+                // // // Use the sampler created for the pipeline
+                // &fog_of_war_pipeline.sampler,
+                // Set the settings binding
+                settings_binding.clone(),
+            )),
+        );
 
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_of_war_2d_pass"),
@@ -125,11 +150,14 @@ impl ViewNode for FogOfWar2dNode {
         });
 
         render_pass.set_render_pipeline(pipeline);
-        render_pass.set_bind_group(0, &pipeline_res.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, pipeline_res.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(pipeline_res.index_buffer.slice(..), 0, IndexFormat::Uint16);
+        render_pass.set_bind_group(0, &bind_group, &[settings_index.index()]);
+        render_pass.set_vertex_buffer(0, fog_of_war_pipeline.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(
+            fog_of_war_pipeline.index_buffer.slice(..),
+            0,
+            IndexFormat::Uint16,
+        );
 
-        println!("Drawing fog of war with {} indices", INDICES.len());
         render_pass.draw_indexed(0..6, 0, 0..1);
 
         Ok(())
@@ -138,26 +166,24 @@ impl ViewNode for FogOfWar2dNode {
 
 #[derive(Resource)]
 struct FogOfWar2dPipeline {
-    bind_group: BindGroup,
-    sampler: Sampler,
+    bind_group_layout: BindGroupLayout,
     pipeline_id: CachedRenderPipelineId,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
-    num_indices: u32,
 }
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
         let shader = world.load_asset(SHADER_ASSET_PATH);
         let render_device = world.resource_mut::<RenderDevice>();
-        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
-        // 创建 bind group layout
-        let bind_group_layout = render_device.create_bind_group_layout("fog_of_war_layout", &[]);
-
-        // 创建 bind group
-        let bind_group =
-            render_device.create_bind_group("fog_of_war_bind_group", &bind_group_layout, &[]);
+        let bind_group_layout = render_device.create_bind_group_layout(
+            "fog_of_war_layout",
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::FRAGMENT,
+                (uniform_buffer::<FogOfWarSettings>(true),),
+            ),
+        );
 
         let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -173,7 +199,7 @@ impl FromWorld for FogOfWar2dPipeline {
         let pipeline_id = world.resource_mut::<PipelineCache>().queue_render_pipeline(
             RenderPipelineDescriptor {
                 label: Some("fog_of_war_2d_pipeline".into()),
-                layout: vec![bind_group_layout],
+                layout: vec![bind_group_layout.clone()],
                 vertex: VertexState {
                     shader: shader.clone_weak(),
                     entry_point: "vs_main".into(),
@@ -224,12 +250,10 @@ impl FromWorld for FogOfWar2dPipeline {
         );
 
         Self {
-            bind_group,
-            sampler,
+            bind_group_layout,
             pipeline_id,
             vertex_buffer,
             index_buffer,
-            num_indices: INDICES.len() as u32,
         }
     }
 }

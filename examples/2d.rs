@@ -17,7 +17,9 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn((Camera2d::default(), FogOfWarSettings::default()));
+    commands.spawn((Camera2d::default(), FogOfWarSettings {
+        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.5).into(),
+    }));
 
     let shapes = [
         meshes.add(Circle::new(50.0)),

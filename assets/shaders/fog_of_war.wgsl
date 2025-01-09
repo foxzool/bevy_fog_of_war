@@ -1,3 +1,8 @@
+struct FogOfWarSettings {
+    color: vec4f,
+};
+@group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
+
 struct VertexInput {
     @location(0) position: vec3f,
     @location(1) color: vec4f,
@@ -23,13 +28,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let center = vec2f(0.0, 0.0);
     let distance = length(in.position - center);
     
-    // 设置内外圆的半径
     let inner_radius = 0.3;
     let outer_radius = 0.5;
     
-    // 计算透明度
     let alpha = smoothstep(inner_radius, outer_radius, distance);
-    
-    // 返回黑色遮罩，透明度根据距离变化
-    return vec4f(0.0, 0.0, 0.0, alpha);
+
+    return vec4f(settings.color.rgb, alpha);
 }
