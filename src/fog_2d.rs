@@ -58,7 +58,7 @@ impl Plugin for FogOfWar2dPlugin {
             .add_render_graph_node::<ViewNodeRunner<FogOfWar2dNode>>(Core2d, FogOfWarLabel)
             .add_render_graph_edges(
                 Core2d,
-                (Node2d::MainOpaquePass, FogOfWarLabel, Node2d::EndMainPass),
+                (Node2d::MainTransparentPass, FogOfWarLabel, Node2d::EndMainPass),
             );
     }
 
