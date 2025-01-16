@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings};
 
 fn main() {
@@ -16,9 +17,11 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    primary_window: Single<&Window, With<PrimaryWindow>>,
 ) {
     commands.spawn((Camera2d::default(), FogOfWarSettings {
         fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
+        screen_size: primary_window.size(),
     }));
 
     let shapes = [

@@ -1,5 +1,6 @@
 use bevy::ecs::component::ComponentHook;
 use bevy::ecs::world::DeferredWorld;
+use bevy::math::Vec2;
 use bevy::render::extract_component::{ComponentUniforms, DynamicUniformIndex};
 use bevy::render::render_resource::BufferBindingType;
 use bevy::{
@@ -58,7 +59,11 @@ impl Plugin for FogOfWar2dPlugin {
             .add_render_graph_node::<ViewNodeRunner<FogOfWar2dNode>>(Core2d, FogOfWarLabel)
             .add_render_graph_edges(
                 Core2d,
-                (Node2d::MainTransparentPass, FogOfWarLabel, Node2d::EndMainPass),
+                (
+                    Node2d::MainTransparentPass,
+                    FogOfWarLabel,
+                    Node2d::EndMainPass,
+                ),
             );
     }
 
@@ -79,12 +84,14 @@ struct FogOfWarLabel;
 #[derive(Component, Debug, Clone, Reflect, ExtractComponent, ShaderType)]
 pub struct FogOfWarSettings {
     pub fog_color: LinearRgba,
+    pub screen_size: Vec2,
 }
 
 impl Default for FogOfWarSettings {
     fn default() -> Self {
         Self {
             fog_color: Color::BLACK.into(),
+            screen_size: Vec2::new(1280.0, 720.0),
         }
     }
 }
@@ -111,7 +118,6 @@ impl ViewNode for FogOfWar2dNode {
 
         let Some(pipeline) = pipeline_cache.get_render_pipeline(fog_of_war_pipeline.pipeline_id)
         else {
-            println!("Failed to get pipeline");
             return Ok(());
         };
 

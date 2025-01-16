@@ -1,5 +1,6 @@
 struct FogOfWarSettings {
     color: vec4f,
+    screen_size: vec2f,
 };
 @group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
 
@@ -26,7 +27,9 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let center = vec2f(0.0, 0.0);
-    let distance = length(in.position - center);
+    let aspect_ratio = settings.screen_size.x / settings.screen_size.y;
+    let corrected_position = vec2f(in.position.x * aspect_ratio, in.position.y);
+    let distance = length(corrected_position - center);
     
     let inner_radius = 0.3;
     let outer_radius = 0.5;
