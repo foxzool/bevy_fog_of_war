@@ -1,46 +1,28 @@
-use bevy::ecs::component::ComponentHook;
-use bevy::ecs::world::DeferredWorld;
-use bevy::math::Vec2;
-use bevy::render::extract_component::{ComponentUniforms, DynamicUniformIndex};
-use bevy::render::render_resource::BufferBindingType;
-use bevy::{
-    app::{App, Plugin},
-    asset::DirectAssetAccessExt,
-    color::{Color, LinearRgba},
-    core_pipeline::{
-        core_2d::graph::{Core2d, Node2d},
-        fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-    },
-    ecs::query::QueryItem,
-    image::BevyDefault,
-    math::Vec4,
-    prelude::{Camera, Component, FromWorld, Msaa, Resource, With, World},
-    reflect::Reflect,
-    render::{
-        RenderApp,
-        camera::ExtractedCamera,
-        extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin},
-        mesh::{PrimitiveTopology, VertexBufferLayout},
-        render_graph::{
-            NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
-        },
-        render_resource::{
-            BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
-            BindGroupLayoutEntry, BindingType, BlendComponent, BlendState, Buffer, BufferAddress,
-            BufferInitDescriptor, BufferUsages, CachedRenderPipelineId, ColorTargetState,
-            ColorWrites, Face, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState,
-            Operations, PipelineCache, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-            RawVertexBufferLayout, RawVertexState, RenderPassColorAttachment, RenderPassDescriptor,
-            RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
-            ShaderType, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension,
-            VertexAttribute, VertexFormat, VertexState, VertexStepMode,
-            binding_types::{sampler, texture_2d, uniform_buffer},
-        },
-        renderer::{RenderContext, RenderDevice},
-        view::ViewTarget,
-    },
-    utils::default,
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::ecs::query::QueryItem;
+use bevy::prelude::*;
+use bevy::render::RenderApp;
+use bevy::render::extract_component::{
+    ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
+    UniformComponentPlugin,
 };
+use bevy::render::mesh::{PrimitiveTopology, VertexBufferLayout};
+use bevy::render::render_graph::{
+    NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
+};
+use bevy::render::render_resource::binding_types::uniform_buffer;
+use bevy::render::render_resource::{
+    BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState, Buffer,
+    BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId, ColorTargetState,
+    ColorWrites, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
+    PipelineCache, PolygonMode, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+    RenderPipelineDescriptor, ShaderStages, ShaderType, StoreOp, TextureFormat, VertexAttribute,
+    VertexFormat, VertexState, VertexStepMode,
+};
+use bevy::render::renderer::{RenderContext, RenderDevice};
+use bevy::render::view::ViewTarget;
+use bytemuck::Pod;
+use bytemuck::Zeroable;
 
 pub struct FogOfWar2dPlugin;
 
@@ -313,3 +295,21 @@ const VERTICES: &[Vertex] = &[
 ];
 
 const INDICES: &[u16] = &[0, 1, 2, 0, 2, 3]; // 两个三角形组成一个矩形
+
+#[derive(Component, Debug, Copy, Clone, Reflect, ExtractComponent, ShaderType, Pod, Zeroable)]
+#[repr(C)]
+pub struct FogSight2D {
+    pub position: Vec2,
+    pub inner_radius: f32,
+    pub outer_radius: f32,
+}
+
+impl Default for FogSight2D {
+    fn default() -> Self {
+        Self {
+            position: Vec2::ZERO,
+            inner_radius: 0.3,
+            outer_radius: 0.5,
+        }
+    }
+}

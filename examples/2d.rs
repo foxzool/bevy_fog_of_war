@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings};
+use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
 
 fn main() {
     App::new()
@@ -19,10 +19,26 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
     primary_window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    commands.spawn((Camera2d::default(), FogOfWarSettings {
-        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
-        screen_size: primary_window.size(),
-    }));
+    commands.spawn((
+        Camera2d::default(),
+        FogOfWarSettings {
+            fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
+            screen_size: primary_window.size(),
+        },
+    ));
+
+    // 添加多个视野点
+    commands.spawn(FogSight2D {
+        position: Vec2::new(-10.0, 0.0),
+        inner_radius: 0.2,
+        outer_radius: 0.4,
+    });
+
+    commands.spawn(FogSight2D {
+        position: Vec2::new(10.0, 0.0),
+        inner_radius: 0.2,
+        outer_radius: 0.4,
+    });
 
     let shapes = [
         meshes.add(Circle::new(50.0)),
