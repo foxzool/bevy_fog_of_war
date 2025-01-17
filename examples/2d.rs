@@ -2,6 +2,16 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
+use std::f32::consts::PI;
+
+// 添加这个组件来控制视野的缩放
+#[derive(Component)]
+struct SightPulse {
+    base_radius: f32,     // 基础半径
+    pulse_range: f32,     // 缩放范围
+    speed: f32,          // 缩放速度
+    time: f32,           // 累计时间
+}
 
 fn main() {
     App::new()
@@ -10,6 +20,8 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
+        // 添加视野缩放系统
+        .add_systems(Update, update_sight_radius)
         .run();
 }
 
@@ -30,16 +42,32 @@ fn setup(
         },
     ));
 
-    // 添加多个视野点
-    commands.spawn(FogSight2D {
-        position: Vec2::new(-100.0, 0.0),
-        radius: 100.0,     // 100像素的基础视野半径
-    });
+    // 修改视野点的生成，添加缩放组件
+    commands.spawn((
+        FogSight2D {
+            position: Vec2::new(-100.0, 0.0),
+            radius: 100.0,
+        },
+        SightPulse {
+            base_radius: 100.0,
+            pulse_range: 30.0,  // 半径将在 70-130 之间变化
+            speed: 2.0,        // 控制缩放速度
+            time: 0.0,
+        },
+    ));
 
-    commands.spawn(FogSight2D {
-        position: Vec2::new(100.0, 0.0),
-        radius: 150.0,     // 150像素的基础视野半径
-    });
+    commands.spawn((
+        FogSight2D {
+            position: Vec2::new(100.0, 0.0),
+            radius: 150.0,
+        },
+        SightPulse {
+            base_radius: 150.0,
+            pulse_range: 50.0,  // 半径将在 100-200 之间变化
+            speed: 3.0,        // 不同的缩放速度
+            time: PI,          // 不同的初始相位
+        },
+    ));
 
     let shapes = [
         meshes.add(Circle::new(50.0)),
@@ -73,5 +101,20 @@ fn setup(
                 0.0,
             ),
         ));
+    }
+}
+
+// 更新视野半径的系统
+fn update_sight_radius(
+    time: Res<Time>,
+    mut query: Query<(&mut FogSight2D, &mut SightPulse)>,
+) {
+    for (mut sight, mut pulse) in query.iter_mut() {
+        // 更新累计时间
+        pulse.time += time.delta_secs() * pulse.speed;
+        
+        // 使用正弦函数计算当前半径
+        let radius_offset = (pulse.time.sin() * pulse.pulse_range);
+        sight.radius = pulse.base_radius + radius_offset;
     }
 }
