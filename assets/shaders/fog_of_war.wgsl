@@ -1,12 +1,12 @@
 struct FogOfWarSettings {
     color: vec4f,
     screen_size: vec2f,
+    fade_width: f32,
 };
 
 struct FogSight2D {
     position: vec2f,
-    inner_radius: f32,
-    outer_radius: f32,
+    radius: f32,
 }
 
 @group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
@@ -34,17 +34,19 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    let aspect_ratio = settings.screen_size.x / settings.screen_size.y;
-    let screen_position = vec2f(in.position.x * aspect_ratio, in.position.y);
+    let screen_position = vec2f(in.position.x * settings.screen_size.x * 0.5, 
+                              in.position.y * settings.screen_size.y * 0.5);
     
     var final_alpha = 1.0;
     
     for(var i = 0u; i < arrayLength(&sight_points); i++) {
         let sight = sight_points[i];
-        let sight_pos = vec2f(sight.position.x * aspect_ratio, sight.position.y);
+        let sight_pos = sight.position;
         let distance = length(screen_position - sight_pos);
-        let alpha = smoothstep(sight.inner_radius * aspect_ratio, sight.outer_radius * aspect_ratio, distance);
-        final_alpha = min(final_alpha, alpha);
+        let outer_radius = sight.radius + settings.fade_width;
+        let inner_radius = sight.radius;
+        let current_alpha = smoothstep(inner_radius, outer_radius, distance);
+        final_alpha = min(final_alpha, current_alpha);
     }
     
     return vec4f(settings.color.rgb, final_alpha * settings.color.a);

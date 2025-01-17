@@ -77,6 +77,7 @@ struct FogOfWarLabel;
 pub struct FogOfWarSettings {
     pub fog_color: LinearRgba,
     pub screen_size: Vec2,
+    pub fade_width: f32,
 }
 
 impl Default for FogOfWarSettings {
@@ -84,6 +85,7 @@ impl Default for FogOfWarSettings {
         Self {
             fog_color: Color::BLACK.into(),
             screen_size: Vec2::new(1280.0, 720.0),
+            fade_width: 50.0,
         }
     }
 }
@@ -309,16 +311,14 @@ const INDICES: &[u16] = &[0, 1, 2, 0, 2, 3]; // 两个三角形组成一个矩�
 #[repr(C)]
 pub struct FogSight2D {
     pub position: Vec2,
-    pub inner_radius: f32,
-    pub outer_radius: f32,
+    pub radius: f32,      // 视野的基础半径
 }
 
 impl Default for FogSight2D {
     fn default() -> Self {
         Self {
             position: Vec2::ZERO,
-            inner_radius: 0.3,
-            outer_radius: 0.5,
+            radius: 100.0,     // 基础视野半径为100像素
         }
     }
 }

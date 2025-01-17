@@ -26,20 +26,19 @@ fn setup(
         FogOfWarSettings {
             fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
             screen_size: primary_window.size(),
+            fade_width: 50.0,  // 全局过渡范围设置
         },
     ));
 
     // 添加多个视野点
     commands.spawn(FogSight2D {
-        position: Vec2::new(-0.2, 0.0),
-        inner_radius: 0.1,
-        outer_radius: 0.2,
+        position: Vec2::new(-100.0, 0.0),
+        radius: 100.0,     // 100像素的基础视野半径
     });
 
     commands.spawn(FogSight2D {
-        position: Vec2::new(0.2, 0.0),
-        inner_radius: 0.1,
-        outer_radius: 0.2,
+        position: Vec2::new(100.0, 0.0),
+        radius: 150.0,     // 150像素的基础视野半径
     });
 
     let shapes = [
