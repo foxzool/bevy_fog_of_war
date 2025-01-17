@@ -2,7 +2,15 @@ struct FogOfWarSettings {
     color: vec4f,
     screen_size: vec2f,
 };
+
+struct FogSight2D {
+    position: vec2f,
+    inner_radius: f32,
+    outer_radius: f32,
+}
+
 @group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
+//@group(0) @binding(1) var<storage> sight_points: array<FogSight2D>;
 
 struct VertexInput {
     @location(0) position: vec3f,

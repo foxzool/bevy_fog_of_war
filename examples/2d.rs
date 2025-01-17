@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
 
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.9, 0.9, 0.9)))
         .add_plugins(DefaultPlugins)
+        .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
         .run();

@@ -1,7 +1,7 @@
+use std::collections::BTreeMap;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::ecs::query::QueryItem;
 use bevy::prelude::*;
-use bevy::render::RenderApp;
 use bevy::render::extract_component::{
     ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
     UniformComponentPlugin,
@@ -10,19 +10,24 @@ use bevy::render::mesh::{PrimitiveTopology, VertexBufferLayout};
 use bevy::render::render_graph::{
     NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
 };
-use bevy::render::render_resource::binding_types::uniform_buffer;
+use bevy::render::render_resource::binding_types::{
+    storage_buffer_read_only_sized, uniform_buffer,
+};
 use bevy::render::render_resource::{
     BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState, Buffer,
     BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId, ColorTargetState,
     ColorWrites, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
     PipelineCache, PolygonMode, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipelineDescriptor, ShaderStages, ShaderType, StoreOp, TextureFormat, VertexAttribute,
-    VertexFormat, VertexState, VertexStepMode,
+    RenderPipelineDescriptor, ShaderStages, ShaderType, StorageBuffer, StoreOp, TextureFormat,
+    VertexAttribute, VertexFormat, VertexState, VertexStepMode,
 };
-use bevy::render::renderer::{RenderContext, RenderDevice};
+use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
 use bevy::render::view::ViewTarget;
+use bevy::render::{Extract, Render, RenderApp, RenderSet};
+use bevy::utils::{Entry, HashMap};
 use bytemuck::Pod;
 use bytemuck::Zeroable;
+
 
 pub struct FogOfWar2dPlugin;
 
@@ -33,11 +38,17 @@ impl Plugin for FogOfWar2dPlugin {
             UniformComponentPlugin::<FogOfWarSettings>::default(),
         ));
 
+        app.register_type::<FogSight2D>()
+            .add_plugins((ExtractComponentPlugin::<FogSight2D>::default(),));
+
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
         render_app
+            .init_resource::<FogSight2dBuffers>()
+            .add_systems(ExtractSchedule, extract_buffers)
+            .add_systems(Render, (prepare_buffers.in_set(RenderSet::Prepare),))
             .add_render_graph_node::<ViewNodeRunner<FogOfWar2dNode>>(Core2d, FogOfWarLabel)
             .add_render_graph_edges(
                 Core2d,
@@ -97,6 +108,7 @@ impl ViewNode for FogOfWar2dNode {
     ) -> Result<(), NodeRunError> {
         let fog_of_war_pipeline = world.resource::<FogOfWar2dPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
+        let fog_sight_buffers = world.resource::<FogSight2dBuffers>();
 
         let Some(pipeline) = pipeline_cache.get_render_pipeline(fog_of_war_pipeline.pipeline_id)
         else {
@@ -110,17 +122,14 @@ impl ViewNode for FogOfWar2dNode {
 
         let view = view_target.main_texture_view();
 
+
+
         let bind_group = render_context.render_device().create_bind_group(
-            "post_process_bind_group",
+            None,
             &fog_of_war_pipeline.bind_group_layout,
-            // It's important for this to match the BindGroupLayout defined in the PostProcessPipeline
             &BindGroupEntries::sequential((
-                // // Make sure to use the source view
-                // view,
-                // // // Use the sampler created for the pipeline
-                // &fog_of_war_pipeline.sampler,
-                // Set the settings binding
                 settings_binding.clone(),
+                // sight_buffer.binding().unwrap(),
             )),
         );
 
@@ -169,7 +178,10 @@ impl FromWorld for FogOfWar2dPipeline {
             "fog_of_war_layout",
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
-                (uniform_buffer::<FogOfWarSettings>(true),),
+                (
+                    uniform_buffer::<FogOfWarSettings>(true),
+                    // storage_buffer_read_only_sized(false, None),
+                ),
             ),
         );
 
@@ -311,5 +323,56 @@ impl Default for FogSight2D {
             inner_radius: 0.3,
             outer_radius: 0.5,
         }
+    }
+}
+
+#[derive(Resource)]
+pub(super) struct ExtractedSight2DBuffers {
+    changed: Vec<(Entity, FogSight2D)>,
+    removed: Vec<Entity>,
+}
+
+pub(super) fn extract_buffers(
+    mut commands: Commands,
+    changed: Extract<Query<(Entity, &FogSight2D), Changed<FogSight2D>>>,
+    mut removed: Extract<RemovedComponents<FogSight2D>>,
+) {
+    commands.insert_resource(ExtractedSight2DBuffers {
+        changed: changed
+            .iter()
+            .map(|(entity, settings)| (entity, settings.clone()))
+            .collect(),
+        removed: removed.read().collect(),
+    });
+}
+
+#[derive(Resource, Default)]
+pub(super) struct FogSight2dBuffers {
+    pub(super) buffers: HashMap<Entity, StorageBuffer<FogSight2D>>,
+}
+
+pub(super) fn prepare_buffers(
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    mut extracted: ResMut<ExtractedSight2DBuffers>,
+    mut buffers: ResMut<FogSight2dBuffers>,
+) {
+    for (entity, fog_sight_2d) in extracted.changed.drain(..) {
+        match buffers.buffers.entry(entity) {
+            Entry::Occupied(mut entry) => {
+                let value = entry.get_mut();
+                value.set(fog_sight_2d);
+                value.write_buffer(&device, &queue);
+            }
+            Entry::Vacant(entry) => {
+                let value = entry.insert(StorageBuffer::from(fog_sight_2d));
+
+                value.write_buffer(&device, &queue);
+            }
+        }
+    }
+
+    for entity in extracted.removed.drain(..) {
+        buffers.buffers.remove(&entity);
     }
 }
