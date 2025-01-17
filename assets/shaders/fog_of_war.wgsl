@@ -10,7 +10,7 @@ struct FogSight2D {
 }
 
 @group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
-//@group(0) @binding(1) var<storage> sight_points: array<FogSight2D>;
+@group(0) @binding(1) var<storage> sight_points: array<FogSight2D>;
 
 struct VertexInput {
     @location(0) position: vec3f,
@@ -34,15 +34,17 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    let center = vec2f(0.0, 0.0);
     let aspect_ratio = settings.screen_size.x / settings.screen_size.y;
     let corrected_position = vec2f(in.position.x * aspect_ratio, in.position.y);
-    let distance = length(corrected_position - center);
     
-    let inner_radius = 0.3;
-    let outer_radius = 0.5;
+    var final_alpha = 1.0;
     
-    let alpha = smoothstep(inner_radius, outer_radius, distance) * settings.color.a;
-
-    return vec4f(settings.color.rgb, alpha);
+    for(var i = 0u; i < arrayLength(&sight_points); i++) {
+        let sight = sight_points[i];
+        let distance = length(corrected_position - sight.position);
+        let alpha = smoothstep(sight.inner_radius, sight.outer_radius, distance);
+        final_alpha = min(final_alpha, alpha);
+    }
+    
+    return vec4f(settings.color.rgb, final_alpha * settings.color.a);
 }

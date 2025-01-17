@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::ecs::query::QueryItem;
 use bevy::prelude::*;
@@ -16,10 +15,10 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::{
     BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState, Buffer,
     BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId, ColorTargetState,
-    ColorWrites, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-    PipelineCache, PolygonMode, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipelineDescriptor, ShaderStages, ShaderType, StorageBuffer, StoreOp, TextureFormat,
-    VertexAttribute, VertexFormat, VertexState, VertexStepMode,
+    ColorWrites, FragmentState, FrontFace, IndexFormat, IntoBinding, LoadOp, MultisampleState,
+    Operations, PipelineCache, PolygonMode, PrimitiveState, RenderPassColorAttachment,
+    RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages, ShaderType, StorageBuffer,
+    StoreOp, TextureFormat, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
 };
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
 use bevy::render::view::ViewTarget;
@@ -122,14 +121,12 @@ impl ViewNode for FogOfWar2dNode {
 
         let view = view_target.main_texture_view();
 
-
-
         let bind_group = render_context.render_device().create_bind_group(
             None,
             &fog_of_war_pipeline.bind_group_layout,
             &BindGroupEntries::sequential((
                 settings_binding.clone(),
-                // sight_buffer.binding().unwrap(),
+                fog_sight_buffers.buffers.into_binding(),
             )),
         );
 
@@ -180,7 +177,7 @@ impl FromWorld for FogOfWar2dPipeline {
                 ShaderStages::FRAGMENT,
                 (
                     uniform_buffer::<FogOfWarSettings>(true),
-                    // storage_buffer_read_only_sized(false, None),
+                    storage_buffer_read_only_sized(false, None),
                 ),
             ),
         );
@@ -348,31 +345,34 @@ pub(super) fn extract_buffers(
 
 #[derive(Resource, Default)]
 pub(super) struct FogSight2dBuffers {
-    pub(super) buffers: HashMap<Entity, StorageBuffer<FogSight2D>>,
+    pub(super) sights: HashMap<Entity, FogSight2D>,
+    pub(super) buffers: StorageBuffer<Vec<FogSight2D>>,
 }
 
 pub(super) fn prepare_buffers(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut extracted: ResMut<ExtractedSight2DBuffers>,
-    mut buffers: ResMut<FogSight2dBuffers>,
+    mut buffer_res: ResMut<FogSight2dBuffers>,
 ) {
     for (entity, fog_sight_2d) in extracted.changed.drain(..) {
-        match buffers.buffers.entry(entity) {
+        match buffer_res.sights.entry(entity) {
             Entry::Occupied(mut entry) => {
                 let value = entry.get_mut();
-                value.set(fog_sight_2d);
-                value.write_buffer(&device, &queue);
+                *value = fog_sight_2d;
             }
             Entry::Vacant(entry) => {
-                let value = entry.insert(StorageBuffer::from(fog_sight_2d));
-
-                value.write_buffer(&device, &queue);
+                entry.insert(fog_sight_2d);
             }
         }
     }
 
     for entity in extracted.removed.drain(..) {
-        buffers.buffers.remove(&entity);
+        buffer_res.sights.remove(&entity);
     }
+
+    let sights: Vec<_> = buffer_res.sights.values().cloned().collect();
+    println!("sight {}", sights.len());
+    buffer_res.buffers = StorageBuffer::from(sights);
+    buffer_res.buffers.write_buffer(&device, &queue);
 }
