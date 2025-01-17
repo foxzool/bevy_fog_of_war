@@ -35,14 +35,15 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let aspect_ratio = settings.screen_size.x / settings.screen_size.y;
-    let corrected_position = vec2f(in.position.x * aspect_ratio, in.position.y);
+    let screen_position = vec2f(in.position.x * aspect_ratio, in.position.y);
     
     var final_alpha = 1.0;
     
     for(var i = 0u; i < arrayLength(&sight_points); i++) {
         let sight = sight_points[i];
-        let distance = length(corrected_position - sight.position);
-        let alpha = smoothstep(sight.inner_radius, sight.outer_radius, distance);
+        let sight_pos = vec2f(sight.position.x * aspect_ratio, sight.position.y);
+        let distance = length(screen_position - sight_pos);
+        let alpha = smoothstep(sight.inner_radius * aspect_ratio, sight.outer_radius * aspect_ratio, distance);
         final_alpha = min(final_alpha, alpha);
     }
     

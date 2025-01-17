@@ -372,7 +372,6 @@ pub(super) fn prepare_buffers(
     }
 
     let sights: Vec<_> = buffer_res.sights.values().cloned().collect();
-    println!("sight {}", sights.len());
     buffer_res.buffers = StorageBuffer::from(sights);
     buffer_res.buffers.write_buffer(&device, &queue);
 }

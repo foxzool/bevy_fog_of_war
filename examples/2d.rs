@@ -31,15 +31,15 @@ fn setup(
 
     // 添加多个视野点
     commands.spawn(FogSight2D {
-        position: Vec2::new(-10.0, 0.0),
-        inner_radius: 0.2,
-        outer_radius: 0.4,
+        position: Vec2::new(-0.2, 0.0),
+        inner_radius: 0.1,
+        outer_radius: 0.2,
     });
 
     commands.spawn(FogSight2D {
-        position: Vec2::new(10.0, 0.0),
-        inner_radius: 0.2,
-        outer_radius: 0.4,
+        position: Vec2::new(0.2, 0.0),
+        inner_radius: 0.1,
+        outer_radius: 0.2,
     });
 
     let shapes = [
