@@ -1,4 +1,3 @@
-use bevy::color::palettes::basic::GREEN;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -22,6 +21,12 @@ struct MovingSight {
     center: f32,
 }
 
+// Add this new component after other component definitions
+#[derive(Component)]
+struct CameraController {
+    speed: f32,
+}
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.9, 0.9, 0.9)))
@@ -33,7 +38,12 @@ fn main() {
         // 添加视野缩放系统
         .add_systems(
             Update,
-            (update_sight_radius, update_sight_position, draw_grid),
+            (
+                update_sight_radius,
+                update_sight_position,
+                draw_grid,
+                move_camera, // Add the new camera movement system
+            ),
         )
         .run();
 }
@@ -49,12 +59,16 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
     primary_window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    commands.spawn((Camera2d::default(), FogOfWarSettings {
-        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 1.0).into(),
-        screen_size: primary_window.size(),
-        fade_width: 0.2,
-        explored_alpha: 0.1, // You can adjust this value to control explored area visibility
-    }));
+    commands.spawn((
+        Camera2d::default(),
+        FogOfWarSettings {
+            fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 1.0).into(),
+            screen_size: primary_window.size(),
+            fade_width: 0.2,
+            explored_alpha: 0.1, // You can adjust this value to control explored area visibility
+        },
+        CameraController { speed: 500.0 }, // Add camera controller
+    ));
 
     // First sight
     commands.spawn((
@@ -158,4 +172,32 @@ fn draw_grid(mut gizmos: Gizmos) {
             LinearRgba::gray(0.05),
         )
         .outer_edges();
+}
+
+fn move_camera(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &CameraController), With<Camera>>,
+) {
+    if let Ok((mut transform, controller)) = query.get_single_mut() {
+        let mut direction = Vec3::ZERO;
+
+        if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
+            direction.y += 1.0;
+        }
+        if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
+            direction.y -= 1.0;
+        }
+        if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
+            direction.x -= 1.0;
+        }
+        if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
+            direction.x += 1.0;
+        }
+
+        if direction != Vec3::ZERO {
+            direction = direction.normalize();
+            transform.translation += direction * controller.speed * time.delta_secs();
+        }
+    }
 }
