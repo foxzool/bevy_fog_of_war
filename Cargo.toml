@@ -1,7 +1,15 @@
 [package]
-name = "fog-of-war"
-version = "0.1.0"
-edition = "2024"
+name = "bevy_fog_of_war"
+version = "0.0.1"
+edition = "2021"
+readme = "README.md"
+description = "A fog of war implementation for the Bevy game engine. "
+authors = ["FoxZoOL <zhooul@gmail.com>"]
+keywords = ["bevy", "shade", "plugin"]
+categories = ["game-development"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/foxzool/bevy_fog_of_war"
+documentation = "https://docs.rs/bevy_fog_of_war"
 
 [features]
 default = []
@@ -46,7 +54,6 @@ bytemuck = "1.21.0"
 
 [dev-dependencies]
 bevy-inspector-egui = "0.28"
-bevy_mod_debugdump = "0.12"
 
 [[example]]
 name = "fog_of_war_2d"

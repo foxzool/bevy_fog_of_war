@@ -34,7 +34,7 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // 将 UV 坐标转换为屏幕坐标，保持 Y 轴方向与 Bevy 一致
+    // Convert UV coordinates to screen coordinates, keeping Y-axis direction consistent with Bevy
     let pixel_pos = vec2<f32>(
         (in.uv.x - 0.5) * settings.screen_size.x,
         (0.5 - in.uv.y) * settings.screen_size.y

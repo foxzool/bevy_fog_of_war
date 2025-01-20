@@ -1,19 +1,19 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy_fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
 use std::f32::consts::PI;
 
-// 添加这个组件来控制视野的缩放
+// Component to control sight scaling
 #[derive(Component)]
 struct SightPulse {
-    base_radius: f32, // 基础半径
-    pulse_range: f32, // 缩放范围
-    speed: f32,       // 缩放速度
-    time: f32,        // 累计时间
+    base_radius: f32, // Base radius
+    pulse_range: f32, // Scaling range
+    speed: f32,       // Scaling speed
+    time: f32,        // Accumulated time
 }
 
-// 添加一个新的组件来标记移动的遮罩
+// Component to mark moving sight
 #[derive(Component)]
 struct MovingSight {
     speed: f32,
@@ -35,14 +35,14 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
-        // 添加视野缩放系统
+        // Add sight scaling system
         .add_systems(
             Update,
             (
                 update_sight_radius,
                 update_sight_position,
                 draw_grid,
-                move_camera, // Add the new camera movement system
+                move_camera,
             ),
         )
         .run();
@@ -142,19 +142,19 @@ fn setup(
     }
 }
 
-// 更新视野半径的系统
+// System to update sight radius
 fn update_sight_radius(time: Res<Time>, mut query: Query<(&mut FogSight2D, &mut SightPulse)>) {
     for (mut sight, mut pulse) in query.iter_mut() {
-        // 更新累计时间
+        // Update accumulated time
         pulse.time += time.delta_secs() * pulse.speed;
 
-        // 使用正弦函数计算当前半径
+        // Calculate current radius using sine function
         let radius_offset = pulse.time.sin() * pulse.pulse_range;
         sight.radius = pulse.base_radius + radius_offset;
     }
 }
 
-// 添加移动系统
+// Add movement system
 fn update_sight_position(time: Res<Time>, mut query: Query<(&mut Transform, &MovingSight)>) {
     for (mut transform, movement) in query.iter_mut() {
         let offset = (time.elapsed_secs() * movement.speed).sin() * movement.range * 0.5;
@@ -166,8 +166,8 @@ fn draw_grid(mut gizmos: Gizmos) {
     gizmos
         .grid_2d(
             Isometry2d::IDENTITY,
-            UVec2::new(16, 9),
-            Vec2::new(80., 80.),
+            UVec2::new(100, 100),
+            Vec2::new(100., 100.),
             // Dark gray
             LinearRgba::gray(0.05),
         )
