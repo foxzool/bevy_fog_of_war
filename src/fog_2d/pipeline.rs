@@ -1,7 +1,5 @@
 use crate::FogOfWarSettings;
-use bevy::math::UVec3;
 use bevy::render::render_resource::{Extent3d, StorageTextureAccess};
-use bevy::utils::default;
 use bevy::{
     asset::DirectAssetAccessExt,
     prelude::{FromWorld, Resource, World},
@@ -14,7 +12,7 @@ use bevy::{
             PipelineCache, PolygonMode, PrimitiveState, RenderPipelineDescriptor, ShaderStages,
             TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
             TextureViewDescriptor, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
-            binding_types::{storage_buffer_read_only_sized, uniform_buffer, texture_storage_2d},
+            binding_types::{storage_buffer_read_only_sized, texture_storage_2d, uniform_buffer},
         },
         renderer::RenderDevice,
     },

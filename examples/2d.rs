@@ -42,9 +42,9 @@ fn setup(
     primary_window: Single<&Window, With<PrimaryWindow>>,
 ) {
     commands.spawn((Camera2d::default(), FogOfWarSettings {
-        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
+        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 1.0).into(),
         screen_size: primary_window.size(),
-        fade_width: 50.0, // 全局过渡范围设置
+        fade_width: 0.2, // 全局过渡范围设置
     }));
 
     // First sight
