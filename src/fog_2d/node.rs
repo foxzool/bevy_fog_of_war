@@ -58,6 +58,7 @@ impl ViewNode for FogOfWar2dNode {
             &BindGroupEntries::sequential((
                 settings_binding.clone(),
                 fog_sight_buffers.buffers.into_binding(),
+                fog_of_war_pipeline.explored_texture.as_ref().unwrap(),
             )),
         );
 

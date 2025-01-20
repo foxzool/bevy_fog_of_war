@@ -1,4 +1,7 @@
 use crate::FogOfWarSettings;
+use bevy::math::UVec3;
+use bevy::render::render_resource::{Extent3d, StorageTextureAccess};
+use bevy::utils::default;
 use bevy::{
     asset::DirectAssetAccessExt,
     prelude::{FromWorld, Resource, World},
@@ -9,8 +12,9 @@ use bevy::{
             BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId,
             ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
             PipelineCache, PolygonMode, PrimitiveState, RenderPipelineDescriptor, ShaderStages,
-            TextureFormat, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
-            binding_types::{storage_buffer_read_only_sized, uniform_buffer},
+            TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
+            TextureViewDescriptor, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
+            binding_types::{storage_buffer_read_only_sized, uniform_buffer, texture_storage_2d},
         },
         renderer::RenderDevice,
     },
@@ -22,12 +26,32 @@ pub struct FogOfWar2dPipeline {
     pub pipeline_id: CachedRenderPipelineId,
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
+    pub explored_texture: Option<TextureView>,
 }
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
         let shader = world.load_asset(SHADER_ASSET_PATH);
         let render_device = world.resource_mut::<RenderDevice>();
+
+        let texture = render_device.create_texture(&TextureDescriptor {
+            label: Some("fog_explored_texture"),
+            size: Extent3d {
+                width: 1280,
+                height: 720,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R8Unorm,
+            usage: TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        });
+
+        let explored_texture = texture.create_view(&TextureViewDescriptor::default());
 
         let bind_group_layout = render_device.create_bind_group_layout(
             "fog_of_war_layout",
@@ -36,6 +60,7 @@ impl FromWorld for FogOfWar2dPipeline {
                 (
                     uniform_buffer::<FogOfWarSettings>(true),
                     storage_buffer_read_only_sized(false, None),
+                    texture_storage_2d(TextureFormat::R8Unorm, StorageTextureAccess::ReadWrite),
                 ),
             ),
         );
@@ -109,6 +134,7 @@ impl FromWorld for FogOfWar2dPipeline {
             pipeline_id,
             vertex_buffer,
             index_buffer,
+            explored_texture: Some(explored_texture),
         }
     }
 }

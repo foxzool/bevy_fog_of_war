@@ -1,53 +1,65 @@
 struct FogOfWarSettings {
-    color: vec4f,
-    screen_size: vec2f,
+    fog_color: vec4<f32>,
+    screen_size: vec2<f32>,
     fade_width: f32,
-};
+}
 
 struct FogSight2D {
-    position: vec2f,
+    position: vec2<f32>,
     radius: f32,
 }
 
-@group(0) @binding(0) var<uniform> settings: FogOfWarSettings;
-@group(0) @binding(1) var<storage> sight_points: array<FogSight2D>;
+@group(0) @binding(0)
+var<uniform> settings: FogOfWarSettings;
 
-struct VertexInput {
-    @location(0) position: vec3f,
-    @location(1) color: vec4f,
-};
+@group(0) @binding(1)
+var<storage> sights: array<FogSight2D>;
+
+@group(0) @binding(2)
+var explored_texture: texture_storage_2d<r8unorm, read_write>;
 
 struct VertexOutput {
-    @builtin(position) clip_position: vec4f,
-    @location(0) color: vec4f,
-    @location(1) position: vec2f,
-};
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
 
 @vertex
-fn vs_main(model: VertexInput) -> VertexOutput {
+fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = vec4f(model.position, 1.0);
-    out.color = model.color;
-    out.position = model.position.xy;
+    out.position = vec4<f32>(position, 1.0);
+    out.uv = position.xy * 0.5 + 0.5;
     return out;
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    let screen_position = vec2f(in.position.x * settings.screen_size.x * 0.5, 
-                              in.position.y * settings.screen_size.y * 0.5);
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // 将 UV 坐标转换为屏幕坐标，保持 Y 轴方向与 Bevy 一致
+    let pixel_pos = vec2<f32>(
+        (in.uv.x - 0.5) * settings.screen_size.x,
+        (0.5 - in.uv.y) * settings.screen_size.y
+    );
+    var visibility = 0.0;
     
-    var final_alpha = 1.0;
-    
-    for(var i = 0u; i < arrayLength(&sight_points); i++) {
-        let sight = sight_points[i];
-        let sight_pos = sight.position;
-        let distance = length(screen_position - sight_pos);
-        let outer_radius = sight.radius + settings.fade_width;
-        let inner_radius = sight.radius;
-        let current_alpha = smoothstep(inner_radius, outer_radius, distance);
-        final_alpha = min(final_alpha, current_alpha);
+    // Check current visibility
+    for (var i = 0u; i < arrayLength(&sights); i++) {
+        let sight = sights[i];
+        let dist = distance(pixel_pos, sight.position);
+        if (dist < sight.radius) {
+            visibility = max(visibility, 1.0 - smoothstep(sight.radius - settings.fade_width, sight.radius, dist));
+        }
     }
     
-    return vec4f(settings.color.rgb, final_alpha * settings.color.a);
+    // Update explored area
+    let texture_pos = vec2<i32>(
+        i32(in.uv.x * settings.screen_size.x),
+        i32(in.uv.y * settings.screen_size.y)
+    );
+    let explored = textureLoad(explored_texture, texture_pos);
+    let new_explored = max(explored.r, visibility);
+    textureStore(explored_texture, texture_pos, vec4<f32>(new_explored));
+    
+    // Blend current visibility with explored area
+    let final_visibility = max(visibility, explored.r * 0.5);
+    
+    return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
 }
