@@ -2,6 +2,7 @@ struct FogOfWarSettings {
     fog_color: vec4<f32>,
     screen_size: vec2<f32>,
     fade_width: f32,
+    explored_alpha: f32,
 }
 
 struct FogSight2D {
@@ -59,7 +60,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     textureStore(explored_texture, texture_pos, vec4<f32>(new_explored));
     
     // Blend current visibility with explored area
-    let final_visibility = max(visibility, explored.r * 0.5);
+    let final_visibility = max(visibility, explored.r * settings.explored_alpha);
     
     return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
 }

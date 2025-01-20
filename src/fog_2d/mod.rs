@@ -62,6 +62,7 @@ pub struct FogOfWarSettings {
     pub fog_color: LinearRgba,
     pub screen_size: Vec2,
     pub fade_width: f32,
+    pub explored_alpha: f32,
 }
 
 impl Default for FogOfWarSettings {
@@ -70,6 +71,7 @@ impl Default for FogOfWarSettings {
             fog_color: Color::BLACK.into(),
             screen_size: Vec2::new(1280.0, 720.0),
             fade_width: 50.0,
+            explored_alpha: 0.5,
         }
     }
 }

@@ -44,7 +44,8 @@ fn setup(
     commands.spawn((Camera2d::default(), FogOfWarSettings {
         fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 1.0).into(),
         screen_size: primary_window.size(),
-        fade_width: 0.2, // 全局过渡范围设置
+        fade_width: 0.2,
+        explored_alpha: 0.1, // You can adjust this value to control explored area visibility
     }));
 
     // First sight
