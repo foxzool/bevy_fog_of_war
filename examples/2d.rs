@@ -1,3 +1,4 @@
+use bevy::color::palettes::basic::GREEN;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -24,14 +25,21 @@ struct MovingSight {
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.9, 0.9, 0.9)))
+        .init_gizmo_group::<MyRoundGizmos>()
         .add_plugins(DefaultPlugins)
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
         // 添加视野缩放系统
-        .add_systems(Update, (update_sight_radius, update_sight_position))
+        .add_systems(
+            Update,
+            (update_sight_radius, update_sight_position, draw_grid),
+        )
         .run();
 }
+
+#[derive(Default, Reflect, GizmoConfigGroup)]
+struct MyRoundGizmos {}
 
 const X_EXTENT: f32 = 900.;
 
@@ -138,4 +146,16 @@ fn update_sight_position(time: Res<Time>, mut query: Query<(&mut Transform, &Mov
         let offset = (time.elapsed_secs() * movement.speed).sin() * movement.range * 0.5;
         transform.translation.x = movement.center + offset;
     }
+}
+
+fn draw_grid(mut gizmos: Gizmos) {
+    gizmos
+        .grid_2d(
+            Isometry2d::IDENTITY,
+            UVec2::new(16, 9),
+            Vec2::new(80., 80.),
+            // Dark gray
+            LinearRgba::gray(0.05),
+        )
+        .outer_edges();
 }
