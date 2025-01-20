@@ -331,13 +331,17 @@ pub(super) struct ExtractedSight2DBuffers {
 
 pub(super) fn extract_buffers(
     mut commands: Commands,
-    changed: Extract<Query<(Entity, &FogSight2D), Changed<FogSight2D>>>,
+    changed: Extract<Query<(Entity, &FogSight2D, &GlobalTransform), Changed<FogSight2D>>>,
     mut removed: Extract<RemovedComponents<FogSight2D>>,
 ) {
     commands.insert_resource(ExtractedSight2DBuffers {
         changed: changed
             .iter()
-            .map(|(entity, settings)| (entity, settings.clone()))
+            .map(|(entity, settings, transform)| {
+                let mut settings = settings.clone();
+                settings.position = transform.translation().truncate();
+                (entity, settings)
+            })
             .collect(),
         removed: removed.read().collect(),
     });

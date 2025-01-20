@@ -13,6 +13,14 @@ struct SightPulse {
     time: f32,           // 累计时间
 }
 
+// 添加一个新的组件来标记移动的遮罩
+#[derive(Component)]
+struct MovingSight {
+    speed: f32,
+    range: f32,
+    center: f32,
+}
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.9, 0.9, 0.9)))
@@ -21,7 +29,10 @@ fn main() {
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
         // 添加视野缩放系统
-        .add_systems(Update, update_sight_radius)
+        .add_systems(Update, (
+            update_sight_radius,
+            update_sight_position,
+        ))
         .run();
 }
 
@@ -42,31 +53,41 @@ fn setup(
         },
     ));
 
-    // 修改视野点的生成，添加缩放组件
+    // First sight
     commands.spawn((
         FogSight2D {
-            position: Vec2::new(-100.0, 0.0),
             radius: 100.0,
+            position: Vec2::ZERO, // Position will be overridden by transform
         },
         SightPulse {
             base_radius: 100.0,
-            pulse_range: 30.0,  // 半径将在 70-130 之间变化
-            speed: 2.0,        // 控制缩放速度
+            pulse_range: 30.0,
+            speed: 2.0,
             time: 0.0,
         },
+        // Add transform component
+        Transform::from_xyz(-300.0, 0.0, 0.0),
+        MovingSight {
+            speed: 1.0,
+            range: 400.0,
+            center: -300.0,
+        }
     ));
 
+    // Second sight
     commands.spawn((
         FogSight2D {
-            position: Vec2::new(100.0, 0.0),
             radius: 150.0,
+            position: Vec2::ZERO,
         },
         SightPulse {
             base_radius: 150.0,
-            pulse_range: 50.0,  // 半径将在 100-200 之间变化
-            speed: 3.0,        // 不同的缩放速度
-            time: PI,          // 不同的初始相位
+            pulse_range: 50.0,
+            speed: 3.0,
+            time: PI,
         },
+        // Add transform component
+        Transform::from_xyz(100.0, 0.0, 0.0)
     ));
 
     let shapes = [
@@ -116,5 +137,16 @@ fn update_sight_radius(
         // 使用正弦函数计算当前半径
         let radius_offset = (pulse.time.sin() * pulse.pulse_range);
         sight.radius = pulse.base_radius + radius_offset;
+    }
+}
+
+// 添加移动系统
+fn update_sight_position(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &MovingSight)>,
+) {
+    for (mut transform, movement) in query.iter_mut() {
+        let offset = (time.elapsed_secs() * movement.speed).sin() * movement.range * 0.5;
+        transform.translation.x = movement.center + offset;
     }
 }
