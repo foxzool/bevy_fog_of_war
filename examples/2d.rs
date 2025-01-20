@@ -7,10 +7,10 @@ use std::f32::consts::PI;
 // 添加这个组件来控制视野的缩放
 #[derive(Component)]
 struct SightPulse {
-    base_radius: f32,     // 基础半径
-    pulse_range: f32,     // 缩放范围
-    speed: f32,          // 缩放速度
-    time: f32,           // 累计时间
+    base_radius: f32, // 基础半径
+    pulse_range: f32, // 缩放范围
+    speed: f32,       // 缩放速度
+    time: f32,        // 累计时间
 }
 
 // 添加一个新的组件来标记移动的遮罩
@@ -29,10 +29,7 @@ fn main() {
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
         // 添加视野缩放系统
-        .add_systems(Update, (
-            update_sight_radius,
-            update_sight_position,
-        ))
+        .add_systems(Update, (update_sight_radius, update_sight_position))
         .run();
 }
 
@@ -44,14 +41,11 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
     primary_window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    commands.spawn((
-        Camera2d::default(),
-        FogOfWarSettings {
-            fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
-            screen_size: primary_window.size(),
-            fade_width: 50.0,  // 全局过渡范围设置
-        },
-    ));
+    commands.spawn((Camera2d::default(), FogOfWarSettings {
+        fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 0.95).into(),
+        screen_size: primary_window.size(),
+        fade_width: 50.0, // 全局过渡范围设置
+    }));
 
     // First sight
     commands.spawn((
@@ -71,7 +65,7 @@ fn setup(
             speed: 1.0,
             range: 400.0,
             center: -300.0,
-        }
+        },
     ));
 
     // Second sight
@@ -87,7 +81,7 @@ fn setup(
             time: PI,
         },
         // Add transform component
-        Transform::from_xyz(100.0, 0.0, 0.0)
+        Transform::from_xyz(100.0, 0.0, 0.0),
     ));
 
     let shapes = [
@@ -126,25 +120,19 @@ fn setup(
 }
 
 // 更新视野半径的系统
-fn update_sight_radius(
-    time: Res<Time>,
-    mut query: Query<(&mut FogSight2D, &mut SightPulse)>,
-) {
+fn update_sight_radius(time: Res<Time>, mut query: Query<(&mut FogSight2D, &mut SightPulse)>) {
     for (mut sight, mut pulse) in query.iter_mut() {
         // 更新累计时间
         pulse.time += time.delta_secs() * pulse.speed;
-        
+
         // 使用正弦函数计算当前半径
-        let radius_offset = (pulse.time.sin() * pulse.pulse_range);
+        let radius_offset = pulse.time.sin() * pulse.pulse_range;
         sight.radius = pulse.base_radius + radius_offset;
     }
 }
 
 // 添加移动系统
-fn update_sight_position(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &MovingSight)>,
-) {
+fn update_sight_position(time: Res<Time>, mut query: Query<(&mut Transform, &MovingSight)>) {
     for (mut transform, movement) in query.iter_mut() {
         let offset = (time.elapsed_secs() * movement.speed).sin() * movement.range * 0.5;
         transform.translation.x = movement.center + offset;
