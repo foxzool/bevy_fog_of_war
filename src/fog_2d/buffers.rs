@@ -4,6 +4,8 @@ use bevy::render::render_resource::StorageBuffer;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::utils::{Entry, HashMap};
 use crate::FogSight2D;
+use bevy::render::camera::Camera;
+use bevy::math::Vec3;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -15,18 +17,61 @@ pub(super) fn extract_buffers(
     mut commands: Commands,
     changed: Extract<Query<(Entity, &FogSight2D, &GlobalTransform), Changed<FogSight2D>>>,
     mut removed: Extract<RemovedComponents<FogSight2D>>,
+    camera_query: Extract<Query<(&Camera, &GlobalTransform)>>,
 ) {
-    commands.insert_resource(ExtractedSight2DBuffers {
-        changed: changed
-            .iter()
-            .map(|(entity, settings, transform)| {
+    let camera = if let Some((camera, camera_transform)) = camera_query.get_single().ok() {
+        (camera, camera_transform)
+    } else {
+        return;
+    };
+
+    let mut removed_entities = removed.read().collect::<Vec<_>>();
+    let changed_entities: Vec<_> = changed
+        .iter()
+        .filter_map(|(entity, settings, transform)| {
+            let position = transform.translation();
+            if is_visible_to_camera(position, camera.0, camera.1) {
                 let mut settings = settings.clone();
-                settings.position = transform.translation().truncate();
-                (entity, settings)
-            })
-            .collect(),
-        removed: removed.read().collect(),
+                settings.position = position.truncate();
+                Some((entity, settings))
+            } else {
+                // Add to removed list if not visible
+                removed_entities.push(entity);
+                None
+            }
+        })
+        .collect();
+
+    commands.insert_resource(ExtractedSight2DBuffers {
+        changed: changed_entities,
+        removed: removed_entities,
     });
+}
+
+// Helper function to check if a point is visible to the camera
+fn is_visible_to_camera(
+    point: Vec3,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> bool {
+    let view_matrix = camera_transform.compute_matrix();
+    let point_in_view = view_matrix.inverse().transform_point3(point);
+
+    if point_in_view.z < 0.0 {
+        return false;
+    }
+
+    if let Some(viewport_size) = camera.logical_viewport_size() {
+        let half_width = viewport_size.x * 0.5;
+        let half_height = viewport_size.y * 0.5;
+        
+        point_in_view.x >= -half_width 
+            && point_in_view.x <= half_width
+            && point_in_view.y >= -half_height
+            && point_in_view.y <= half_height
+    } else {
+        false
+    }
 }
 
 #[derive(Resource, Default)]
