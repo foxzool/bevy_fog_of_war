@@ -62,7 +62,7 @@ fn setup(
     commands.spawn((
         Camera2d::default(),
         FogOfWarSettings {
-            fog_color: Color::linear_rgba(0.0, 0.0, 0.0, 1.0).into(),
+            fog_color: Color::BLACK.into(),
             screen_size: primary_window.size(),
             fade_width: 0.2,
             explored_alpha: 0.1, // You can adjust this value to control explored area visibility
@@ -72,9 +72,7 @@ fn setup(
 
     // First sight
     commands.spawn((
-        FogSight2D {
-            radius: 100.0,
-        },
+        FogSight2D { radius: 100.0 },
         SightPulse {
             base_radius: 100.0,
             pulse_range: 30.0,
@@ -91,9 +89,7 @@ fn setup(
 
     // Second sight
     commands.spawn((
-        FogSight2D {
-            radius: 150.0,
-        },
+        FogSight2D { radius: 150.0 },
         SightPulse {
             base_radius: 150.0,
             pulse_range: 50.0,

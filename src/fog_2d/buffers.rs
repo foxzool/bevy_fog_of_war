@@ -1,6 +1,6 @@
 use crate::FogSight2D;
 use crate::FogSight2DUniform;
-use bevy::math::Vec3;
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource,
 };
@@ -37,15 +37,14 @@ pub(super) fn extract_buffers(
         .filter_map(|(entity, settings, transform)| {
             let world_pos = transform.translation();
             if is_visible_to_camera(world_pos, camera, camera_transform) {
-                // Correct the relative position calculation
-                // When camera moves up, objects should appear to move up relative to screen
-                let relative_pos = camera_pos - world_pos.truncate();
+                // Calculate position relative to screen space
+                let relative_pos = world_pos.truncate() - camera_pos;
 
                 Some((
                     entity,
                     FogSight2DUniform {
                         // Flip the Y coordinate to match screen space
-                        position: relative_pos,
+                        position: Vec2::new(relative_pos.x, -relative_pos.y),
                         radius: settings.radius,
                     },
                 ))

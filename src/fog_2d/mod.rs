@@ -113,6 +113,7 @@ pub fn adjust_fog_settings(
     mut fog_settings: Query<&mut FogOfWarSettings>,
     mut resize_events: EventReader<WindowResized>,
 ) {
+    // Update screen size on window resize
     for event in resize_events.read() {
         if let Ok(mut settings) = fog_settings.get_single_mut() {
             settings.screen_size = Vec2::new(event.width, event.height);
