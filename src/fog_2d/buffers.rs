@@ -1,12 +1,14 @@
+use crate::FogSight2D;
 use crate::FogSight2DUniform;
-use bevy::prelude::{Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource};
-use bevy::render::Extract;
+use bevy::math::Vec3;
+use bevy::prelude::{
+    Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource,
+};
+use bevy::render::camera::Camera;
 use bevy::render::render_resource::StorageBuffer;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
-use crate::FogSight2D;
-use bevy::render::camera::Camera;
-use bevy::math::Vec3;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -20,22 +22,33 @@ pub(super) fn extract_buffers(
     mut removed: Extract<RemovedComponents<FogSight2D>>,
     camera_query: Extract<Query<(&Camera, &GlobalTransform)>>,
 ) {
-    let camera = if let Some((camera, camera_transform)) = camera_query.get_single().ok() {
-        (camera, camera_transform)
+    let (camera, camera_transform) = if let Ok(cam) = camera_query.get_single() {
+        cam
     } else {
         return;
     };
+
+    // Get camera position in world space
+    let camera_pos = camera_transform.translation().truncate();
 
     let mut removed_entities = removed.read().collect::<Vec<_>>();
     let changed_entities: Vec<_> = changed
         .iter()
         .filter_map(|(entity, settings, transform)| {
-            let position = transform.translation();
-            if is_visible_to_camera(position, camera.0, camera.1) {
-                Some((entity, FogSight2DUniform {
-                    position: position.truncate(),
-                    radius: settings.radius,
-                }))
+            let world_pos = transform.translation();
+            if is_visible_to_camera(world_pos, camera, camera_transform) {
+                // Correct the relative position calculation
+                // When camera moves up, objects should appear to move up relative to screen
+                let relative_pos = camera_pos - world_pos.truncate();
+
+                Some((
+                    entity,
+                    FogSight2DUniform {
+                        // Flip the Y coordinate to match screen space
+                        position: relative_pos,
+                        radius: settings.radius,
+                    },
+                ))
             } else {
                 removed_entities.push(entity);
                 None
@@ -50,11 +63,7 @@ pub(super) fn extract_buffers(
 }
 
 // Helper function to check if a point is visible to the camera
-fn is_visible_to_camera(
-    point: Vec3,
-    camera: &Camera,
-    camera_transform: &GlobalTransform,
-) -> bool {
+fn is_visible_to_camera(point: Vec3, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
     let view_matrix = camera_transform.compute_matrix();
     let point_in_view = view_matrix.inverse().transform_point3(point);
 
@@ -65,8 +74,8 @@ fn is_visible_to_camera(
     if let Some(viewport_size) = camera.logical_viewport_size() {
         let half_width = viewport_size.x * 0.5;
         let half_height = viewport_size.y * 0.5;
-        
-        point_in_view.x >= -half_width 
+
+        point_in_view.x >= -half_width
             && point_in_view.x <= half_width
             && point_in_view.y >= -half_height
             && point_in_view.y <= half_height

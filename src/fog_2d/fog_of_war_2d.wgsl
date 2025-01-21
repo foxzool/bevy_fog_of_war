@@ -35,16 +35,18 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Convert UV coordinates to screen coordinates, keeping Y-axis direction consistent with Bevy
-    let pixel_pos = vec2<f32>(
+    let screen_pos = vec2<f32>(
         (in.uv.x - 0.5) * settings.screen_size.x,
         (0.5 - in.uv.y) * settings.screen_size.y
     );
+    
     var visibility = 0.0;
     
-    // Check current visibility
+    // Check current visibility using relative positions
     for (var i = 0u; i < arrayLength(&sights); i++) {
         let sight = sights[i];
-        let dist = distance(pixel_pos, sight.position);
+        // sight.position is now relative to camera, so we can directly compare with screen_pos
+        let dist = distance(screen_pos, sight.position);
         if (dist < sight.radius) {
             visibility = max(visibility, 1.0 - smoothstep(sight.radius - settings.fade_width, sight.radius, dist));
         }
