@@ -5,7 +5,7 @@ struct FogOfWarSettings {
     explored_alpha: f32,
 }
 
-struct FogSight2D {
+struct FogSight2DUniform {
     position: vec2<f32>,
     radius: f32,
 }
@@ -14,7 +14,7 @@ struct FogSight2D {
 var<uniform> settings: FogOfWarSettings;
 
 @group(0) @binding(1)
-var<storage> sights: array<FogSight2D>;
+var<storage> sights: array<FogSight2DUniform>;
 
 @group(0) @binding(2)
 var explored_texture: texture_storage_2d<r8unorm, read_write>;

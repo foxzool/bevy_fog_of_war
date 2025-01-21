@@ -1,15 +1,15 @@
-use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
-use crate::fog_2d::buffers::{FogSight2dBuffers, extract_buffers, prepare_buffers};
+use crate::fog_2d::buffers::{extract_buffers, prepare_buffers, FogSight2dBuffers};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
 use bevy::prelude::*;
-use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin};
+use bevy::render::extract_component::{
+    ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin,
+};
 use bevy::render::render_graph::{RenderGraphApp, ViewNodeRunner};
-use bevy::render::{Render, RenderApp, RenderSet};
 use bevy::render::render_resource::ShaderType;
-use bytemuck::Pod;
-use bytemuck::Zeroable;
+use bevy::render::{Render, RenderApp, RenderSet};
 
 mod buffers;
 mod node;
@@ -24,8 +24,7 @@ impl Plugin for FogOfWar2dPlugin {
             UniformComponentPlugin::<FogOfWarSettings>::default(),
         ));
 
-        app.register_type::<FogSight2D>()
-            .add_plugins((ExtractComponentPlugin::<FogSight2D>::default(),));
+        app.register_type::<FogSight2D>();
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -76,18 +75,23 @@ impl Default for FogOfWarSettings {
     }
 }
 
-#[derive(Component, Debug, Copy, Clone, Reflect, ExtractComponent, ShaderType, Pod, Zeroable)]
-#[repr(C)]
+#[derive(Component, Reflect, Debug)]
 pub struct FogSight2D {
-    pub position: Vec2,
     pub radius: f32, // 视野的基础半径
 }
 
 impl Default for FogSight2D {
     fn default() -> Self {
         Self {
-            position: Vec2::ZERO,
             radius: 100.0, // 基础视野半径为100像素
         }
     }
+}
+
+// Render component
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, ShaderType)]
+#[repr(C)]
+pub struct FogSight2DUniform {
+    pub position: Vec2,
+    pub radius: f32,
 }

@@ -1,3 +1,4 @@
+use crate::FogSight2DUniform;
 use bevy::prelude::{Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource};
 use bevy::render::Extract;
 use bevy::render::render_resource::StorageBuffer;
@@ -9,7 +10,7 @@ use bevy::math::Vec3;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
-    changed: Vec<(Entity, FogSight2D)>,
+    changed: Vec<(Entity, FogSight2DUniform)>,
     removed: Vec<Entity>,
 }
 
@@ -31,11 +32,11 @@ pub(super) fn extract_buffers(
         .filter_map(|(entity, settings, transform)| {
             let position = transform.translation();
             if is_visible_to_camera(position, camera.0, camera.1) {
-                let mut settings = settings.clone();
-                settings.position = position.truncate();
-                Some((entity, settings))
+                Some((entity, FogSight2DUniform {
+                    position: position.truncate(),
+                    radius: settings.radius,
+                }))
             } else {
-                // Add to removed list if not visible
                 removed_entities.push(entity);
                 None
             }
@@ -76,8 +77,8 @@ fn is_visible_to_camera(
 
 #[derive(Resource, Default)]
 pub(super) struct FogSight2dBuffers {
-    pub(super) sights: HashMap<Entity, FogSight2D>,
-    pub(super) buffers: StorageBuffer<Vec<FogSight2D>>,
+    pub(super) sights: HashMap<Entity, FogSight2DUniform>,
+    pub(super) buffers: StorageBuffer<Vec<FogSight2DUniform>>,
 }
 
 pub(super) fn prepare_buffers(

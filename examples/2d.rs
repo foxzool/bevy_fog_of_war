@@ -74,7 +74,6 @@ fn setup(
     commands.spawn((
         FogSight2D {
             radius: 100.0,
-            position: Vec2::ZERO, // Position will be overridden by transform
         },
         SightPulse {
             base_radius: 100.0,
@@ -82,7 +81,6 @@ fn setup(
             speed: 2.0,
             time: 0.0,
         },
-        // Add transform component
         Transform::from_xyz(-300.0, 0.0, 0.0),
         MovingSight {
             speed: 1.0,
@@ -95,7 +93,6 @@ fn setup(
     commands.spawn((
         FogSight2D {
             radius: 150.0,
-            position: Vec2::ZERO,
         },
         SightPulse {
             base_radius: 150.0,
