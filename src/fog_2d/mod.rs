@@ -1,6 +1,7 @@
 use crate::fog_2d::buffers::{extract_buffers, prepare_buffers, FogSight2dBuffers};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
+use bevy::asset::load_internal_asset;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
 use bevy::prelude::*;
@@ -15,10 +16,19 @@ mod buffers;
 mod node;
 mod pipeline;
 
+pub const FOG_OF_WAR_2D_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(2645352199453808407);
+
 pub struct FogOfWar2dPlugin;
 
 impl Plugin for FogOfWar2dPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(
+            app,
+            FOG_OF_WAR_2D_SHADER_HANDLE,
+            "fog_of_war_2d.wgsl",
+            Shader::from_wgsl
+        );
+
         app.register_type::<FogOfWarSettings>().add_plugins((
             ExtractComponentPlugin::<FogOfWarSettings>::default(),
             UniformComponentPlugin::<FogOfWarSettings>::default(),

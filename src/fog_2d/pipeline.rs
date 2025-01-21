@@ -1,18 +1,17 @@
-use crate::FogOfWarSettings;
+use crate::{FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
 use bevy::render::render_resource::{Extent3d, StorageTextureAccess};
 use bevy::{
-    asset::DirectAssetAccessExt,
     prelude::{FromWorld, Resource, World},
     render::{
         mesh::{PrimitiveTopology, VertexBufferLayout},
         render_resource::{
+            binding_types::{storage_buffer_read_only_sized, texture_storage_2d, uniform_buffer},
             BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState, Buffer,
             BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId,
             ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
             PipelineCache, PolygonMode, PrimitiveState, RenderPipelineDescriptor, ShaderStages,
             TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
             TextureViewDescriptor, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
-            binding_types::{storage_buffer_read_only_sized, texture_storage_2d, uniform_buffer},
         },
         renderer::RenderDevice,
     },
@@ -29,7 +28,6 @@ pub struct FogOfWar2dPipeline {
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
-        let shader = world.load_asset(SHADER_ASSET_PATH);
         let render_device = world.resource_mut::<RenderDevice>();
 
         let texture = render_device.create_texture(&TextureDescriptor {
@@ -79,13 +77,13 @@ impl FromWorld for FogOfWar2dPipeline {
                 label: Some("fog_of_war_2d_pipeline".into()),
                 layout: vec![bind_group_layout.clone()],
                 vertex: VertexState {
-                    shader: shader.clone_weak(),
+                    shader: FOG_OF_WAR_2D_SHADER_HANDLE,
                     entry_point: "vs_main".into(),
                     buffers: vec![Vertex::desc()],
                     shader_defs: vec![],
                 },
                 fragment: Some(FragmentState {
-                    shader,
+                    shader: FOG_OF_WAR_2D_SHADER_HANDLE,
                     shader_defs: vec![],
                     entry_point: "fs_main".into(),
                     targets: vec![Some(ColorTargetState {
@@ -137,7 +135,6 @@ impl FromWorld for FogOfWar2dPipeline {
     }
 }
 
-const SHADER_ASSET_PATH: &str = "shaders/fog_of_war.wgsl";
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
