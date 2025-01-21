@@ -11,6 +11,7 @@ use bevy::render::extract_component::{
 use bevy::render::render_graph::{RenderGraphApp, ViewNodeRunner};
 use bevy::render::render_resource::ShaderType;
 use bevy::render::{Render, RenderApp, RenderSet};
+use bevy::window::WindowResized;
 
 mod buffers;
 mod node;
@@ -53,6 +54,8 @@ impl Plugin for FogOfWar2dPlugin {
                     Node2d::EndMainPass,
                 ),
             );
+
+        app.add_systems(Update, adjust_fog_settings);
     }
 
     fn finish(&self, app: &mut App) {
@@ -104,4 +107,15 @@ impl Default for FogSight2D {
 pub struct FogSight2DUniform {
     pub position: Vec2,
     pub radius: f32,
+}
+
+pub fn adjust_fog_settings(
+    mut fog_settings: Query<&mut FogOfWarSettings>,
+    mut resize_events: EventReader<WindowResized>,
+) {
+    for event in resize_events.read() {
+        if let Ok(mut settings) = fog_settings.get_single_mut() {
+            settings.screen_size = Vec2::new(event.width, event.height);
+        }
+    }
 }

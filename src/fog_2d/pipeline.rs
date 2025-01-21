@@ -1,5 +1,4 @@
 use crate::{FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
-use bevy::render::render_resource::{Extent3d, StorageTextureAccess};
 use bevy::{
     prelude::{FromWorld, Resource, World},
     render::{
@@ -13,6 +12,7 @@ use bevy::{
             TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
             TextureViewDescriptor, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
         },
+        render_resource::{Extent3d, StorageTextureAccess},
         renderer::RenderDevice,
     },
 };
