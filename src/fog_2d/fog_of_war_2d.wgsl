@@ -1,6 +1,9 @@
+struct FogOfWarScreen {
+    screen_size: vec2<f32>,
+}
+
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
-    screen_size: vec2<f32>,
     fade_width: f32,
     explored_alpha: f32,
 }
@@ -10,6 +13,8 @@ struct FogSight2DUniform {
     radius: f32,
 }
 
+
+
 @group(0) @binding(0)
 var<uniform> settings: FogOfWarSettings;
 
@@ -18,6 +23,9 @@ var<storage> sights: array<FogSight2DUniform>;
 
 @group(0) @binding(2)
 var explored_texture: texture_storage_2d<r8unorm, read_write>;
+
+@group(0) @binding(3)
+var<uniform> screen_size_uniform: FogOfWarScreen;
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -36,8 +44,8 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Convert UV to world space coordinates relative to camera
     let screen_pos = vec2<f32>(
-        (in.uv.x - 0.5) * settings.screen_size.x,
-        (0.5 - in.uv.y) * settings.screen_size.y
+        (in.uv.x - 0.5) * screen_size_uniform.screen_size.x,
+        (0.5 - in.uv.y) * screen_size_uniform.screen_size.y
     );
     
     var visibility = 0.0;
@@ -53,13 +61,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     // Convert screen position to texture coordinates
     let texture_pos = vec2<i32>(
-        i32(screen_pos.x + settings.screen_size.x * 0.5),
-        i32(-screen_pos.y + settings.screen_size.y * 0.5)
+        i32(screen_pos.x + screen_size_uniform.screen_size.x * 0.5),
+        i32(-screen_pos.y + screen_size_uniform.screen_size.y * 0.5)
     );
     
     // Only update explored texture if within bounds
-    if (texture_pos.x >= 0 && texture_pos.x < i32(settings.screen_size.x) &&
-        texture_pos.y >= 0 && texture_pos.y < i32(settings.screen_size.y)) {
+    if (texture_pos.x >= 0 && texture_pos.x < i32(screen_size_uniform.screen_size.x) &&
+        texture_pos.y >= 0 && texture_pos.y < i32(screen_size_uniform.screen_size.y)) {
         let explored = textureLoad(explored_texture, texture_pos);
         let new_explored = max(explored.r, visibility);
         textureStore(explored_texture, texture_pos, vec4<f32>(new_explored));

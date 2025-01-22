@@ -1,11 +1,11 @@
-use crate::FogSight2D;
+use crate::{FogOfWarScreen, FogSight2D};
 use crate::FogSight2DUniform;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource,
 };
 use bevy::render::camera::Camera;
-use bevy::render::render_resource::StorageBuffer;
+use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
@@ -93,11 +93,18 @@ pub(super) struct FogSight2dBuffers {
     pub(super) buffers: StorageBuffer<Vec<FogSight2DUniform>>,
 }
 
+#[derive(Resource, Default)]
+pub(super) struct FogSight2dScreenBuffers {
+    pub(super) buffers: UniformBuffer<FogOfWarScreen>,
+}
+
 pub(super) fn prepare_buffers(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut extracted: ResMut<ExtractedSight2DBuffers>,
     mut buffer_res: ResMut<FogSight2dBuffers>,
+    screen: Res<FogOfWarScreen>,
+    mut screen_buffer: ResMut<FogSight2dScreenBuffers>
 ) {
     for (entity, fog_sight_2d) in extracted.changed.drain(..) {
         match buffer_res.sights.entry(entity) {
@@ -118,4 +125,8 @@ pub(super) fn prepare_buffers(
     let sights: Vec<_> = buffer_res.sights.values().cloned().collect();
     buffer_res.buffers = StorageBuffer::from(sights);
     buffer_res.buffers.write_buffer(&device, &queue);
+
+    screen_buffer.buffers = UniformBuffer::from(screen.clone());
+    screen_buffer.buffers.write_buffer(&device, &queue);
+
 }

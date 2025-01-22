@@ -1,9 +1,10 @@
 use crate::{
-    FogOfWarSettings, fog_2d::buffers::FogSight2dBuffers, fog_2d::pipeline::FogOfWar2dPipeline,
+    fog_2d::buffers::FogSight2dBuffers, fog_2d::buffers::FogSight2dScreenBuffers,
+    fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarSettings,
 };
 use bevy::{
     ecs::query::QueryItem,
-    prelude::{World, default},
+    prelude::{default, World},
     render::{
         extract_component::{ComponentUniforms, DynamicUniformIndex},
         render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode},
@@ -50,6 +51,8 @@ impl ViewNode for FogOfWar2dNode {
             return Ok(());
         };
 
+        let screen_uniform = world.resource::<FogSight2dScreenBuffers>();
+
         let view = view_target.main_texture_view();
 
         let bind_group = render_context.render_device().create_bind_group(
@@ -59,6 +62,7 @@ impl ViewNode for FogOfWar2dNode {
                 settings_binding.clone(),
                 fog_sight_buffers.buffers.into_binding(),
                 fog_of_war_pipeline.explored_texture.as_ref().unwrap(),
+                &screen_uniform.buffers,
             )),
         );
 

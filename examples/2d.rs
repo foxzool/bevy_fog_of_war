@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
 use bevy_fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::PI;
@@ -57,13 +56,12 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    primary_window: Single<&Window, With<PrimaryWindow>>,
+
 ) {
     commands.spawn((
         Camera2d::default(),
         FogOfWarSettings {
             fog_color: Color::BLACK.into(),
-            screen_size: primary_window.size(),
             fade_width: 0.2,
             explored_alpha: 0.1, // You can adjust this value to control explored area visibility
         },

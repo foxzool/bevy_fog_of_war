@@ -1,4 +1,4 @@
-use crate::{FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
+use crate::{FogOfWarScreen, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
 use bevy::{
     prelude::{FromWorld, Resource, World},
     render::{
@@ -57,6 +57,7 @@ impl FromWorld for FogOfWar2dPipeline {
                     uniform_buffer::<FogOfWarSettings>(true),
                     storage_buffer_read_only_sized(false, None),
                     texture_storage_2d(TextureFormat::R8Unorm, StorageTextureAccess::ReadWrite),
+                    uniform_buffer::<FogOfWarScreen>(false),
                 ),
             ),
         );
@@ -145,7 +146,7 @@ struct Vertex {
 impl Vertex {
     fn desc() -> VertexBufferLayout {
         VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
+            array_stride: size_of::<Vertex>() as BufferAddress,
             step_mode: VertexStepMode::Vertex,
             attributes: vec![
                 VertexAttribute {
@@ -154,7 +155,7 @@ impl Vertex {
                     format: VertexFormat::Float32x3,
                 },
                 VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as BufferAddress,
+                    offset: size_of::<[f32; 3]>() as BufferAddress,
                     shader_location: 1,
                     format: VertexFormat::Float32x4,
                 },
