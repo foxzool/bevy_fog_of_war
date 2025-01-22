@@ -36,14 +36,13 @@ pub(super) fn extract_buffers(
         .iter()
         .filter_map(|(entity, settings, transform)| {
             let world_pos = transform.translation();
-            if is_visible_to_camera(world_pos, camera, camera_transform) {
+            if is_visible_to_camera(world_pos, settings.radius, camera, camera_transform) {
                 // Calculate position relative to screen space
                 let relative_pos = world_pos.truncate() - camera_pos;
 
                 Some((
                     entity,
                     FogSight2DUniform {
-                        // Flip the Y coordinate to match screen space
                         position: Vec2::new(relative_pos.x, -relative_pos.y),
                         radius: settings.radius,
                     },
@@ -62,7 +61,7 @@ pub(super) fn extract_buffers(
 }
 
 // Helper function to check if a point is visible to the camera
-fn is_visible_to_camera(point: Vec3, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
+fn is_visible_to_camera(point: Vec3, radius: f32, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
     let view_matrix = camera_transform.compute_matrix();
     let point_in_view = view_matrix.inverse().transform_point3(point);
 
@@ -74,10 +73,15 @@ fn is_visible_to_camera(point: Vec3, camera: &Camera, camera_transform: &GlobalT
         let half_width = viewport_size.x * 0.5;
         let half_height = viewport_size.y * 0.5;
 
-        point_in_view.x >= -half_width
-            && point_in_view.x <= half_width
-            && point_in_view.y >= -half_height
-            && point_in_view.y <= half_height
+        // Check if any part of the sight circle intersects with the viewport
+        let min_x = point_in_view.x - radius;
+        let max_x = point_in_view.x + radius;
+        let min_y = point_in_view.y - radius;
+        let max_y = point_in_view.y + radius;
+
+        // If any part of the sight's bounding box overlaps with the viewport, consider it visible
+        (min_x <= half_width && max_x >= -half_width) &&
+        (min_y <= half_height && max_y >= -half_height)
     } else {
         false
     }
