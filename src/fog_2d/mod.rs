@@ -96,6 +96,7 @@ impl Default for FogOfWarSettings {
 #[derive(Resource, Component, Debug, Clone, Default, Reflect, ExtractResource, ShaderType)]
 pub struct FogOfWarScreen {
     pub screen_size: Vec2,
+    pub camera_position: Vec2,
 }
 
 #[derive(Component, Reflect, Debug)]
@@ -122,9 +123,15 @@ pub struct FogSight2DUniform {
 pub fn adjust_fog_settings(
     mut fow_screen: ResMut<FogOfWarScreen>,
     mut resize_events: EventReader<WindowResized>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
 ) {
     // Update screen size on window resize
     for event in resize_events.read() {
         fow_screen.screen_size = Vec2::new(event.width, event.height);
+    }
+
+    // Update camera position
+    if let Ok((_, transform)) = camera_query.get_single() {
+        fow_screen.camera_position = transform.translation().truncate();
     }
 }

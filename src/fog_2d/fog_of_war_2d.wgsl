@@ -1,5 +1,6 @@
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
+    camera_position: vec2<f32>,
 }
 
 struct FogOfWarSettings {
@@ -59,18 +60,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
     
-    // Convert screen position to texture coordinates
-    let texture_pos = vec2<i32>(
-        i32(screen_pos.x + screen_size_uniform.screen_size.x * 0.5),
-        i32(-screen_pos.y + screen_size_uniform.screen_size.y * 0.5)
+    // Convert screen position to world space coordinates for texture sampling
+    let world_pos = vec2<i32>(
+        i32(screen_pos.x + screen_size_uniform.camera_position.x + screen_size_uniform.screen_size.x * 0.5),
+        i32(-screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5)
     );
     
     // Only update explored texture if within bounds
-    if (texture_pos.x >= 0 && texture_pos.x < i32(screen_size_uniform.screen_size.x) &&
-        texture_pos.y >= 0 && texture_pos.y < i32(screen_size_uniform.screen_size.y)) {
-        let explored = textureLoad(explored_texture, texture_pos);
+    if (world_pos.x >= 0 && world_pos.x < i32(screen_size_uniform.screen_size.x) &&
+        world_pos.y >= 0 && world_pos.y < i32(screen_size_uniform.screen_size.y)) {
+        let explored = textureLoad(explored_texture, world_pos);
         let new_explored = max(explored.r, visibility);
-        textureStore(explored_texture, texture_pos, vec4<f32>(new_explored));
+        textureStore(explored_texture, world_pos, vec4<f32>(new_explored));
         
         // Blend current visibility with explored area
         let final_visibility = max(visibility, explored.r * settings.explored_alpha);

@@ -33,8 +33,8 @@ impl FromWorld for FogOfWar2dPipeline {
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
-                width: 2560,
-                height: 1440,
+                width: 5120,
+                height: 2880,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
