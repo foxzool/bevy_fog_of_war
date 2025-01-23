@@ -1,7 +1,10 @@
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
+    chunks_per_side: f32,
 }
+
+const CHUNK_SIZE: f32 = 512.0;
 
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
@@ -14,8 +17,6 @@ struct FogSight2DUniform {
     radius: f32,
 }
 
-
-
 @group(0) @binding(0)
 var<uniform> settings: FogOfWarSettings;
 
@@ -23,7 +24,7 @@ var<uniform> settings: FogOfWarSettings;
 var<storage> sights: array<FogSight2DUniform>;
 
 @group(0) @binding(2)
-var explored_texture: texture_storage_2d<r8unorm, read_write>;
+var explored_texture: texture_storage_2d_array<r8unorm, read_write>;
 
 @group(0) @binding(3)
 var<uniform> screen_size_uniform: FogOfWarScreen;
@@ -39,6 +40,17 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
     out.position = vec4<f32>(position, 1.0);
     out.uv = position.xy * 0.5 + 0.5;
     return out;
+}
+
+fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
+    let chunk_x = i32(floor(world_pos.x / CHUNK_SIZE));
+    let chunk_y = i32(floor(world_pos.y / CHUNK_SIZE));
+    let chunk_index = chunk_y * i32(screen_size_uniform.chunks_per_side) + chunk_x;
+    
+    let local_x = i32(world_pos.x - (f32(chunk_x) * CHUNK_SIZE));
+    let local_y = i32(world_pos.y - (f32(chunk_y) * CHUNK_SIZE));
+    
+    return vec3<i32>(local_x, local_y, chunk_index);
 }
 
 @fragment
@@ -61,17 +73,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     
     // Convert screen position to world space coordinates for texture sampling
-    let world_pos = vec2<i32>(
-        i32(screen_pos.x + screen_size_uniform.camera_position.x + screen_size_uniform.screen_size.x * 0.5),
-        i32(-screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5)
+    let world_pos = vec2<f32>(
+        screen_pos.x + screen_size_uniform.camera_position.x + screen_size_uniform.screen_size.x * 0.5,
+        -screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5
     );
     
+    // Get chunk coordinates and array index
+    let chunk_coords = get_chunk_coords(world_pos);
+    let local_pos = vec2<i32>(chunk_coords.xy);
+    let chunk_index = chunk_coords.z;
+    
     // Only update explored texture if within bounds
-    if (world_pos.x >= 0 && world_pos.x < i32(screen_size_uniform.screen_size.x) &&
-        world_pos.y >= 0 && world_pos.y < i32(screen_size_uniform.screen_size.y)) {
-        let explored = textureLoad(explored_texture, world_pos);
+    if (local_pos.x >= 0 && local_pos.x < i32(CHUNK_SIZE) &&
+        local_pos.y >= 0 && local_pos.y < i32(CHUNK_SIZE) &&
+        chunk_index >= 0 && chunk_index < i32(screen_size_uniform.chunks_per_side * screen_size_uniform.chunks_per_side)) {
+        
+        let explored = textureLoad(explored_texture, local_pos, chunk_index);
         let new_explored = max(explored.r, visibility);
-        textureStore(explored_texture, world_pos, vec4<f32>(new_explored));
+        textureStore(explored_texture, local_pos, chunk_index, vec4<f32>(new_explored));
         
         // Blend current visibility with explored area
         let final_visibility = max(visibility, explored.r * settings.explored_alpha);

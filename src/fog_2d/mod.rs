@@ -95,10 +95,21 @@ impl Default for FogOfWarSettings {
     }
 }
 
-#[derive(Resource, Component, Debug, Clone, Default, Reflect, ExtractResource, ShaderType)]
+#[derive(Resource, Component, Debug, Clone, Reflect, ExtractResource, ShaderType)]
 pub struct FogOfWarScreen {
     pub screen_size: Vec2,
     pub camera_position: Vec2,
+    pub chunks_per_side: f32,
+}
+
+impl Default for FogOfWarScreen {
+    fn default() -> Self {
+        Self {
+            screen_size: Vec2::ZERO,
+            camera_position: Vec2::ZERO,
+            chunks_per_side: 10.0,
+        }
+    }
 }
 
 #[derive(Component, Reflect, Debug)]

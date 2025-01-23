@@ -4,15 +4,16 @@ use bevy::{
     render::{
         mesh::{PrimitiveTopology, VertexBufferLayout},
         render_resource::{
-            binding_types::{storage_buffer_read_only_sized, texture_storage_2d, uniform_buffer},
+            binding_types::texture_storage_2d_array,
+            binding_types::{storage_buffer_read_only_sized, uniform_buffer},
             BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState, Buffer,
             BufferAddress, BufferInitDescriptor, BufferUsages, CachedRenderPipelineId,
-            ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
+            ColorTargetState, ColorWrites, Extent3d, FragmentState, FrontFace, MultisampleState,
             PipelineCache, PolygonMode, PrimitiveState, RenderPipelineDescriptor, ShaderStages,
-            TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
-            TextureViewDescriptor, VertexAttribute, VertexFormat, VertexState, VertexStepMode,
+            StorageTextureAccess, TextureDescriptor, TextureDimension, TextureFormat,
+            TextureUsages, TextureView, TextureViewDescriptor, VertexAttribute, VertexFormat,
+            VertexState, VertexStepMode,
         },
-        render_resource::{Extent3d, StorageTextureAccess},
         renderer::RenderDevice,
     },
 };
@@ -24,18 +25,21 @@ pub struct FogOfWar2dPipeline {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub explored_texture: Option<TextureView>,
+    pub chunks_per_side: u32,
 }
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource_mut::<RenderDevice>();
 
+        let chunks_per_side = 10; // Total chunks in each dimension
+
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
-                width: 5120,
-                height: 2880,
-                depth_or_array_layers: 1,
+                width: 512,
+                height: 512,
+                depth_or_array_layers: (chunks_per_side * chunks_per_side) as u32, // Array layers for chunks
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -47,7 +51,10 @@ impl FromWorld for FogOfWar2dPipeline {
             view_formats: &[],
         });
 
-        let explored_texture = texture.create_view(&TextureViewDescriptor::default());
+        let explored_texture = texture.create_view(&TextureViewDescriptor {
+            dimension: Some(bevy::render::render_resource::TextureViewDimension::D2Array),
+            ..TextureViewDescriptor::default()
+        });
 
         let bind_group_layout = render_device.create_bind_group_layout(
             "fog_of_war_layout",
@@ -56,7 +63,10 @@ impl FromWorld for FogOfWar2dPipeline {
                 (
                     uniform_buffer::<FogOfWarSettings>(true),
                     storage_buffer_read_only_sized(false, None),
-                    texture_storage_2d(TextureFormat::R8Unorm, StorageTextureAccess::ReadWrite),
+                    texture_storage_2d_array(
+                        TextureFormat::R8Unorm,
+                        StorageTextureAccess::ReadWrite,
+                    ),
                     uniform_buffer::<FogOfWarScreen>(false),
                 ),
             ),
@@ -132,6 +142,7 @@ impl FromWorld for FogOfWar2dPipeline {
             vertex_buffer,
             index_buffer,
             explored_texture: Some(explored_texture),
+            chunks_per_side: chunks_per_side as u32,
         }
     }
 }
