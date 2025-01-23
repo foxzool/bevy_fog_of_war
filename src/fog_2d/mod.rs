@@ -1,6 +1,7 @@
 use crate::fog_2d::buffers::{extract_buffers, prepare_buffers, FogSight2dBuffers, FogSight2dScreenBuffers};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
+use crate::fog_2d::chunk::{ChunkManager, update_chunks_system};
 use bevy::asset::load_internal_asset;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
@@ -17,6 +18,7 @@ use bevy::window::WindowResized;
 mod buffers;
 mod node;
 mod pipeline;
+mod chunk;
 
 pub const FOG_OF_WAR_2D_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(2645352199453808407);
 
@@ -35,6 +37,8 @@ impl Plugin for FogOfWar2dPlugin {
             .register_type::<FogOfWarSettings>()
             .register_type::<FogOfWarScreen>()
             .init_resource::<FogOfWarScreen>()
+            .init_resource::<ChunkManager>()
+            .add_systems(Update, (adjust_fog_settings, update_chunks_system))
             .add_plugins((
                 ExtractComponentPlugin::<FogOfWarSettings>::default(),
                 ExtractResourcePlugin::<FogOfWarScreen>::default(),
@@ -61,8 +65,6 @@ impl Plugin for FogOfWar2dPlugin {
                     Node2d::EndMainPass,
                 ),
             );
-
-        app.add_systems(Update, adjust_fog_settings);
     }
 
     fn finish(&self, app: &mut App) {
