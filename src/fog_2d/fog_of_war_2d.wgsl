@@ -1,7 +1,6 @@
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
-    chunks_per_side: f32,
 }
 
 const CHUNK_SIZE: f32 = 512.0;
@@ -45,7 +44,17 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let chunk_x = i32(floor(world_pos.x / CHUNK_SIZE));
     let chunk_y = i32(floor(world_pos.y / CHUNK_SIZE));
-    let chunk_index = chunk_y * i32(screen_size_uniform.chunks_per_side) + chunk_x;
+    
+    // Calculate visible area bounds in chunks
+    let half_width = screen_size_uniform.screen_size.x * 0.5;
+    let half_height = screen_size_uniform.screen_size.y * 0.5;
+    let min_x = i32(floor((screen_size_uniform.camera_position.x - half_width) / CHUNK_SIZE)) - 1;
+    let max_x = i32(floor((screen_size_uniform.camera_position.x + half_width) / CHUNK_SIZE)) + 1;
+    let min_y = i32(floor((screen_size_uniform.camera_position.y - half_height) / CHUNK_SIZE)) - 1;
+    let max_y = i32(floor((screen_size_uniform.camera_position.y + half_height) / CHUNK_SIZE)) + 1;
+    
+    let chunks_per_side = max_x - min_x + 1;
+    let chunk_index = (chunk_y - min_y) * chunks_per_side + (chunk_x - min_x);
     
     let local_x = i32(world_pos.x - (f32(chunk_x) * CHUNK_SIZE));
     let local_y = i32(world_pos.y - (f32(chunk_y) * CHUNK_SIZE));
@@ -86,7 +95,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Only update explored texture if within bounds
     if (local_pos.x >= 0 && local_pos.x < i32(CHUNK_SIZE) &&
         local_pos.y >= 0 && local_pos.y < i32(CHUNK_SIZE) &&
-        chunk_index >= 0 && chunk_index < i32(screen_size_uniform.chunks_per_side * screen_size_uniform.chunks_per_side)) {
+        chunk_index >= 0 && chunk_index < i32(screen_size_uniform.screen_size.x * screen_size_uniform.screen_size.y)) {
         
         let explored = textureLoad(explored_texture, local_pos, chunk_index);
         let new_explored = max(explored.r, visibility);

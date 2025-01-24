@@ -25,21 +25,22 @@ pub struct FogOfWar2dPipeline {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub explored_texture: Option<TextureView>,
-    pub chunks_per_side: u32,
 }
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource_mut::<RenderDevice>();
 
-        let chunks_per_side = 10; // Total chunks in each dimension
+        // Calculate texture array size based on maximum visible area
+        let max_visible_chunks = 20; // A reasonable default that covers most screen sizes
+        let texture_array_size = max_visible_chunks * max_visible_chunks;
 
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
                 width: 512,
                 height: 512,
-                depth_or_array_layers: (chunks_per_side * chunks_per_side) as u32, // Array layers for chunks
+                depth_or_array_layers: texture_array_size, // Array layers for visible chunks
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -142,7 +143,6 @@ impl FromWorld for FogOfWar2dPipeline {
             vertex_buffer,
             index_buffer,
             explored_texture: Some(explored_texture),
-            chunks_per_side: chunks_per_side as u32,
         }
     }
 }
