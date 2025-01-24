@@ -1,7 +1,9 @@
-use crate::fog_2d::buffers::{extract_buffers, prepare_buffers, FogSight2dBuffers, FogSight2dScreenBuffers};
+use crate::fog_2d::buffers::{
+    extract_buffers, prepare_buffers, FogSight2dBuffers, FogSight2dScreenBuffers,
+};
+use crate::fog_2d::chunk::{update_chunks_system, ChunkCoord, ChunkManager, CHUNK_SIZE};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
-use crate::fog_2d::chunk::{ChunkManager, update_chunks_system};
 use bevy::asset::load_internal_asset;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
@@ -16,9 +18,9 @@ use bevy::render::{Render, RenderApp, RenderSet};
 use bevy::window::WindowResized;
 
 mod buffers;
+mod chunk;
 mod node;
 mod pipeline;
-mod chunk;
 
 pub const FOG_OF_WAR_2D_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(2645352199453808407);
 
@@ -33,12 +35,17 @@ impl Plugin for FogOfWar2dPlugin {
             Shader::from_wgsl
         );
 
-        app
-            .register_type::<FogOfWarSettings>()
+        app.register_type::<FogOfWarSettings>()
             .register_type::<FogOfWarScreen>()
             .init_resource::<FogOfWarScreen>()
             .init_resource::<ChunkManager>()
-            .add_systems(Update, (adjust_fog_settings, update_chunks_system))
+            .add_systems(
+                Update,
+                (
+                    adjust_fow_screen,
+                    update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
+                ),
+            )
             .add_plugins((
                 ExtractComponentPlugin::<FogOfWarSettings>::default(),
                 ExtractResourcePlugin::<FogOfWarScreen>::default(),
@@ -97,17 +104,44 @@ impl Default for FogOfWarSettings {
 
 #[derive(Resource, Component, Debug, Clone, Reflect, ExtractResource, ShaderType)]
 pub struct FogOfWarScreen {
-    pub screen_size: Vec2,
+    pub window_size: Vec2,
     pub camera_position: Vec2,
-    pub chunks_per_side: f32,
+}
+
+impl FogOfWarScreen {
+    pub fn get_chunks_in_view(&self) -> Vec<ChunkCoord> {
+        let mut chunks = Vec::new();
+
+        // Calculate the bounds of the visible area in world coordinates
+        let half_width = self.window_size.x / 2.0;
+        let half_height =  self.window_size.y / 2.0;
+        let min_x = self.camera_position.x - half_width;
+        let max_x = self.camera_position.x + half_width;
+        let min_y = self.camera_position.y - half_height;
+        let max_y = self.camera_position.y + half_height;
+
+        // Convert to chunk coordinates and add 1 to ensure coverage
+        let start_chunk_x = (min_x as i32).div_euclid(CHUNK_SIZE) - 1;
+        let end_chunk_x = (max_x as i32).div_euclid(CHUNK_SIZE) + 1;
+        let start_chunk_y = (min_y as i32).div_euclid(CHUNK_SIZE) - 1;
+        let end_chunk_y = (max_y as i32).div_euclid(CHUNK_SIZE) + 1;
+
+        // Collect all chunks that intersect with the visible area
+        for x in start_chunk_x..=end_chunk_x {
+            for y in start_chunk_y..=end_chunk_y {
+                chunks.push(ChunkCoord::new(x, y));
+            }
+        }
+
+        chunks
+    }
 }
 
 impl Default for FogOfWarScreen {
     fn default() -> Self {
         Self {
-            screen_size: Vec2::ZERO,
+            window_size: Vec2::ZERO,
             camera_position: Vec2::ZERO,
-            chunks_per_side: 10.0,
         }
     }
 }
@@ -133,14 +167,14 @@ pub struct FogSight2DUniform {
     pub radius: f32,
 }
 
-pub fn adjust_fog_settings(
+pub fn adjust_fow_screen(
     mut fow_screen: ResMut<FogOfWarScreen>,
     mut resize_events: EventReader<WindowResized>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
+    camera_query: Query<(&Camera, &GlobalTransform), Changed<GlobalTransform>>,
 ) {
     // Update screen size on window resize
     for event in resize_events.read() {
-        fow_screen.screen_size = Vec2::new(event.width, event.height);
+        fow_screen.window_size = Vec2::new(event.width, event.height);
     }
 
     // Update camera position

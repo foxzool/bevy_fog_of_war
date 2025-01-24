@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 pub const CHUNK_SIZE: i32 = 512;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct ChunkCoord {
     pub x: i32,
     pub y: i32,
@@ -79,21 +79,39 @@ impl ChunkManager {
             .or_insert_with(|| Chunk::new(coord))
     }
 
-    pub fn get_chunks_in_view(&self, camera_pos: Vec2) -> Vec<ChunkCoord> {
-        let center_chunk = ChunkCoord::from_world_pos(camera_pos);
+    pub fn get_chunks_in_view(&self, camera_pos: Vec2, window_size: Vec2) -> Vec<ChunkCoord> {
         let mut chunks = Vec::new();
 
-        for dx in -self.view_distance..=self.view_distance {
-            for dy in -self.view_distance..=self.view_distance {
-                chunks.push(ChunkCoord::new(center_chunk.x + dx, center_chunk.y + dy));
+        // Calculate the bounds of the visible area in world coordinates
+        let half_width = window_size.x / 2.0;
+        let half_height = window_size.y / 2.0;
+        let min_x = camera_pos.x - half_width;
+        let max_x = camera_pos.x + half_width;
+        let min_y = camera_pos.y - half_height;
+        let max_y = camera_pos.y + half_height;
+
+        // Convert to chunk coordinates and add 1 to ensure coverage
+        let start_chunk_x = (min_x as i32).div_euclid(CHUNK_SIZE) - 1;
+        let end_chunk_x = (max_x as i32).div_euclid(CHUNK_SIZE) + 1;
+        let start_chunk_y = (min_y as i32).div_euclid(CHUNK_SIZE) - 1;
+        let end_chunk_y = (max_y as i32).div_euclid(CHUNK_SIZE) + 1;
+
+        // Collect all chunks that intersect with the visible area
+        for x in start_chunk_x..=end_chunk_x {
+            for y in start_chunk_y..=end_chunk_y {
+                chunks.push(ChunkCoord::new(x, y));
             }
         }
 
         chunks
     }
 
-    pub fn update_chunks(&mut self, camera_pos: Vec2) -> (Vec<ChunkCoord>, Vec<ChunkCoord>) {
-        let chunks_in_view = self.get_chunks_in_view(camera_pos);
+    pub fn update_chunks(
+        &mut self,
+        camera_pos: Vec2,
+        window_size: Vec2,
+    ) -> (Vec<ChunkCoord>, Vec<ChunkCoord>) {
+        let chunks_in_view = self.get_chunks_in_view(camera_pos, window_size);
         let mut to_load = Vec::new();
         let mut to_unload = Vec::new();
 
@@ -114,7 +132,8 @@ impl ChunkManager {
         }
 
         // Then find chunks to unload (those that exist but are not in view)
-        let chunks_to_unload: Vec<ChunkCoord> = self.chunks
+        let chunks_to_unload: Vec<ChunkCoord> = self
+            .chunks
             .iter()
             .filter(|(coord, chunk)| chunk.is_loaded && !chunks_in_view.contains(coord))
             .map(|(coord, _)| *coord)
@@ -133,25 +152,19 @@ impl ChunkManager {
 }
 
 pub fn update_chunks_system(
+    mut commands: Commands,
     mut chunk_manager: ResMut<ChunkManager>,
     fow_screen: Res<FogOfWarScreen>,
+    q_coords: Query<&ChunkCoord>,
 ) {
-    let camera_pos = fow_screen.camera_position;
-    let (to_load, to_unload) = chunk_manager.update_chunks(camera_pos);
-    
-    // Handle chunk loading
-    for coord in to_load {
-        if let Some(chunk) = chunk_manager.get_chunk_mut(coord) {
-            chunk.is_loaded = true;
-            debug!("Loading chunk at {:?}", coord);
-        }
-    }
+    let chunks_in_view = fow_screen.get_chunks_in_view();
 
-    // Handle chunk unloading
-    for coord in to_unload {
-        if let Some(chunk) = chunk_manager.get_chunk_mut(coord) {
-            chunk.is_loaded = false;
-            debug!("Unloading chunk at {:?}", coord);
+    // Handle chunk loading
+    for coord in chunks_in_view {
+        // Check if the coord is not already present in q_coords
+        if q_coords.iter().all(|c| c != &coord) {
+            debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
+            commands.spawn(coord);
         }
     }
 }
