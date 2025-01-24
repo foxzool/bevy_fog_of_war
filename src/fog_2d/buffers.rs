@@ -1,5 +1,6 @@
-use crate::{FogOfWarScreen, FogSight2D};
+use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use crate::FogSight2DUniform;
+use crate::{FogOfWarScreen, FogSight2D};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource,
@@ -61,7 +62,12 @@ pub(super) fn extract_buffers(
 }
 
 // Helper function to check if a point is visible to the camera
-fn is_visible_to_camera(point: Vec3, radius: f32, camera: &Camera, camera_transform: &GlobalTransform) -> bool {
+fn is_visible_to_camera(
+    point: Vec3,
+    radius: f32,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> bool {
     let view_matrix = camera_transform.compute_matrix();
     let point_in_view = view_matrix.inverse().transform_point3(point);
 
@@ -80,8 +86,8 @@ fn is_visible_to_camera(point: Vec3, radius: f32, camera: &Camera, camera_transf
         let max_y = point_in_view.y + radius;
 
         // If any part of the sight's bounding box overlaps with the viewport, consider it visible
-        (min_x <= half_width && max_x >= -half_width) &&
-        (min_y <= half_height && max_y >= -half_height)
+        (min_x <= half_width && max_x >= -half_width)
+            && (min_y <= half_height && max_y >= -half_height)
     } else {
         false
     }
@@ -104,7 +110,7 @@ pub(super) fn prepare_buffers(
     mut extracted: ResMut<ExtractedSight2DBuffers>,
     mut buffer_res: ResMut<FogSight2dBuffers>,
     screen: Res<FogOfWarScreen>,
-    mut screen_buffer: ResMut<FogSight2dScreenBuffers>
+    mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
 ) {
     for (entity, fog_sight_2d) in extracted.changed.drain(..) {
         match buffer_res.sights.entry(entity) {
@@ -128,5 +134,16 @@ pub(super) fn prepare_buffers(
 
     screen_buffer.buffers = UniformBuffer::from(screen.clone());
     screen_buffer.buffers.write_buffer(&device, &queue);
+}
 
+pub(super) fn prepare_chunk_texture(
+    screen: Res<FogOfWarScreen>,
+    mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
+    mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
+) {
+    // Get visible chunks
+    let visible_chunks = screen.get_chunks_in_view();
+
+    // Clear explored texture for new chunks
+    // fog_of_war_pipeline.clear_explored_texture(&queue, &visible_chunks);
 }

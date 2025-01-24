@@ -17,7 +17,8 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
-use crate::fog_2d::chunk::CHUNK_SIZE;
+use bevy::render::renderer::RenderQueue;
+use crate::fog_2d::chunk::{ChunkCoord, CHUNK_SIZE};
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {
@@ -147,6 +148,7 @@ impl FromWorld for FogOfWar2dPipeline {
         }
     }
 }
+
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

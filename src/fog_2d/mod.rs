@@ -1,5 +1,6 @@
 use crate::fog_2d::buffers::{
-    extract_buffers, prepare_buffers, FogSight2dBuffers, FogSight2dScreenBuffers,
+    extract_buffers, prepare_buffers, prepare_chunk_texture, FogSight2dBuffers,
+    FogSight2dScreenBuffers,
 };
 use crate::fog_2d::chunk::{update_chunks_system, ChunkCoord, CHUNK_SIZE};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
@@ -61,7 +62,10 @@ impl Plugin for FogOfWar2dPlugin {
             .init_resource::<FogSight2dBuffers>()
             .init_resource::<FogSight2dScreenBuffers>()
             .add_systems(ExtractSchedule, extract_buffers)
-            .add_systems(Render, (prepare_buffers.in_set(RenderSet::Prepare),))
+            .add_systems(
+                Render,
+                ((prepare_buffers, prepare_chunk_texture).in_set(RenderSet::Prepare),),
+            )
             .add_render_graph_node::<ViewNodeRunner<FogOfWar2dNode>>(Core2d, FogOfWarLabel)
             .add_render_graph_edges(
                 Core2d,
@@ -124,6 +128,31 @@ impl FogOfWarScreen {
         let max_chunks_y = ((self.window_size.y / self.chunk_size as f32).ceil() as u32) + 1;
 
         (max_chunks_x, max_chunks_y)
+    }
+
+    fn get_chunks_in_view(&self) -> Vec<ChunkCoord> {
+        let half_width = self.window_size.x * 0.5;
+        let half_height = self.window_size.y * 0.5;
+        let min_x = self.camera_position.x - half_width;
+        let max_x = self.camera_position.x + half_width;
+        let min_y = self.camera_position.y - half_height;
+        let max_y = self.camera_position.y + half_height;
+
+        // Convert to chunk coordinates and add 1 to ensure coverage
+        let start_chunk_x = (min_x as i32).div_euclid(CHUNK_SIZE as i32) - 1;
+        let end_chunk_x = (max_x as i32).div_euclid(CHUNK_SIZE as i32) + 1;
+        let start_chunk_y = (min_y as i32).div_euclid(CHUNK_SIZE as i32) - 1;
+        let end_chunk_y = (max_y as i32).div_euclid(CHUNK_SIZE as i32) + 1;
+
+        // Collect all chunks that intersect with the visible area
+        let mut chunks_in_view = Vec::new();
+        for x in start_chunk_x..=end_chunk_x {
+            for y in start_chunk_y..=end_chunk_y {
+                chunks_in_view.push(ChunkCoord::new(x, y));
+            }
+        }
+
+        chunks_in_view
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     fog_2d::buffers::FogSight2dBuffers, fog_2d::buffers::FogSight2dScreenBuffers,
-    fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarSettings,
+    fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarScreen, FogOfWarSettings,
 };
 use bevy::{
     ecs::query::QueryItem,
