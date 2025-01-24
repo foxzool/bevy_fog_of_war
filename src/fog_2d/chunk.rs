@@ -2,7 +2,7 @@ use crate::FogOfWarScreen;
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-pub const CHUNK_SIZE: i32 = 512;
+pub const CHUNK_SIZE: u32 = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct ChunkCoord {
@@ -17,13 +17,16 @@ impl ChunkCoord {
 
     pub fn from_world_pos(pos: Vec2) -> Self {
         Self {
-            x: (pos.x as i32).div_euclid(CHUNK_SIZE),
-            y: (pos.y as i32).div_euclid(CHUNK_SIZE),
+            x: (pos.x as i32).div_euclid(CHUNK_SIZE as i32),
+            y: (pos.y as i32).div_euclid(CHUNK_SIZE as i32),
         }
     }
 
     pub fn to_world_pos(&self) -> Vec2 {
-        Vec2::new((self.x * CHUNK_SIZE) as f32, (self.y * CHUNK_SIZE) as f32)
+        Vec2::new(
+            (self.x * CHUNK_SIZE as i32) as f32,
+            (self.y * CHUNK_SIZE as i32) as f32,
+        )
     }
 }
 
@@ -55,10 +58,10 @@ pub fn update_chunks_system(
     let max_y = fow_screen.camera_position.y + half_height;
 
     // Convert to chunk coordinates and add 1 to ensure coverage
-    let start_chunk_x = (min_x as i32).div_euclid(CHUNK_SIZE) - 1;
-    let end_chunk_x = (max_x as i32).div_euclid(CHUNK_SIZE) + 1;
-    let start_chunk_y = (min_y as i32).div_euclid(CHUNK_SIZE) - 1;
-    let end_chunk_y = (max_y as i32).div_euclid(CHUNK_SIZE) + 1;
+    let start_chunk_x = (min_x as i32).div_euclid(CHUNK_SIZE as i32) - 1;
+    let end_chunk_x = (max_x as i32).div_euclid(CHUNK_SIZE as i32) + 1;
+    let start_chunk_y = (min_y as i32).div_euclid(CHUNK_SIZE as i32) - 1;
+    let end_chunk_y = (max_y as i32).div_euclid(CHUNK_SIZE as i32) + 1;
 
     // Collect all chunks that intersect with the visible area
     let mut chunks_in_view = Vec::new();

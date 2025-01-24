@@ -105,6 +105,7 @@ impl Default for FogOfWarSettings {
 pub struct FogOfWarScreen {
     pub window_size: Vec2,
     pub camera_position: Vec2,
+    pub chunk_size: u32
 }
 
 impl Default for FogOfWarScreen {
@@ -112,6 +113,7 @@ impl Default for FogOfWarScreen {
         Self {
             window_size: Vec2::ZERO,
             camera_position: Vec2::ZERO,
+            chunk_size: CHUNK_SIZE,
         }
     }
 }

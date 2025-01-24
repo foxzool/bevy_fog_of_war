@@ -17,6 +17,7 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
+use crate::fog_2d::chunk::CHUNK_SIZE;
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {
@@ -38,8 +39,8 @@ impl FromWorld for FogOfWar2dPipeline {
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
-                width: 512,
-                height: 512,
+                width: CHUNK_SIZE as u32,
+                height: CHUNK_SIZE as u32,
                 depth_or_array_layers: texture_array_size, // Array layers for visible chunks
             },
             mip_level_count: 1,
