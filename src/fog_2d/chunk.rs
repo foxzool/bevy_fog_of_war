@@ -1,5 +1,8 @@
 use crate::FogOfWarScreen;
+use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
+use bevy::render::gpu_readback::{Readback, ReadbackComplete};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use std::collections::HashMap;
 
 pub const CHUNK_SIZE: u32 = 256;
@@ -45,17 +48,61 @@ impl Chunk {
     }
 }
 
+#[derive(Component)]
+pub struct ChunkImage {
+    pub image: Handle<Image>,
+}
+
 pub fn update_chunks_system(
-    mut commands: Commands,
     fow_screen: Res<FogOfWarScreen>,
-    q_coords: Query<&ChunkCoord>,
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut chunks_query: Query<(Entity, &ChunkCoord, &ChunkImage, Option<&Readback>)>,
 ) {
-    // Handle chunk loading
-    for coord in fow_screen.get_chunks_in_view() {
-        // Check if the coord is not already present in q_coords
-        if q_coords.iter().all(|c| c != &coord) {
+    let chunks_in_view = fow_screen.get_chunks_in_view();
+    let mut existing_coords: Vec<ChunkCoord> =
+        chunks_query.iter().map(|(_, coord, _, _)| *coord).collect();
+
+    // Handle chunk loading for new chunks
+    for coord in chunks_in_view.iter() {
+        if !existing_coords.contains(coord) {
+            let mut image = Image::new_fill(
+                Extent3d {
+                    width: fow_screen.chunk_size,
+                    height: fow_screen.chunk_size,
+                    ..default()
+                },
+                TextureDimension::D2,
+                &[0, 0, 0, 0],
+                TextureFormat::R32Uint,
+                RenderAssetUsages::RENDER_WORLD,
+            );
+            image.texture_descriptor.usage |= TextureUsages::COPY_SRC;
+            let image = images.add(image);
             debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
-            commands.spawn(coord);
+            commands.spawn((
+                *coord,
+                Readback::texture(image.clone()),
+                ChunkImage { image },
+            ));
+        }
+    }
+
+    // Update Readback components based on visibility
+    for (entity, coord, chunk_image, readback) in chunks_query.iter() {
+        let is_in_view = chunks_in_view.contains(coord);
+        match (is_in_view, readback) {
+            (true, None) => {
+                // Add Readback if chunk is in view but doesn't have it
+                commands
+                    .entity(entity)
+                    .insert(Readback::texture(chunk_image.image.clone()));
+            }
+            (false, Some(_)) => {
+                // Remove Readback if chunk is not in view but has it
+                commands.entity(entity).remove::<Readback>();
+            }
+            _ => {} // No action needed for other cases
         }
     }
 }
