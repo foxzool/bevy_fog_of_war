@@ -105,7 +105,26 @@ impl Default for FogOfWarSettings {
 pub struct FogOfWarScreen {
     pub window_size: Vec2,
     pub camera_position: Vec2,
-    pub chunk_size: u32
+    pub chunk_size: u32,
+}
+
+impl FogOfWarScreen {
+    /// Calculates the maximum number of chunks that can fit within the current window size.
+    ///
+    /// This function computes the number of chunks along both the x and y axes
+    /// based on the window size and the predefined chunk size. An additional
+    /// chunk is added to ensure complete coverage.
+    ///
+    /// Returns:
+    /// A tuple containing:
+    /// - `max_chunks_x`: The maximum number of chunks along the x-axis.
+    /// - `max_chunks_y`: The maximum number of chunks along the y-axis.
+    pub fn calculate_max_chunks(&self) -> (u32, u32) {
+        let max_chunks_x = ((self.window_size.x / self.chunk_size as f32).ceil() as u32) + 1;
+        let max_chunks_y = ((self.window_size.y / self.chunk_size as f32).ceil() as u32) + 1;
+
+        (max_chunks_x, max_chunks_y)
+    }
 }
 
 impl Default for FogOfWarScreen {
@@ -146,6 +165,7 @@ pub fn adjust_fow_screen(
 ) {
     // Update screen size on window resize
     for event in resize_events.read() {
+        debug!("window resized to {}x{}", event.width, event.height);
         fow_screen.window_size = Vec2::new(event.width, event.height);
     }
 
