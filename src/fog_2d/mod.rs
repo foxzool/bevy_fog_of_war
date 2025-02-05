@@ -107,9 +107,21 @@ impl Default for FogOfWarSettings {
 
 #[derive(Resource, Component, Debug, Clone, Reflect, ExtractResource, ShaderType)]
 pub struct FogOfWarScreen {
-    pub window_size: Vec2,
+    pub screen_size: Vec2,
     pub camera_position: Vec2,
     pub chunk_size: u32,
+    pub view_start_chunk: Vec2, // 当前视图的起始chunk坐标
+}
+
+impl Default for FogOfWarScreen {
+    fn default() -> Self {
+        Self {
+            screen_size: Vec2::ZERO,
+            camera_position: Vec2::ZERO,
+            chunk_size: CHUNK_SIZE,
+            view_start_chunk: Vec2::ZERO,
+        }
+    }
 }
 
 impl FogOfWarScreen {
@@ -124,15 +136,28 @@ impl FogOfWarScreen {
     /// - `max_chunks_x`: The maximum number of chunks along the x-axis.
     /// - `max_chunks_y`: The maximum number of chunks along the y-axis.
     pub fn calculate_max_chunks(&self) -> (u32, u32) {
-        let max_chunks_x = ((self.window_size.x / self.chunk_size as f32).ceil() as u32) + 1;
-        let max_chunks_y = ((self.window_size.y / self.chunk_size as f32).ceil() as u32) + 1;
+        let max_chunks_x = ((self.screen_size.x / self.chunk_size as f32).ceil() as u32) + 1;
+        let max_chunks_y = ((self.screen_size.y / self.chunk_size as f32).ceil() as u32) + 1;
 
         (max_chunks_x, max_chunks_y)
     }
 
+    pub fn update_view_start(&mut self) {
+        let half_width = self.screen_size.x * 0.5;
+        let half_height = self.screen_size.y * 0.5;
+        let min_x = self.camera_position.x - half_width;
+        let min_y = self.camera_position.y - half_height;
+        
+        // 计算新的视图起始chunk坐标
+        self.view_start_chunk = Vec2::new(
+            (min_x / self.chunk_size as f32).floor() - 1.0,
+            (min_y / self.chunk_size as f32).floor() - 1.0,
+        );
+    }
+
     fn get_chunks_in_view(&self) -> Vec<ChunkCoord> {
-        let half_width = self.window_size.x * 0.5;
-        let half_height = self.window_size.y * 0.5;
+        let half_width = self.screen_size.x * 0.5;
+        let half_height = self.screen_size.y * 0.5;
         let min_x = self.camera_position.x - half_width;
         let max_x = self.camera_position.x + half_width;
         let min_y = self.camera_position.y - half_height;
@@ -153,16 +178,6 @@ impl FogOfWarScreen {
         }
 
         chunks_in_view
-    }
-}
-
-impl Default for FogOfWarScreen {
-    fn default() -> Self {
-        Self {
-            window_size: Vec2::ZERO,
-            camera_position: Vec2::ZERO,
-            chunk_size: CHUNK_SIZE,
-        }
     }
 }
 
@@ -195,11 +210,19 @@ pub fn adjust_fow_screen(
     // Update screen size on window resize
     for event in resize_events.read() {
         debug!("window resized to {}x{}", event.width, event.height);
-        fow_screen.window_size = Vec2::new(event.width, event.height);
+        fow_screen.screen_size = Vec2::new(event.width, event.height);
+        fow_screen.update_view_start(); // Update view start when screen size changes
     }
 
-    // Update camera position
+    // Update camera position and view start
     if let Ok((_, transform)) = camera_query.get_single() {
+        let old_camera_pos = fow_screen.camera_position;
         fow_screen.camera_position = transform.translation().truncate();
+        
+        // 如果相机移动超过一定距离，更新view_start_chunk
+        let movement = fow_screen.camera_position - old_camera_pos;
+        if movement.length() > fow_screen.chunk_size as f32 * 0.5 {
+            fow_screen.update_view_start();
+        }
     }
 }
