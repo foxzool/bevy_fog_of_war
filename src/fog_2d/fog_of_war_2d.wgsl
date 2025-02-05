@@ -47,11 +47,23 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let chunk_x = i32(floor(world_pos.x / chunk_size));
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
+    // 计算相机位置对应的chunk坐标
+    let camera_chunk_x = i32(floor(screen_size_uniform.camera_position.x / chunk_size));
+    let camera_chunk_y = i32(floor(screen_size_uniform.camera_position.y / chunk_size));
+    
+    // 考虑padding，计算左上角的chunk坐标
+    let top_left_chunk_x = camera_chunk_x - 2;
+    let top_left_chunk_y = camera_chunk_y - 2;
+    
+    // 计算相对于视口左上角的坐标
+    let relative_x = chunk_x - top_left_chunk_x;
+    let relative_y = chunk_y - top_left_chunk_y;
+    
     // 计算每行的块数（视口宽度 + padding）
-    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 5;
+    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 3;
     
     // 计算块索引
-    let chunk_index = chunk_y * chunks_per_row + chunk_x;
+    let chunk_index = relative_y * chunks_per_row + relative_x;
     
     // 计算块内的局部坐标
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
