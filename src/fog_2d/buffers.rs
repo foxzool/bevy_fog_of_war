@@ -10,6 +10,7 @@ use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
+use crate::fog_2d::chunk::{ChunkArrayIndex, ChunkCoord};
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -140,10 +141,17 @@ pub(super) fn prepare_chunk_texture(
     screen: Res<FogOfWarScreen>,
     mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
     mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
+    queue: Res<RenderQueue>,
+    chunks_query: Query<(&ChunkCoord, &ChunkArrayIndex)>,
 ) {
-    // Get visible chunks
-    let visible_chunks = screen.get_chunks_in_view();
-
-    // Clear explored texture for new chunks
-    // fog_of_war_pipeline.clear_explored_texture(&queue, &visible_chunks);
+    // 获取当前视野内的chunks
+    let chunks_in_view = screen.get_chunks_in_view();
+    
+    // 遍历所有已存在的chunks
+    for (coord, array_index) in chunks_query.iter() {
+        // 如果chunk不在视野内，清空其纹理
+        if !chunks_in_view.contains(coord) {
+            fog_of_war_pipeline.clear_explored_texture(&queue, array_index.index);
+        }
+    }
 }

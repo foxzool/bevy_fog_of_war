@@ -27,6 +27,7 @@ pub struct FogOfWar2dPipeline {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub explored_texture: Option<TextureView>,
+    pub texture: Option<bevy::render::render_resource::Texture>,
 }
 
 impl FromWorld for FogOfWar2dPipeline {
@@ -145,10 +146,44 @@ impl FromWorld for FogOfWar2dPipeline {
             vertex_buffer,
             index_buffer,
             explored_texture: Some(explored_texture),
+            texture: Some(texture),
         }
     }
 }
 
+impl FogOfWar2dPipeline {
+    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: i32) {
+        if let Some(texture) = &self.texture {
+            // 创建一个全零的缓冲区，大小为一个chunk的大小
+            let zeros = vec![0u8; (CHUNK_SIZE * CHUNK_SIZE) as usize];
+            
+            // 写入数据到纹理的指定层
+            queue.write_texture(
+                bevy::render::render_resource::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: bevy::render::render_resource::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: chunk_index as u32,
+                    },
+                    aspect: bevy::render::render_resource::TextureAspect::All,
+                },
+                &zeros,
+                bevy::render::render_resource::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(CHUNK_SIZE),
+                    rows_per_image: Some(CHUNK_SIZE),
+                },
+                bevy::render::render_resource::Extent3d {
+                    width: CHUNK_SIZE,
+                    height: CHUNK_SIZE,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
