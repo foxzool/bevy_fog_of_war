@@ -73,8 +73,8 @@ pub fn update_chunks_system(
         if !existing_coords.contains(coord) {
             let mut image = Image::new_fill(
                 Extent3d {
-                    width: fow_screen.chunk_size,
-                    height: fow_screen.chunk_size,
+                    width: fow_screen.chunk_size as u32,
+                    height: fow_screen.chunk_size as u32,
                     ..default()
                 },
                 TextureDimension::D2,
@@ -117,14 +117,11 @@ pub fn update_chunk_array_indices(
     fow_screen: Res<FogOfWarScreen>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
-    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size as f32).ceil() as i32 + 3;
+    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 3;
     
     for (coord, mut array_index) in query.iter_mut() {
-        // 计算相对于视图起始chunk的偏移
         let rel_chunk_x = coord.x - fow_screen.view_start_chunk.x as i32;
         let rel_chunk_y = coord.y - fow_screen.view_start_chunk.y as i32;
-        
-        // 计算在数组中的索引（从左上到右下）
         array_index.index = rel_chunk_y * chunks_per_row + rel_chunk_x;
     }
 }

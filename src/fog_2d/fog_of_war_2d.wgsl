@@ -1,7 +1,7 @@
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
-    chunk_size: u32,
+    chunk_size: f32,
     view_start_chunk: vec2<f32>,
 }
 
@@ -42,27 +42,45 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 }
 
 fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
-    let chunk_size_f32 = f32(screen_size_uniform.chunk_size);
+    let chunk_size = screen_size_uniform.chunk_size;
     
-    // 1. 计算当前位置所在的块坐标
-    let chunk_x = i32(floor(world_pos.x / chunk_size_f32));
-    let chunk_y = i32(floor(world_pos.y / chunk_size_f32));
+    let chunk_x = i32(floor(world_pos.x / chunk_size));
+    let chunk_y = i32(floor(world_pos.y / chunk_size));
     
-    // 2. 计算相对于视图起始chunk的偏移
     let rel_chunk_x = chunk_x - i32(screen_size_uniform.view_start_chunk.x);
     let rel_chunk_y = chunk_y - i32(screen_size_uniform.view_start_chunk.y);
     
-    // 3. 计算视口范围内的块数量（宽度）
-    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size_f32)) + 3; // +3 for padding
+    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 3;
     
-    // 4. 计算在数组中的索引（从左上到右下）
     let chunk_index = rel_chunk_y * chunks_per_row + rel_chunk_x;
     
-    // 5. 计算块内局部坐标
-    let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size_f32));
-    let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size_f32));
+    let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
+    let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size));
     
     return vec3<i32>(local_x, local_y, chunk_index);
+}
+
+// 新增视野判断函数
+fn is_chunk_in_view(chunk_index: i32) -> bool {
+    let chunk_size = screen_size_uniform.chunk_size;
+    
+    // 计算视口可容纳的块数量（不含padding）
+    let view_width = ceil(screen_size_uniform.screen_size.x / chunk_size);
+    let view_height = ceil(screen_size_uniform.screen_size.y / chunk_size);
+    
+    // 计算最大有效块索引（考虑3个块的padding）
+    let max_x = i32(view_width) + 2;
+    let max_y = i32(view_height) + 2;
+    
+    // 将块索引转换为二维坐标
+    let chunks_per_row = i32(view_width) + 3;
+    let rel_chunk_x = chunk_index % chunks_per_row;
+    let rel_chunk_y = chunk_index / chunks_per_row;
+    
+    // 判断是否在有效范围内（包含1个块的边界缓冲）
+    return rel_chunk_x >= -1 && rel_chunk_x <= max_x &&
+           rel_chunk_y >= -1 && rel_chunk_y <= max_y &&
+           chunk_index >= 0;
 }
 
 @fragment
@@ -98,7 +116,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Only update explored texture if within bounds
     if (local_pos.x >= 0 && local_pos.x < i32(screen_size_uniform.chunk_size) &&
         local_pos.y >= 0 && local_pos.y < i32(screen_size_uniform.chunk_size) &&
-        chunk_index >= 0 && chunk_index < i32(screen_size_uniform.screen_size.x * screen_size_uniform.screen_size.y)) {
+        is_chunk_in_view(chunk_index)) {
         
         let explored = textureLoad(explored_texture, local_pos, chunk_index);
         let new_explored = max(explored.r, visibility);

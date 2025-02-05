@@ -110,7 +110,7 @@ impl Default for FogOfWarSettings {
 pub struct FogOfWarScreen {
     pub screen_size: Vec2,
     pub camera_position: Vec2,
-    pub chunk_size: u32,
+    pub chunk_size: f32,
     pub view_start_chunk: Vec2, // 当前视图的起始chunk坐标
 }
 
@@ -119,7 +119,7 @@ impl Default for FogOfWarScreen {
         Self {
             screen_size: Vec2::ZERO,
             camera_position: Vec2::ZERO,
-            chunk_size: CHUNK_SIZE,
+            chunk_size: CHUNK_SIZE as f32,
             view_start_chunk: Vec2::ZERO,
         }
     }
@@ -137,8 +137,8 @@ impl FogOfWarScreen {
     /// - `max_chunks_x`: The maximum number of chunks along the x-axis.
     /// - `max_chunks_y`: The maximum number of chunks along the y-axis.
     pub fn calculate_max_chunks(&self) -> (u32, u32) {
-        let max_chunks_x = ((self.screen_size.x / self.chunk_size as f32).ceil() as u32) + 1;
-        let max_chunks_y = ((self.screen_size.y / self.chunk_size as f32).ceil() as u32) + 1;
+        let max_chunks_x = ((self.screen_size.x / self.chunk_size).ceil() as u32) + 1;
+        let max_chunks_y = ((self.screen_size.y / self.chunk_size).ceil() as u32) + 1;
 
         (max_chunks_x, max_chunks_y)
     }
@@ -151,8 +151,8 @@ impl FogOfWarScreen {
         
         // 计算新的视图起始chunk坐标
         self.view_start_chunk = Vec2::new(
-            (min_x / self.chunk_size as f32).floor() - 1.0,
-            (min_y / self.chunk_size as f32).floor() - 1.0,
+            (min_x / self.chunk_size).floor() - 1.0,
+            (min_y / self.chunk_size).floor() - 1.0,
         );
     }
 
@@ -222,7 +222,7 @@ pub fn adjust_fow_screen(
         
         // 如果相机移动超过一定距离，更新view_start_chunk
         let movement = fow_screen.camera_position - old_camera_pos;
-        if movement.length() > fow_screen.chunk_size as f32 * 0.5 {
+        if movement.length() > fow_screen.chunk_size * 0.5 {
             fow_screen.update_view_start();
         }
     }
