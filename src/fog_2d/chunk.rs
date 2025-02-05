@@ -76,19 +76,19 @@ pub fn update_chunk_array_indices(
     fow_screen: Res<FogOfWarScreen>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
-    // 计算视口可以容纳的块数（加上padding）
-    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
-
     // 计算相机位置对应的chunk坐标
     let camera_chunk_x = (fow_screen.camera_position.x / fow_screen.chunk_size).floor() as i32;
     let camera_chunk_y = (fow_screen.camera_position.y / fow_screen.chunk_size).floor() as i32;
 
-    // 修改为 -1 来保持对称的padding
-    let top_left_chunk_x = camera_chunk_x - 1; // 1块padding
+    // 修改为 -1 保持对称padding（与WGSL代码同步）
+    let top_left_chunk_x = camera_chunk_x - 1;
     let top_left_chunk_y = camera_chunk_y - 1;
 
+    // 修改为 +2 保持对称（视口宽度 + 左右各1块padding）
+    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
+
     for (coord, mut array_index) in query.iter_mut() {
-        // 将世界chunk坐标转换为相对于视口左上角的坐标
+        // 计算相对于视口左上角的坐标
         let relative_x = coord.x - top_left_chunk_x;
         let relative_y = coord.y - top_left_chunk_y;
 
