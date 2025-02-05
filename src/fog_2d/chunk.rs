@@ -118,15 +118,15 @@ pub fn update_chunk_array_indices(
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
     // 计算视口可以容纳的块数（加上padding）
-    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 3;
+    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
     
     // 计算相机位置对应的chunk坐标
     let camera_chunk_x = (fow_screen.camera_position.x / fow_screen.chunk_size).floor() as i32;
     let camera_chunk_y = (fow_screen.camera_position.y / fow_screen.chunk_size).floor() as i32;
     
-    // 考虑padding，左上角的chunk坐标（在屏幕空间中）
-    let top_left_chunk_x = camera_chunk_x - 2; // 2块padding
-    let top_left_chunk_y = camera_chunk_y - 2;
+    // 修改为 -1 来保持对称的padding
+    let top_left_chunk_x = camera_chunk_x - 1; // 1块padding
+    let top_left_chunk_y = camera_chunk_y - 1;
     
     for (coord, mut array_index) in query.iter_mut() {
         // 将世界chunk坐标转换为相对于视口左上角的坐标

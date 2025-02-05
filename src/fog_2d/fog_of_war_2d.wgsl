@@ -51,16 +51,16 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let camera_chunk_x = i32(floor(screen_size_uniform.camera_position.x / chunk_size));
     let camera_chunk_y = i32(floor(screen_size_uniform.camera_position.y / chunk_size));
     
-    // 考虑padding，计算左上角的chunk坐标
-    let top_left_chunk_x = camera_chunk_x - 2;
-    let top_left_chunk_y = camera_chunk_y - 2;
+    // 修改为 -1 保持对称padding（与Rust代码同步）
+    let top_left_chunk_x = camera_chunk_x - 1;
+    let top_left_chunk_y = camera_chunk_y - 1;
     
     // 计算相对于视口左上角的坐标
     let relative_x = chunk_x - top_left_chunk_x;
     let relative_y = chunk_y - top_left_chunk_y;
     
-    // 计算每行的块数（视口宽度 + padding）
-    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 3;
+    // 修改为 +2 保持对称（视口宽度 + 左右各1块padding）
+    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 2;
     
     // 计算块索引
     let chunk_index = relative_y * chunks_per_row + relative_x;
@@ -80,12 +80,12 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     let view_width = ceil(screen_size_uniform.screen_size.x / chunk_size);
     let view_height = ceil(screen_size_uniform.screen_size.y / chunk_size);
     
-    // 计算最大有效块索引（考虑3个块的padding）
-    let max_x = i32(view_width) + 2;
-    let max_y = i32(view_height) + 2;
+    // 修改为 +1 保持对称padding（与Rust代码同步）
+    let max_x = i32(view_width) + 1;
+    let max_y = i32(view_height) + 1;
     
-    // 将块索引转换为二维坐标
-    let chunks_per_row = i32(view_width) + 3;
+    // 修改为 +2 保持与chunks_per_row计算一致
+    let chunks_per_row = i32(view_width) + 2;
     let rel_chunk_x = chunk_index % chunks_per_row;
     let rel_chunk_y = chunk_index / chunks_per_row;
     
