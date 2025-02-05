@@ -117,7 +117,7 @@ pub fn update_chunk_array_indices(
     fow_screen: Res<FogOfWarScreen>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
-    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 3;
+    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 5;
     
     for (coord, mut array_index) in query.iter_mut() {
         let rel_chunk_x = coord.x - fow_screen.view_start_chunk.x as i32;

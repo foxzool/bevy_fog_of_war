@@ -50,7 +50,7 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let rel_chunk_x = chunk_x - i32(screen_size_uniform.view_start_chunk.x);
     let rel_chunk_y = chunk_y - i32(screen_size_uniform.view_start_chunk.y);
     
-    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 3;
+    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 5;
     
     let chunk_index = rel_chunk_y * chunks_per_row + rel_chunk_x;
     
