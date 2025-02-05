@@ -120,8 +120,6 @@ pub fn update_chunk_array_indices(
     let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 5;
     
     for (coord, mut array_index) in query.iter_mut() {
-        let rel_chunk_x = coord.x - fow_screen.view_start_chunk.x as i32;
-        let rel_chunk_y = coord.y - fow_screen.view_start_chunk.y as i32;
-        array_index.index = rel_chunk_y * chunks_per_row + rel_chunk_x;
+        array_index.index = coord.y * chunks_per_row + coord.x;
     }
 }

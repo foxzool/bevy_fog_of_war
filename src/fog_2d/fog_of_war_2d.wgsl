@@ -2,7 +2,6 @@ struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
     chunk_size: f32,
-    view_start_chunk: vec2<f32>,
 }
 
 struct FogOfWarSettings {
@@ -44,16 +43,17 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
 fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
     
+    // 计算世界坐标中的块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
-    let rel_chunk_x = chunk_x - i32(screen_size_uniform.view_start_chunk.x);
-    let rel_chunk_y = chunk_y - i32(screen_size_uniform.view_start_chunk.y);
-    
+    // 计算每行的块数（视口宽度 + padding）
     let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 5;
     
-    let chunk_index = rel_chunk_y * chunks_per_row + rel_chunk_x;
+    // 计算块索引
+    let chunk_index = chunk_y * chunks_per_row + chunk_x;
     
+    // 计算块内的局部坐标
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
     let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size));
     
