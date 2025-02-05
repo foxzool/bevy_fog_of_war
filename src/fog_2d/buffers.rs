@@ -141,6 +141,7 @@ pub(super) fn prepare_chunk_texture(
     screen: Res<FogOfWarScreen>,
     mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
     mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
+    device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     chunks_query: Query<(&ChunkCoord, &ChunkArrayIndex)>,
 ) {
@@ -151,7 +152,20 @@ pub(super) fn prepare_chunk_texture(
     for (coord, array_index) in chunks_query.iter() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
-            fog_of_war_pipeline.clear_explored_texture(&queue, array_index.index);
+            if let (Some(index), Some(prev_index)) = (array_index.index, array_index.previous_index) {
+                // 应该同时清空新旧两个索引的纹理
+                fog_of_war_pipeline.clear_explored_texture(&queue, index);
+                fog_of_war_pipeline.clear_explored_texture(&queue, prev_index);
+            }
+            // 处理只有当前索引的情况
+            else if let Some(index) = array_index.index {
+                fog_of_war_pipeline.clear_explored_texture(&queue, index);
+            }
+        } else if array_index.index != array_index.previous_index {
+            // 如果chunk的索引发生变化，需要转移数据
+            if let (Some(index), Some(prev_index)) = (array_index.index, array_index.previous_index) {
+                fog_of_war_pipeline.transfer_chunk_data(&device, &queue, prev_index, index);
+            }
         }
     }
 }

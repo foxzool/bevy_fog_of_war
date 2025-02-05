@@ -1,11 +1,12 @@
 use crate::FogOfWarScreen;
 use bevy::prelude::*;
+use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use std::collections::HashMap;
 
 pub const CHUNK_SIZE: u32 = 256;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
 pub struct ChunkCoord {
     pub x: i32,
     pub y: i32,
@@ -49,9 +50,10 @@ impl Chunk {
 #[derive(Component, Deref, DerefMut, Default)]
 pub struct ChunkCache(pub Vec<u8>);
 
-#[derive(Component, Debug)]
+#[derive(Component, Default, ExtractComponent, Clone, Debug)]
 pub struct ChunkArrayIndex {
-    pub index: i32,
+    pub index: Option<u32>,
+    pub previous_index: Option<u32>,
 }
 
 pub fn update_chunks_system(
@@ -67,7 +69,7 @@ pub fn update_chunks_system(
     for coord in chunks_in_view.iter() {
         if !existing_coords.contains(coord) {
             debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
-            commands.spawn((*coord, ChunkCache::default(), ChunkArrayIndex { index: 0 }));
+            commands.spawn((*coord, ChunkCache::default(), ChunkArrayIndex::default()));
         }
     }
 }
@@ -88,11 +90,19 @@ pub fn update_chunk_array_indices(
     let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
 
     for (coord, mut array_index) in query.iter_mut() {
+        // 保存旧的索引
+        array_index.previous_index = array_index.index;
+
         // 计算相对于视口左上角的坐标
         let relative_x = coord.x - top_left_chunk_x;
         let relative_y = coord.y - top_left_chunk_y;
 
-        // 计算数组索引
-        array_index.index = relative_y * chunks_per_row + relative_x;
+        // 计算新的数组索引
+        let chunk_index = relative_y * chunks_per_row + relative_x;
+        array_index.index = if chunk_index >= 0 {
+            Some(chunk_index as u32)
+        } else {
+            None
+        };
     }
 }

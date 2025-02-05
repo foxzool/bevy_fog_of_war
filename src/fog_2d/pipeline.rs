@@ -1,4 +1,6 @@
+use crate::fog_2d::chunk::{ChunkCoord, CHUNK_SIZE};
 use crate::{FogOfWarScreen, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
+use bevy::render::renderer::RenderQueue;
 use bevy::{
     prelude::{FromWorld, Resource, World},
     render::{
@@ -17,8 +19,6 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
-use bevy::render::renderer::RenderQueue;
-use crate::fog_2d::chunk::{ChunkCoord, CHUNK_SIZE};
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {
@@ -51,6 +51,7 @@ impl FromWorld for FogOfWar2dPipeline {
             format: TextureFormat::R8Unorm,
             usage: TextureUsages::TEXTURE_BINDING
                 | TextureUsages::COPY_DST
+                | TextureUsages::COPY_SRC
                 | TextureUsages::STORAGE_BINDING,
             view_formats: &[],
         });
@@ -152,11 +153,12 @@ impl FromWorld for FogOfWar2dPipeline {
 }
 
 impl FogOfWar2dPipeline {
-    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: i32) {
+    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: u32) {
         if let Some(texture) = &self.texture {
+            println!("Clearing chunk index: {}", chunk_index);
             // 创建一个全零的缓冲区，大小为一个chunk的大小
             let zeros = vec![0u8; (CHUNK_SIZE * CHUNK_SIZE) as usize];
-            
+
             // 写入数据到纹理的指定层
             queue.write_texture(
                 bevy::render::render_resource::ImageCopyTexture {
@@ -181,6 +183,60 @@ impl FogOfWar2dPipeline {
                     depth_or_array_layers: 1,
                 },
             );
+        }
+    }
+
+    pub fn transfer_chunk_data(
+        &self,
+        device: &RenderDevice,
+        queue: &RenderQueue,
+        from_index: u32,
+        to_index: u32,
+    ) {
+        if let Some(texture) = &self.texture {
+            // 创建一个命令编码器
+            let mut encoder = device.create_command_encoder(
+                &bevy::render::render_resource::CommandEncoderDescriptor {
+                    label: Some("transfer_chunk_data_encoder"),
+                },
+            );
+
+            println!("from_index: {}, to_index: {}", from_index, to_index);
+
+            // 使用copy_texture_to_texture在同一纹理的不同层之间复制数据
+            encoder.copy_texture_to_texture(
+                bevy::render::render_resource::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: bevy::render::render_resource::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: from_index as u32,
+                    },
+                    aspect: bevy::render::render_resource::TextureAspect::All,
+                },
+                bevy::render::render_resource::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: bevy::render::render_resource::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: to_index as u32,
+                    },
+                    aspect: bevy::render::render_resource::TextureAspect::All,
+                },
+                bevy::render::render_resource::Extent3d {
+                    width: CHUNK_SIZE,
+                    height: CHUNK_SIZE,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            // 提交命令
+            queue.submit(std::iter::once(encoder.finish()));
+
+            // 清空源chunk
+            self.clear_explored_texture(queue, from_index);
         }
     }
 }
