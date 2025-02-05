@@ -2,7 +2,7 @@ use crate::fog_2d::buffers::{
     extract_buffers, prepare_buffers, prepare_chunk_texture, FogSight2dBuffers,
     FogSight2dScreenBuffers,
 };
-use crate::fog_2d::chunk::{update_chunks_system, ChunkCoord, CHUNK_SIZE};
+use crate::fog_2d::chunk::{update_chunk_array_indices, update_chunks_system, ChunkCoord, CHUNK_SIZE};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use bevy::asset::load_internal_asset;
@@ -43,6 +43,7 @@ impl Plugin for FogOfWar2dPlugin {
                 Update,
                 (
                     adjust_fow_screen,
+                    update_chunk_array_indices,
                     update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
                 ),
             )
