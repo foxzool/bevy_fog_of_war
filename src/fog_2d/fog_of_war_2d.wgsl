@@ -8,6 +8,7 @@ struct FogOfWarSettings {
     fog_color: vec4<f32>,
     fade_width: f32,
     explored_alpha: f32,
+    debug_chunks: u32,  // 0: 关闭, 1: 开启
 }
 
 struct FogSight2DUniform {
@@ -124,6 +125,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let chunk_coords = get_chunk_coords(world_pos);
     let local_pos = vec2<i32>(chunk_coords.xy);
     let chunk_index = chunk_coords.z;
+    
+    // Debug visualization for chunks
+    if (settings.debug_chunks == 1u) {
+        let chunk_size = screen_size_uniform.chunk_size;
+        let local_x_norm = f32(local_pos.x) / chunk_size;
+        let local_y_norm = f32(local_pos.y) / chunk_size;
+        
+        // Draw chunk borders (更细的边界线)
+        if (local_x_norm < 0.005 || local_x_norm > 0.995 || 
+            local_y_norm < 0.005 || local_y_norm > 0.995) {
+            return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
+        }
+        
+        // Draw chunk index in center (更小的中心标记)
+        if (local_x_norm > 0.48 && local_x_norm < 0.52 && 
+            local_y_norm > 0.48 && local_y_norm < 0.52) {
+            return vec4<f32>(0.0, 1.0, 0.0, 1.0);  // 绿色中心点表示索引位置
+        }
+    }
     
     // Only update explored texture if within bounds
     if (local_pos.x >= 0 && local_pos.x < i32(screen_size_uniform.chunk_size) &&

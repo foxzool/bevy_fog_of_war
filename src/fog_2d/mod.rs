@@ -96,6 +96,7 @@ pub struct FogOfWarSettings {
     pub fog_color: LinearRgba,
     pub fade_width: f32,
     pub explored_alpha: f32,
+    pub debug_chunks: u32,
 }
 
 impl Default for FogOfWarSettings {
@@ -104,6 +105,7 @@ impl Default for FogOfWarSettings {
             fog_color: Color::BLACK.into(),
             fade_width: 50.0,
             explored_alpha: 0.5,
+            debug_chunks: 0,
         }
     }
 }
