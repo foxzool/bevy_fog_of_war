@@ -2,9 +2,7 @@ use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use crate::FogSight2DUniform;
 use crate::{FogOfWarScreen, FogSight2D};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{
-    Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource,
-};
+use bevy::prelude::{debug, Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource};
 use bevy::render::camera::Camera;
 use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
@@ -143,27 +141,30 @@ pub(super) fn prepare_chunk_texture(
     mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
-    chunks_query: Query<(&ChunkCoord, &ChunkArrayIndex)>,
+    mut chunks_query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
     // 获取当前视野内的chunks
     let chunks_in_view = screen.get_chunks_in_view();
     
     // 遍历所有已存在的chunks
-    for (coord, array_index) in chunks_query.iter() {
+    for (coord, mut array_index) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
-            if let (Some(index), Some(prev_index)) = (array_index.index, array_index.previous_index) {
+            if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 // 应该同时清空新旧两个索引的纹理
+                // debug!("{:?} clean {} {}", coord, index, prev_index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index);
-                fog_of_war_pipeline.clear_explored_texture(&queue, prev_index);
+                // fog_of_war_pipeline.clear_explored_texture(&queue, prev_index);
             }
             // 处理只有当前索引的情况
-            else if let Some(index) = array_index.index {
+            else if let Some(index) = array_index.current {
+                // debug!("{:?} clean {}", coord, index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index);
             }
-        } else if array_index.index != array_index.previous_index {
+        } else if array_index.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            if let (Some(index), Some(prev_index)) = (array_index.index, array_index.previous_index) {
+            // debug!("{:?} clean {:?}", coord, array_index);
+            if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 fog_of_war_pipeline.transfer_chunk_data(&device, &queue, prev_index, index);
             }
         }

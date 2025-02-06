@@ -117,7 +117,7 @@ pub struct FogOfWarScreen {
     pub screen_size: Vec2,
     pub camera_position: Vec2,
     pub chunk_size: f32,
-    pub debug: u32
+    pub debug: u32,
 }
 
 impl Default for FogOfWarScreen {
@@ -199,7 +199,10 @@ pub fn adjust_fow_screen(
 ) {
     // Update screen size on window resize
     for event in resize_events.read() {
-        debug!("window resized to {}x{}", event.width, event.height);
+        debug!(
+            "window resized from {}x{} to {}x{}",
+            fow_screen.screen_size.x, fow_screen.screen_size.y, event.width, event.height
+        );
         fow_screen.screen_size = Vec2::new(event.width, event.height);
     }
 

@@ -37,8 +37,26 @@ pub struct ChunkCache(pub Vec<u8>);
 
 #[derive(Component, Default, ExtractComponent, Clone, Debug)]
 pub struct ChunkArrayIndex {
-    pub index: Option<u32>,
-    pub previous_index: Option<u32>,
+    pub current: Option<i32>,
+    pub previous: Option<i32>,
+}
+
+impl ChunkArrayIndex {
+    pub fn require_chunk_transport(&mut self) -> bool {
+        if self.has_changed_indices() {
+            self.previous = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn has_changed_indices(&self) -> bool {
+        match (self.current, self.previous) {
+            (Some(curr), Some(prev)) => curr != prev,
+            _ => false,
+        }
+    }
 }
 
 pub fn update_chunks_system(
@@ -91,20 +109,23 @@ pub fn update_chunk_array_indices(
     let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
 
     for (coord, mut array_index) in query.iter_mut() {
-        // 保存旧的索引
-        array_index.previous_index = array_index.index;
-
         // 计算相对于视口左上角的坐标
         let relative_x = coord.x - top_left_chunk_x;
         let relative_y = coord.y - top_left_chunk_y;
 
         // 计算新的数组索引
-        let chunk_index = relative_y * chunks_per_row + relative_x;
-        array_index.index = if chunk_index >= 0 {
-            Some(chunk_index as u32)
-        } else {
-            None
-        };
+        let chunk_index = (relative_y * chunks_per_row + relative_x);
+
+        if array_index.current != Some(chunk_index) && chunk_index >= 0 {
+            debug!(
+                "{:?} index update {:?} => {:?}",
+                coord, array_index.current, chunk_index
+            );
+            // 保存旧的索引
+            array_index.previous = array_index.current;
+
+            array_index.current = Some(chunk_index);
+        }
     }
 }
 
@@ -118,10 +139,11 @@ pub fn debug_chunk_indices(
             for child in children.iter() {
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
-                    "({}, {})[{}]",
+                    "({}, {})[{}/{}]",
                     chunk_coord.x,
                     chunk_coord.y,
-                    chunk_index.index.unwrap_or_default()
+                    chunk_index.previous.unwrap_or_default(),
+                    chunk_index.current.unwrap_or_default()
                 );
             }
         }

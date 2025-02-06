@@ -153,9 +153,8 @@ impl FromWorld for FogOfWar2dPipeline {
 }
 
 impl FogOfWar2dPipeline {
-    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: u32) {
+    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: i32) {
         if let Some(texture) = &self.texture {
-            // println!("Clearing chunk index: {}", chunk_index);
             // 创建一个全零的缓冲区，大小为一个chunk的大小
             let zeros = vec![0u8; (CHUNK_SIZE * CHUNK_SIZE) as usize];
 
@@ -190,8 +189,8 @@ impl FogOfWar2dPipeline {
         &self,
         device: &RenderDevice,
         queue: &RenderQueue,
-        from_index: u32,
-        to_index: u32,
+        from_index: i32,
+        to_index: i32,
     ) {
         if let Some(texture) = &self.texture {
             // 创建一个命令编码器
