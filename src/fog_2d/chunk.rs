@@ -47,10 +47,15 @@ impl ChunkArrayIndex {
         self.previous.is_some() && self.current != self.previous
     }
 
-    pub fn update_ring_buffer_position(&mut self, new_x: i32, new_y: i32, buffer_width: i32, buffer_height: i32) -> Option<i32> {
+    pub fn update_ring_buffer_position(
+        &mut self,
+        new_x: i32,
+        new_y: i32,
+        buffer_width: i32,
+        buffer_height: i32,
+    ) -> Option<i32> {
         let x = new_x.rem_euclid(buffer_width);
         let y = new_y.rem_euclid(buffer_height);
-        
         self.ring_buffer_position = Some((x, y));
         Some(y * buffer_width + x)
     }
@@ -112,17 +117,20 @@ pub fn update_chunk_array_indices(
         let relative_y = coord.y - (camera_chunk_y - buffer_height / 2);
 
         // 如果chunk在视野范围内（考虑额外的缓冲区）
-        if relative_x >= -1 && relative_x <= buffer_width &&
-           relative_y >= -1 && relative_y <= buffer_height {
+        if relative_x >= -1
+            && relative_x <= buffer_width
+            && relative_y >= -1
+            && relative_y <= buffer_height
+        {
             // 保存旧的索引
             array_index.previous = array_index.current;
-            
+
             // 更新环形缓存中的位置和索引
             array_index.current = array_index.update_ring_buffer_position(
                 relative_x,
                 relative_y,
                 buffer_width,
-                buffer_height
+                buffer_height,
             );
 
             if array_index.current != array_index.previous {

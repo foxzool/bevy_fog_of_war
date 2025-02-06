@@ -62,16 +62,12 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let relative_x = chunk_x - (camera_chunk_x - buffer_width / 2);
     let relative_y = chunk_y - (camera_chunk_y - buffer_height / 2);
     
-    // 使用取模运算实现环形缓存
-    let ring_x = relative_x % buffer_width;
-    let ring_y = relative_y % buffer_height;
+    // 修改环形缓存索引计算方式与Rust代码一致
+    let ring_x = (relative_x + buffer_width) % buffer_width;
+    let ring_y = (relative_y + buffer_height) % buffer_height;
     
-    // 确保结果为正数
-    let normalized_x = select(ring_x + buffer_width, ring_x, ring_x >= 0);
-    let normalized_y = select(ring_y + buffer_height, ring_y, ring_y >= 0);
-    
-    // 计算最终的环形缓存索引
-    let chunk_index = (normalized_y % buffer_height) * buffer_width + (normalized_x % buffer_width);
+    // 直接使用取模后的结果（Rust代码使用rem_euclid保证非负）
+    let chunk_index = ring_y * buffer_width + ring_x; // 行优先排列
     
     // 计算块内的局部坐标
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
@@ -80,7 +76,7 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     return vec3<i32>(local_x, local_y, chunk_index);
 }
 
-// 新增视野判断函数
+// 修改视野判断逻辑与Rust代码同步
 fn is_chunk_in_view(chunk_index: i32) -> bool {
     let chunk_size = screen_size_uniform.chunk_size;
     
@@ -92,15 +88,17 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     let max_x = i32(view_width) + 1;
     let max_y = i32(view_height) + 1;
     
-    // 修改为 +2 保持与chunks_per_row计算一致
-    let chunks_per_row = i32(view_width) + 2;
-    let rel_chunk_x = chunk_index % chunks_per_row;
-    let rel_chunk_y = chunk_index / chunks_per_row;
+    // 修改为与Rust代码相同的判断条件
+    let buffer_width = i32(view_width) + 2;
+    let buffer_height = i32(view_height) + 2;
+    
+    // 根据环形缓存中的相对位置判断
+    let rel_chunk_x = chunk_index % buffer_width;
+    let rel_chunk_y = chunk_index / buffer_width;
     
     // 判断是否在有效范围内（包含1个块的边界缓冲）
-    return rel_chunk_x >= -1 && rel_chunk_x <= max_x &&
-           rel_chunk_y >= -1 && rel_chunk_y <= max_y &&
-           chunk_index >= 0;
+    return rel_chunk_x >= 0 && rel_chunk_x <= max_x &&
+           rel_chunk_y >= 0 && rel_chunk_y <= max_y;
 }
 
 @fragment
@@ -145,7 +143,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
         }
     }
-    
+
     // Only update explored texture if within bounds
     if (local_pos.x >= 0 && local_pos.x < i32(screen_size_uniform.chunk_size) &&
         local_pos.y >= 0 && local_pos.y < i32(screen_size_uniform.chunk_size) &&

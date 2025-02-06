@@ -145,9 +145,8 @@ impl FogOfWarScreen {
 
 impl FogOfWarScreen {
     pub fn calculate_max_chunks(&self) -> (u32, u32) {
-        let max_chunks_x = ((self.screen_size.x / self.chunk_size).ceil() as u32) + 1;
-        let max_chunks_y = ((self.screen_size.y / self.chunk_size).ceil() as u32) + 1;
-
+        let max_chunks_x = (self.screen_size.x / self.chunk_size).ceil() as u32;
+        let max_chunks_y = (self.screen_size.y / self.chunk_size).ceil() as u32;
         (max_chunks_x, max_chunks_y)
     }
 
