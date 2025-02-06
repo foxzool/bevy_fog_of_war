@@ -155,7 +155,7 @@ impl FromWorld for FogOfWar2dPipeline {
 impl FogOfWar2dPipeline {
     pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: u32) {
         if let Some(texture) = &self.texture {
-            println!("Clearing chunk index: {}", chunk_index);
+            // println!("Clearing chunk index: {}", chunk_index);
             // 创建一个全零的缓冲区，大小为一个chunk的大小
             let zeros = vec![0u8; (CHUNK_SIZE * CHUNK_SIZE) as usize];
 
@@ -201,7 +201,7 @@ impl FogOfWar2dPipeline {
                 },
             );
 
-            println!("from_index: {}, to_index: {}", from_index, to_index);
+            // println!("from_index: {}, to_index: {}", from_index, to_index);
 
             // 使用copy_texture_to_texture在同一纹理的不同层之间复制数据
             encoder.copy_texture_to_texture(
@@ -225,7 +225,7 @@ impl FogOfWar2dPipeline {
                     },
                     aspect: bevy::render::render_resource::TextureAspect::All,
                 },
-                bevy::render::render_resource::Extent3d {
+                Extent3d {
                     width: CHUNK_SIZE,
                     height: CHUNK_SIZE,
                     depth_or_array_layers: 1,

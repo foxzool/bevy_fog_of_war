@@ -1,4 +1,4 @@
-use crate::FogOfWarScreen;
+use crate::{FogOfWarScreen, FogOfWarSettings};
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
@@ -32,21 +32,6 @@ impl ChunkCoord {
     }
 }
 
-#[derive(Debug)]
-pub struct Chunk {
-    pub coord: ChunkCoord,
-    pub is_loaded: bool,
-}
-
-impl Chunk {
-    pub fn new(coord: ChunkCoord) -> Self {
-        Self {
-            coord,
-            is_loaded: false,
-        }
-    }
-}
-
 #[derive(Component, Deref, DerefMut, Default)]
 pub struct ChunkCache(pub Vec<u8>);
 
@@ -65,11 +50,27 @@ pub fn update_chunks_system(
     let mut existing_coords: Vec<ChunkCoord> =
         chunks_query.iter().map(|(_, coord, _)| *coord).collect();
 
+    let text_font = TextFont {
+        font_size: 20.0,
+        ..default()
+    };
     // Handle chunk loading for new chunks
     for coord in chunks_in_view.iter() {
         if !existing_coords.contains(coord) {
+            let world_pos = coord.to_world_pos();
             debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
-            commands.spawn((*coord, ChunkCache::default(), ChunkArrayIndex::default()));
+            commands
+                .spawn((
+                    *coord,
+                    ChunkCache::default(),
+                    ChunkArrayIndex::default(),
+                    Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+                ))
+                .with_children(|p| {
+                    if fow_screen.can_debug() {
+                        p.spawn((Text2d::default(), text_font.clone(), ChunkDebugText));
+                    }
+                });
         }
     }
 }
@@ -106,3 +107,26 @@ pub fn update_chunk_array_indices(
         };
     }
 }
+
+pub fn debug_chunk_indices(
+    fow_screen: Res<FogOfWarScreen>,
+    chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
+    mut text_query: Query<&mut Text2d>,
+) {
+    if fow_screen.can_debug() {
+        for (chunk_index, chunk_coord, children) in chunks_query.iter() {
+            for child in children.iter() {
+                let mut text = text_query.get_mut(*child).unwrap();
+                text.0 = format!(
+                    "({}, {})[{}]",
+                    chunk_coord.x,
+                    chunk_coord.y,
+                    chunk_index.index.unwrap_or_default()
+                );
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct ChunkDebugText;

@@ -63,8 +63,7 @@ fn setup(
         FogOfWarSettings {
             fog_color: Color::BLACK.into(),
             fade_width: 0.2,
-            explored_alpha: 0.1, // You can adjust this value to control explored area visibility
-            debug_chunks: 1,
+            explored_alpha: 0.1, // You can adjust this value to control explored area visibility ,
         },
         CameraController { speed: 500.0 }, // Add camera controller
     ));

@@ -2,7 +2,10 @@ use crate::fog_2d::buffers::{
     extract_buffers, prepare_buffers, prepare_chunk_texture, FogSight2dBuffers,
     FogSight2dScreenBuffers,
 };
-use crate::fog_2d::chunk::{update_chunk_array_indices, update_chunks_system, ChunkArrayIndex, ChunkCoord, CHUNK_SIZE};
+use crate::fog_2d::chunk::{
+    debug_chunk_indices, update_chunk_array_indices, update_chunks_system, ChunkArrayIndex,
+    ChunkCoord, CHUNK_SIZE,
+};
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use bevy::asset::load_internal_asset;
@@ -45,6 +48,7 @@ impl Plugin for FogOfWar2dPlugin {
                     adjust_fow_screen,
                     update_chunk_array_indices,
                     update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
+                    debug_chunk_indices,
                 ),
             )
             .add_plugins((
@@ -96,7 +100,6 @@ pub struct FogOfWarSettings {
     pub fog_color: LinearRgba,
     pub fade_width: f32,
     pub explored_alpha: f32,
-    pub debug_chunks: u32,
 }
 
 impl Default for FogOfWarSettings {
@@ -105,7 +108,6 @@ impl Default for FogOfWarSettings {
             fog_color: Color::BLACK.into(),
             fade_width: 50.0,
             explored_alpha: 0.5,
-            debug_chunks: 0,
         }
     }
 }
@@ -115,6 +117,7 @@ pub struct FogOfWarScreen {
     pub screen_size: Vec2,
     pub camera_position: Vec2,
     pub chunk_size: f32,
+    pub debug: u32
 }
 
 impl Default for FogOfWarScreen {
@@ -123,7 +126,14 @@ impl Default for FogOfWarScreen {
             screen_size: Vec2::ZERO,
             camera_position: Vec2::ZERO,
             chunk_size: CHUNK_SIZE as f32,
+            debug: 1,
         }
+    }
+}
+
+impl FogOfWarScreen {
+    fn can_debug(&self) -> bool {
+        self.debug == 1
     }
 }
 
