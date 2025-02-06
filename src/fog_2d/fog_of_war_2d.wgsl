@@ -69,9 +69,9 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     // 直接使用取模后的结果（Rust代码使用rem_euclid保证非负）
     let chunk_index = ring_y * buffer_width + ring_x; // 行优先排列
     
-    // 计算块内的局部坐标
+    // 计算块内的局部坐标，y轴翻转以匹配WGSL坐标系
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
-    let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size));
+    let local_y = i32(chunk_size) - 1 - i32(world_pos.y - (f32(chunk_y) * chunk_size));
     
     return vec3<i32>(local_x, local_y, chunk_index);
 }
@@ -99,6 +99,105 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     // 判断是否在有效范围内（包含1个块的边界缓冲）
     return rel_chunk_x >= 0 && rel_chunk_x <= max_x &&
            rel_chunk_y >= 0 && rel_chunk_y <= max_y;
+}
+
+// 判断点阵数字中的某个点是否应该被渲染
+fn should_render_dot(digit: i32, x: i32, y: i32) -> bool {
+    // 5x7点阵数字模板定义（0-9）
+    switch digit {
+        case 0: {
+            return (x == 0 && y > 0 && y < 6) ||  // 左边
+                   (x == 4 && y > 0 && y < 6) ||  // 右边
+                   (y == 0 && x > 0 && x < 4) ||  // 上边
+                   (y == 6 && x > 0 && x < 4);    // 下边
+        }
+        case 1: {
+            return x == 2 || (y == 6 && x >= 1 && x <= 3);
+        }
+        case 2: {
+            return (y == 0 && x > 0 && x < 4) ||  // 上边
+                   (y == 3 && x > 0 && x < 4) ||  // 中间
+                   (y == 6 && x > 0 && x < 4) ||  // 下边
+                   (x == 4 && y > 0 && y < 3) ||  // 右上
+                   (x == 0 && y > 3 && y < 6);    // 左下
+        }
+        case 3: {
+            return (y == 0 && x > 0 && x < 4) ||
+                   (y == 3 && x > 0 && x < 4) ||
+                   (y == 6 && x > 0 && x < 4) ||
+                   (x == 4 && y != 0 && y != 3 && y != 6);
+        }
+        case 4: {
+            return (x == 4) ||
+                   (x == 0 && y < 4) ||
+                   (y == 3);
+        }
+        case 5: {
+            return (y == 0 && x > 0 && x < 4) ||
+                   (y == 3 && x > 0 && x < 4) ||
+                   (y == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y > 0 && y < 3) ||
+                   (x == 4 && y > 3 && y < 6);
+        }
+        case 6: {
+            return (y == 0 && x > 0 && x < 4) ||
+                   (y == 3 && x > 0 && x < 4) ||
+                   (y == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y > 0 && y < 6) ||
+                   (x == 4 && y > 3 && y < 6);
+        }
+        case 7: {
+            return (y == 0) ||
+                   (x == 4);
+        }
+        case 8: {
+            return (y == 0 && x > 0 && x < 4) ||
+                   (y == 3 && x > 0 && x < 4) ||
+                   (y == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y != 0 && y != 3 && y != 6) ||
+                   (x == 4 && y != 0 && y != 3 && y != 6);
+        }
+        case 9: {
+            return (y == 0 && x > 0 && x < 4) ||
+                   (y == 3 && x > 0 && x < 4) ||
+                   (y == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y > 0 && y < 3) ||
+                   (x == 4 && y != 3 && y != 6);
+        }
+        default: {
+            return false;
+        }
+    }
+}
+
+// 渲染数字函数
+fn render_number(number: i32, local_pos: vec2<i32>, dot_size: f32) -> bool {
+    // 提取十位和个位数字
+    let tens = number / 10;
+    let ones = number % 10;
+    
+    // 计算点阵的基准位置（左上角偏移2个点大小）
+    let base_x = 8.0;
+    let base_y = 8.0;
+    
+    // 计算当前像素在点阵中的位置
+    let dot_x = i32(floor((f32(local_pos.x) - base_x) / dot_size));
+    // 不需要再次翻转y轴，因为local_pos已经是正确的坐标系了
+    let dot_y = i32(floor((f32(local_pos.y) - base_y) / dot_size));
+    
+    // 检查是否在点阵范围内
+    if (dot_y >= 0 && dot_y < 7) {
+        // 检查十位数字
+        if (tens > 0 && dot_x >= 0 && dot_x < 5) {
+            return should_render_dot(tens, dot_x, dot_y);
+        }
+        // 检查个位数字（向右偏移6个点宽度）
+        if (dot_x >= 6 && dot_x < 11) {
+            return should_render_dot(ones, dot_x - 6, dot_y);
+        }
+    }
+    
+    return false;
 }
 
 @fragment
@@ -137,10 +236,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let local_x_norm = f32(local_pos.x) / chunk_size;
         let local_y_norm = f32(local_pos.y) / chunk_size;
         
-        // Draw chunk borders (更细的边界线)
+        // Draw chunk borders
         if (local_x_norm < 0.005 || local_x_norm > 0.995 || 
             local_y_norm < 0.005 || local_y_norm > 0.995) {
             return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
+        }
+
+        // 渲染chunk index数字
+        let dot_size = chunk_size / 50.0; // 点的大小
+        if (render_number(chunk_index, local_pos, dot_size)) {
+            return vec4<f32>(0.0, 1.0, 0.0, 1.0); // 绿色数字
         }
     }
 
