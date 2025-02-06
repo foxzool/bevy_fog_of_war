@@ -19,6 +19,7 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
+use bevy::prelude::{DetectChanges, Res, ResMut};
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {
@@ -32,18 +33,23 @@ pub struct FogOfWar2dPipeline {
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
+        // 计算基于屏幕大小的最大可见chunks
+        let screen = world.resource::<FogOfWarScreen>();
+        let (chunks_x, chunks_y) = screen.calculate_max_chunks();
         let render_device = world.resource_mut::<RenderDevice>();
 
-        // Calculate texture array size based on maximum visible area
-        let max_visible_chunks = 20; // A reasonable default that covers most screen sizes
-        let texture_array_size = max_visible_chunks * max_visible_chunks;
+
+        
+        // 为了实现环形缓存，我们需要比实际视口多2行2列的chunks
+        // 这样在相机移动时可以预先加载新的chunks
+        let texture_array_size = ((chunks_x + 2) * (chunks_y + 2)) as u32;
 
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
                 width: CHUNK_SIZE as u32,
                 height: CHUNK_SIZE as u32,
-                depth_or_array_layers: texture_array_size, // Array layers for visible chunks
+                depth_or_array_layers: texture_array_size,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -237,6 +243,50 @@ impl FogOfWar2dPipeline {
             // 清空源chunk
             self.clear_explored_texture(queue, from_index);
         }
+    }
+
+    pub fn recreate_texture(&mut self, device: &RenderDevice, screen: &FogOfWarScreen) {
+        // 计算基于屏幕大小的纹理数组大小
+        let (chunks_x, chunks_y) = screen.calculate_max_chunks();
+        let texture_array_size = ((chunks_x + 2) * (chunks_y + 2)) as u32;
+
+        // 创建新的纹理
+        let texture = device.create_texture(&TextureDescriptor {
+            label: Some("fog_explored_texture"),
+            size: Extent3d {
+                width: CHUNK_SIZE as u32,
+                height: CHUNK_SIZE as u32,
+                depth_or_array_layers: texture_array_size,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R8Unorm,
+            usage: TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::COPY_SRC
+                | TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        });
+
+        let explored_texture = texture.create_view(&TextureViewDescriptor {
+            dimension: Some(bevy::render::render_resource::TextureViewDimension::D2Array),
+            ..TextureViewDescriptor::default()
+        });
+
+        self.explored_texture = Some(explored_texture);
+        self.texture = Some(texture);
+    }
+}
+
+// 添加一个系统来处理窗口大小变化
+pub fn handle_screen_resize(
+    screen: Res<FogOfWarScreen>,
+    device: Res<RenderDevice>,
+    mut pipeline: ResMut<FogOfWar2dPipeline>,
+) {
+    if screen.is_changed() {
+        pipeline.recreate_texture(&device, &screen);
     }
 }
 

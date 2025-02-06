@@ -7,7 +7,7 @@ use crate::fog_2d::chunk::{
     ChunkCoord, CHUNK_SIZE,
 };
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
-use crate::fog_2d::pipeline::FogOfWar2dPipeline;
+use crate::fog_2d::pipeline::{FogOfWar2dPipeline, handle_screen_resize};
 use bevy::asset::load_internal_asset;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
@@ -41,23 +41,28 @@ impl Plugin for FogOfWar2dPlugin {
 
         app.register_type::<FogOfWarSettings>()
             .register_type::<FogOfWarScreen>()
-            .init_resource::<FogOfWarScreen>()
-            .add_systems(
-                Update,
-                (
-                    adjust_fow_screen,
-                    update_chunk_array_indices,
-                    update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
-                    debug_chunk_indices,
-                ),
-            )
-            .add_plugins((
-                ExtractComponentPlugin::<ChunkCoord>::default(),
-                ExtractComponentPlugin::<ChunkArrayIndex>::default(),
-                ExtractComponentPlugin::<FogOfWarSettings>::default(),
-                ExtractResourcePlugin::<FogOfWarScreen>::default(),
-                UniformComponentPlugin::<FogOfWarSettings>::default(),
-            ));
+            .init_resource::<FogOfWarScreen>();
+
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.init_resource::<FogOfWarScreen>();
+        }
+
+        app.add_systems(
+            Update,
+            (
+                adjust_fow_screen,
+                update_chunk_array_indices,
+                update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
+                debug_chunk_indices,
+            ),
+        )
+        .add_plugins((
+            ExtractComponentPlugin::<ChunkCoord>::default(),
+            ExtractComponentPlugin::<ChunkArrayIndex>::default(),
+            ExtractComponentPlugin::<FogOfWarSettings>::default(),
+            ExtractResourcePlugin::<FogOfWarScreen>::default(),
+            UniformComponentPlugin::<FogOfWarSettings>::default(),
+        ));
 
         app.register_type::<FogSight2D>();
 
@@ -71,7 +76,10 @@ impl Plugin for FogOfWar2dPlugin {
             .add_systems(ExtractSchedule, extract_buffers)
             .add_systems(
                 Render,
-                ((prepare_buffers, prepare_chunk_texture).in_set(RenderSet::Prepare),),
+                (
+                    (prepare_buffers, prepare_chunk_texture).in_set(RenderSet::Prepare),
+                    handle_screen_resize.in_set(RenderSet::Prepare),
+                ),
             )
             .add_render_graph_node::<ViewNodeRunner<FogOfWar2dNode>>(Core2d, FogOfWarLabel)
             .add_render_graph_edges(
@@ -89,9 +97,7 @@ impl Plugin for FogOfWar2dPlugin {
             return;
         };
 
-        render_app
-            // Initialize the pipeline
-            .init_resource::<FogOfWar2dPipeline>();
+        render_app.init_resource::<FogOfWar2dPipeline>();
     }
 }
 

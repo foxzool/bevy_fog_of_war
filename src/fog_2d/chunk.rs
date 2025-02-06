@@ -39,23 +39,20 @@ pub struct ChunkCache(pub Vec<u8>);
 pub struct ChunkArrayIndex {
     pub current: Option<i32>,
     pub previous: Option<i32>,
+    pub ring_buffer_position: Option<(i32, i32)>, // 在环形缓存中的位置 (x, y)
 }
 
 impl ChunkArrayIndex {
-    pub fn require_chunk_transport(&mut self) -> bool {
-        if self.has_changed_indices() {
-            self.previous = None;
-            true
-        } else {
-            false
-        }
+    pub fn require_chunk_transport(&self) -> bool {
+        self.previous.is_some() && self.current != self.previous
     }
 
-    fn has_changed_indices(&self) -> bool {
-        match (self.current, self.previous) {
-            (Some(curr), Some(prev)) => curr != prev,
-            _ => false,
-        }
+    pub fn update_ring_buffer_position(&mut self, new_x: i32, new_y: i32, buffer_width: i32, buffer_height: i32) -> Option<i32> {
+        let x = new_x.rem_euclid(buffer_width);
+        let y = new_y.rem_euclid(buffer_height);
+        
+        self.ring_buffer_position = Some((x, y));
+        Some(y * buffer_width + x)
     }
 }
 
@@ -97,34 +94,51 @@ pub fn update_chunk_array_indices(
     fow_screen: Res<FogOfWarScreen>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
+    if fow_screen.screen_size == Vec2::ZERO {
+        return;
+    }
     // 计算相机位置对应的chunk坐标
     let camera_chunk_x = (fow_screen.camera_position.x / fow_screen.chunk_size).floor() as i32;
     let camera_chunk_y = (fow_screen.camera_position.y / fow_screen.chunk_size).floor() as i32;
 
-    // 修改为 -1 保持对称padding（与WGSL代码同步）
-    let top_left_chunk_x = camera_chunk_x - 1;
-    let top_left_chunk_y = camera_chunk_y - 1;
-
-    // 修改为 +2 保持对称（视口宽度 + 左右各1块padding）
-    let chunks_per_row = (fow_screen.screen_size.x / fow_screen.chunk_size).ceil() as i32 + 2;
+    // 计算环形缓存的大小（比视口大2行2列）
+    let (chunks_x, chunks_y) = fow_screen.calculate_max_chunks();
+    let buffer_width = chunks_x as i32 + 2;
+    let buffer_height = chunks_y as i32 + 2;
 
     for (coord, mut array_index) in query.iter_mut() {
-        // 计算相对于视口左上角的坐标
-        let relative_x = coord.x - top_left_chunk_x;
-        let relative_y = coord.y - top_left_chunk_y;
+        // 计算chunk在环形缓存中的相对位置
+        let relative_x = coord.x - (camera_chunk_x - buffer_width / 2);
+        let relative_y = coord.y - (camera_chunk_y - buffer_height / 2);
 
-        // 计算新的数组索引
-        let chunk_index = (relative_y * chunks_per_row + relative_x);
-
-        if array_index.current != Some(chunk_index) && chunk_index >= 0 {
-            debug!(
-                "{:?} index update {:?} => {:?}",
-                coord, array_index.current, chunk_index
-            );
+        // 如果chunk在视野范围内（考虑额外的缓冲区）
+        if relative_x >= -1 && relative_x <= buffer_width &&
+           relative_y >= -1 && relative_y <= buffer_height {
             // 保存旧的索引
             array_index.previous = array_index.current;
+            
+            // 更新环形缓存中的位置和索引
+            array_index.current = array_index.update_ring_buffer_position(
+                relative_x,
+                relative_y,
+                buffer_width,
+                buffer_height
+            );
 
-            array_index.current = Some(chunk_index);
+            if array_index.current != array_index.previous {
+                debug!(
+                    "{:?} index update {:?} => {:?} at ring buffer pos {:?}",
+                    coord,
+                    array_index.previous,
+                    array_index.current,
+                    array_index.ring_buffer_position
+                );
+            }
+        } else {
+            // 如果chunk不在视野范围内，清除其索引
+            array_index.previous = array_index.current;
+            array_index.current = None;
+            array_index.ring_buffer_position = None;
         }
     }
 }

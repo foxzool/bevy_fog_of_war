@@ -52,19 +52,26 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let camera_chunk_x = i32(floor(screen_size_uniform.camera_position.x / chunk_size));
     let camera_chunk_y = i32(floor(screen_size_uniform.camera_position.y / chunk_size));
     
-    // 修改为 -1 保持对称padding（与Rust代码同步）
-    let top_left_chunk_x = camera_chunk_x - 1;
-    let top_left_chunk_y = camera_chunk_y - 1;
+    // 计算环形缓存的大小
+    let view_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size));
+    let view_height = i32(ceil(screen_size_uniform.screen_size.y / chunk_size));
+    let buffer_width = view_width + 2;  // 额外的缓冲区
+    let buffer_height = view_height + 2;
     
-    // 计算相对于视口左上角的坐标
-    let relative_x = chunk_x - top_left_chunk_x;
-    let relative_y = chunk_y - top_left_chunk_y;
+    // 计算chunk在环形缓存中的相对位置
+    let relative_x = chunk_x - (camera_chunk_x - buffer_width / 2);
+    let relative_y = chunk_y - (camera_chunk_y - buffer_height / 2);
     
-    // 修改为 +2 保持对称（视口宽度 + 左右各1块padding）
-    let chunks_per_row = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 2;
+    // 使用取模运算实现环形缓存
+    let ring_x = relative_x % buffer_width;
+    let ring_y = relative_y % buffer_height;
     
-    // 计算块索引
-    let chunk_index = relative_y * chunks_per_row + relative_x;
+    // 确保结果为正数
+    let normalized_x = select(ring_x + buffer_width, ring_x, ring_x >= 0);
+    let normalized_y = select(ring_y + buffer_height, ring_y, ring_y >= 0);
+    
+    // 计算最终的环形缓存索引
+    let chunk_index = (normalized_y % buffer_height) * buffer_width + (normalized_x % buffer_width);
     
     // 计算块内的局部坐标
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));

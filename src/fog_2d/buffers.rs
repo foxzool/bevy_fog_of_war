@@ -152,18 +152,18 @@ pub(super) fn prepare_chunk_texture(
         if !chunks_in_view.contains(coord) {
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 // 应该同时清空新旧两个索引的纹理
-                // debug!("{:?} clean {} {}", coord, index, prev_index);
+                debug!("{:?} clean {} {}", coord, index, prev_index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index);
-                // fog_of_war_pipeline.clear_explored_texture(&queue, prev_index);
+                fog_of_war_pipeline.clear_explored_texture(&queue, prev_index);
             }
             // 处理只有当前索引的情况
             else if let Some(index) = array_index.current {
-                // debug!("{:?} clean {}", coord, index);
+                debug!("{:?} clean {}", coord, index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index);
             }
         } else if array_index.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            // debug!("{:?} clean {:?}", coord, array_index);
+            debug!("{:?} clean {:?}", coord, array_index);
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 fog_of_war_pipeline.transfer_chunk_data(&device, &queue, prev_index, index);
             }
