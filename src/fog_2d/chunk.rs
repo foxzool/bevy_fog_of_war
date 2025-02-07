@@ -19,15 +19,15 @@ impl ChunkCoord {
 
     pub fn from_world_pos(pos: Vec2) -> Self {
         Self {
-            x: (pos.x as i32).div_euclid(CHUNK_SIZE as i32),
-            y: -(pos.y as i32).div_euclid(CHUNK_SIZE as i32) - 1, // 反转y轴并向下偏移一个chunk
+            x: (pos.x / CHUNK_SIZE).floor() as i32,
+            y: (pos.y / CHUNK_SIZE).floor() as i32,
         }
     }
 
     pub fn to_world_pos(&self) -> Vec2 {
         Vec2::new(
-            (self.x * CHUNK_SIZE as i32) as f32,
-            ((-self.y - 1) * (CHUNK_SIZE as i32)) as f32, // 修复类型转换顺序
+            self.x as f32 * CHUNK_SIZE,
+            self.y as f32 * CHUNK_SIZE,
         )
     }
 }
