@@ -222,8 +222,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     // Convert screen position to world space coordinates for texture sampling
     let world_pos = vec2<f32>(
-        screen_pos.x + screen_size_uniform.camera_position.x + screen_size_uniform.screen_size.x * 0.5,
-        screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5
+        screen_pos.x + screen_size_uniform.camera_position.x,
+        screen_pos.y + screen_size_uniform.camera_position.y
     );
     
     // Get chunk coordinates and array index
@@ -238,16 +238,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let distance_from_left = f32(local_pos.x);
         let distance_from_top = f32(local_pos.y);
         
-        // 在左上角画一个小方块标记chunk位置
-        let block_size = 4.0; // 小方块大小
-        if (distance_from_left < block_size && distance_from_top < block_size) {
-            return vec4<f32>(1.0, 1.0, 0.0, 1.0);  // 黄色方块
-        }
+        // 绘制非重叠的chunk边界线（只绘制左边和上边）
+        let line_width = 1.0;
         
-        // 在chunk边界画线
-        if (distance_from_left < 1.0 || distance_from_left > chunk_size - 1.0 || 
-            distance_from_top < 1.0 || distance_from_top > chunk_size - 1.0) {
-            return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
+        // 左边线（所有chunk统一红色）
+        if (distance_from_left < line_width) {
+            return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+        }
+        // 上边线（所有chunk统一绿色）
+        if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
+            return vec4<f32>(0.0, 1.0, 0.0, 1.0);
         }
 
         // 渲染chunk index数字，位置调整到左上角附近
