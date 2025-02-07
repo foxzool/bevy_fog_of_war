@@ -1,5 +1,5 @@
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 
 #[cfg(feature = "2d")]
 mod fog_2d;

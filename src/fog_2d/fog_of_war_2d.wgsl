@@ -49,8 +49,11 @@ fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
         (1.0 - uv.y) * screen_size_uniform.screen_size.y  // 翻转Y轴
     );
     
-    // 计算世界坐标
-    let world_pos = screen_pos + screen_size_uniform.camera_position - screen_size_uniform.screen_size * 0.5;
+    // 计算世界坐标（Y轴需要反向）
+    let world_pos = vec2<f32>(
+        screen_pos.x + screen_size_uniform.camera_position.x - screen_size_uniform.screen_size.x * 0.5,
+        screen_pos.y - screen_size_uniform.camera_position.y - screen_size_uniform.screen_size.y * 0.5
+    );
     
     // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
@@ -74,7 +77,7 @@ fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
     let ring_x = (relative_x + buffer_width) % buffer_width;
     let ring_y = (relative_y + buffer_height) % buffer_height;
     
-    // 计算chunk索引，不再翻转Y轴
+    // 计算chunk索引，不再额外翻转Y轴
     let chunk_index = ring_y * buffer_width + ring_x;
     
     // 计算块内的局部坐标
@@ -239,18 +242,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         
         let line_width = 1.0;
         
-        // 左边线（所有chunk统一红色）
-        if (distance_from_left < line_width) {
-            return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-        }
-        // 上边线（所有chunk统一绿色）
-        if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
-            return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-        }
+        if (chunk_index == 17) {
+            // 左边线（所有chunk统一红色）
+            if (distance_from_left < line_width) {
+                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+            }
+            // 上边线（所有chunk统一绿色）
+            if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
 
-        let dot_size = chunk_size / 50.0;
-        if (render_number(chunk_index, local_pos, dot_size)) {
-            return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            let dot_size = chunk_size / 50.0;
+            if (render_number(chunk_index, local_pos, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
         }
     }
 
