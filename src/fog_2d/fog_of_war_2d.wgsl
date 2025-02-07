@@ -5,6 +5,8 @@ struct FogOfWarScreen {
     debug: u32 // 0: 关闭, 1: 开启
 }
 
+const DEBUG = false;
+
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
     fade_width: f32,
@@ -231,7 +233,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let chunk_index = chunk_coords.z;
     
     // Debug visualization for chunks
-    if (screen_size_uniform.debug == 1u) {
+    if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
         let local_x_norm = f32(local_pos.x) / chunk_size;
         let local_y_norm = f32(local_pos.y) / chunk_size;
