@@ -67,8 +67,8 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     let ring_x = (relative_x + buffer_width) % buffer_width;
     let ring_y = (relative_y + buffer_height) % buffer_height;
     
-    // 直接使用取模后的结果（Rust代码使用rem_euclid保证非负）
-    let chunk_index = ring_y * buffer_width + ring_x; // 行优先排列
+    // 修改环形缓存索引的Y轴顺序（反向行优先排列）
+    let chunk_index = (buffer_height - 1 - ring_y) * buffer_width + ring_x;
     
     // 计算块内的局部坐标，y轴翻转以匹配WGSL坐标系
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
