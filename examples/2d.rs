@@ -81,9 +81,9 @@ fn setup(
 
     // Second sight
     commands.spawn((
-        FogSight2D { radius: 150.0 },
+        FogSight2D { radius: 200.0 },
         SightPulse {
-            base_radius: 150.0,
+            base_radius: 200.0,
             pulse_range: 50.0,
             speed: 3.0,
             time: PI,

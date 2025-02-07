@@ -4,7 +4,7 @@ use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use std::collections::HashMap;
 
-pub const CHUNK_SIZE: u32 = 256;
+pub const CHUNK_SIZE: f32 = 256.;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
 pub struct ChunkCoord {
@@ -162,8 +162,8 @@ pub fn debug_chunk_indices(
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
                     "({}, {})[{}/{}]",
-                    chunk_coord.x,
-                    chunk_coord.y,
+                    chunk_coord.to_world_pos().x,
+                    chunk_coord.to_world_pos().y,
                     chunk_index.previous.unwrap_or_default(),
                     chunk_index.current.unwrap_or_default()
                 );

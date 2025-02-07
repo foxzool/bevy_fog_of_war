@@ -179,12 +179,12 @@ impl FogOfWar2dPipeline {
                 &zeros,
                 bevy::render::render_resource::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(CHUNK_SIZE),
-                    rows_per_image: Some(CHUNK_SIZE),
+                    bytes_per_row: Some(CHUNK_SIZE as u32),
+                    rows_per_image: Some(CHUNK_SIZE as u32),
                 },
-                bevy::render::render_resource::Extent3d {
-                    width: CHUNK_SIZE,
-                    height: CHUNK_SIZE,
+                Extent3d {
+                    width: CHUNK_SIZE as u32,
+                    height: CHUNK_SIZE as u32,
                     depth_or_array_layers: 1,
                 },
             );
@@ -231,8 +231,8 @@ impl FogOfWar2dPipeline {
                     aspect: bevy::render::render_resource::TextureAspect::All,
                 },
                 Extent3d {
-                    width: CHUNK_SIZE,
-                    height: CHUNK_SIZE,
+                    width: CHUNK_SIZE as u32,
+                    height: CHUNK_SIZE as u32,
                     depth_or_array_layers: 1,
                 },
             );
