@@ -7,8 +7,9 @@ use crate::fog_2d::chunk::{
     ChunkCoord, CHUNK_SIZE,
 };
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
-use crate::fog_2d::pipeline::{FogOfWar2dPipeline, handle_screen_resize};
+use crate::fog_2d::pipeline::{handle_screen_resize, FogOfWar2dPipeline};
 use bevy::asset::load_internal_asset;
+use bevy::color::palettes::basic::LIME;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
 use bevy::prelude::*;
@@ -54,6 +55,7 @@ impl Plugin for FogOfWar2dPlugin {
                 update_chunk_array_indices,
                 update_chunks_system.run_if(resource_changed::<FogOfWarScreen>),
                 debug_chunk_indices,
+                draw_chunk_boundaries,
             ),
         )
         .add_plugins((
@@ -214,5 +216,20 @@ pub fn adjust_fow_screen(
     // Update camera position
     if let Ok((_, transform)) = camera_query.get_single() {
         fow_screen.camera_position = transform.translation().truncate();
+    }
+}
+
+fn draw_chunk_boundaries(
+    chunks_query: Query<&ChunkCoord>,
+    fow_screen: Res<FogOfWarScreen>,
+    mut gizmos: Gizmos,
+) {
+    if fow_screen.can_debug() {
+        for chunk_coord in chunks_query.iter() {
+            let world_pos = chunk_coord.to_world_pos();
+            let chunk_size = CHUNK_SIZE as f32;
+
+            gizmos.rect_2d(world_pos, Vec2::splat(chunk_size), LIME);
+        }
     }
 }

@@ -37,12 +37,7 @@ fn main() {
         // Add sight scaling system
         .add_systems(
             Update,
-            (
-                update_sight_radius,
-                update_sight_position,
-                draw_grid,
-                move_camera,
-            ),
+            (update_sight_radius, update_sight_position, move_camera),
         )
         .run();
 }
@@ -56,7 +51,6 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-
 ) {
     commands.spawn((
         Camera2d::default(),
@@ -151,18 +145,6 @@ fn update_sight_position(time: Res<Time>, mut query: Query<(&mut Transform, &Mov
         let offset = (time.elapsed_secs() * movement.speed).sin() * movement.range * 0.5;
         transform.translation.x = movement.center + offset;
     }
-}
-
-fn draw_grid(mut gizmos: Gizmos) {
-    gizmos
-        .grid_2d(
-            Isometry2d::IDENTITY,
-            UVec2::new(100, 100),
-            Vec2::new(100., 100.),
-            // Dark gray
-            LinearRgba::gray(0.05),
-        )
-        .outer_edges();
 }
 
 fn move_camera(

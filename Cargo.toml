@@ -12,7 +12,7 @@ homepage = "https://github.com/foxzool/bevy_fog_of_war"
 documentation = "https://docs.rs/bevy_fog_of_war"
 
 [features]
-default = []
+default = ["2d"]
 2d = []
 3d = []
 
