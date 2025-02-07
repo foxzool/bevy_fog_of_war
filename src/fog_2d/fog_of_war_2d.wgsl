@@ -72,7 +72,7 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     
     // 计算块内的局部坐标，y轴翻转以匹配WGSL坐标系
     let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
-    let local_y = i32(chunk_size) - 1 - i32(world_pos.y - (f32(chunk_y) * chunk_size));
+    let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size));
     
     return vec3<i32>(local_x, local_y, chunk_index);
 }
@@ -206,7 +206,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Convert UV to world space coordinates relative to camera
     let screen_pos = vec2<f32>(
         (in.uv.x - 0.5) * screen_size_uniform.screen_size.x,
-        (0.5 - in.uv.y) * screen_size_uniform.screen_size.y
+        (in.uv.y - 0.5) * screen_size_uniform.screen_size.y
     );
     
     var visibility = 0.0;
@@ -234,12 +234,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Debug visualization for chunks
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
-        let local_x_norm = f32(local_pos.x) / chunk_size;
-        let local_y_norm = f32(local_pos.y) / chunk_size;
+        // 计算相对于chunk中心点的偏移，考虑半个chunk的偏移
+        let center_offset_x = f32(local_pos.x) - chunk_size * 0.5;
+        let center_offset_y = f32(local_pos.y) - chunk_size * 0.5;
+        let distance_from_center = max(abs(center_offset_x), abs(center_offset_y));
         
-        // Draw chunk borders
-        if (local_x_norm < 0.005 || local_x_norm > 0.995 || 
-            local_y_norm < 0.005 || local_y_norm > 0.995) {
+        // 以chunk中心为基准画边界线，调整边界线宽度
+        if (abs(distance_from_center - chunk_size * 0.5) < 1.0) {
             return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
         }
 
