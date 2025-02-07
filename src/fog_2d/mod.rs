@@ -125,7 +125,6 @@ pub struct FogOfWarScreen {
     pub screen_size: Vec2,
     pub camera_position: Vec2,
     pub chunk_size: f32,
-    pub debug: u32,
 }
 
 impl Default for FogOfWarScreen {
@@ -133,17 +132,11 @@ impl Default for FogOfWarScreen {
         Self {
             screen_size: Vec2::ZERO,
             camera_position: Vec2::ZERO,
-            chunk_size: CHUNK_SIZE as f32,
-            debug: 1,
+            chunk_size: CHUNK_SIZE,
         }
     }
 }
 
-impl FogOfWarScreen {
-    fn can_debug(&self) -> bool {
-        self.debug == 1
-    }
-}
 
 impl FogOfWarScreen {
     pub fn calculate_max_chunks(&self) -> (u32, u32) {
@@ -224,7 +217,7 @@ fn draw_chunk_boundaries(
     fow_screen: Res<FogOfWarScreen>,
     mut gizmos: Gizmos,
 ) {
-    if fow_screen.can_debug() {
+    if crate::DEBUG {
         for chunk_coord in chunks_query.iter() {
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = CHUNK_SIZE as f32;

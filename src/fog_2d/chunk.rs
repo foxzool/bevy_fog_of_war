@@ -1,4 +1,4 @@
-use crate::{FogOfWarScreen, FogOfWarSettings};
+use crate::{FogOfWarScreen, FogOfWarSettings, DEBUG};
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
@@ -87,7 +87,7 @@ pub fn update_chunks_system(
                     Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
                 ))
                 .with_children(|p| {
-                    if fow_screen.can_debug() {
+                    if DEBUG {
                         p.spawn((Text2d::default(), text_font.clone(), ChunkDebugText));
                     }
                 });
@@ -156,7 +156,7 @@ pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
     mut text_query: Query<&mut Text2d>,
 ) {
-    if fow_screen.can_debug() {
+    if DEBUG {
         for (chunk_index, chunk_coord, children) in chunks_query.iter() {
             for child in children.iter() {
                 let mut text = text_query.get_mut(*child).unwrap();

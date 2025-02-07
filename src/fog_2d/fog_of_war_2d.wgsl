@@ -2,10 +2,9 @@ struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
     chunk_size: f32,
-    debug: u32 // 0: 关闭, 1: 开启
 }
 
-const DEBUG = false;
+const DEBUG = true;
 
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
