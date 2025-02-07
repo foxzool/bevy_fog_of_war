@@ -42,10 +42,17 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
     return out;
 }
 
-fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
+fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
+    let screen_pos = vec2<f32>(
+        uv.x * screen_size_uniform.screen_size.x,
+        (1.0 - uv.y) * screen_size_uniform.screen_size.y  // 翻转Y轴
+    );
     
-    // 计算世界坐标中的块坐标
+    // 计算世界坐标
+    let world_pos = screen_pos + screen_size_uniform.camera_position - screen_size_uniform.screen_size * 0.5;
+    
+    // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
@@ -56,23 +63,23 @@ fn get_chunk_coords(world_pos: vec2<f32>) -> vec3<i32> {
     // 计算环形缓存的大小
     let view_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size));
     let view_height = i32(ceil(screen_size_uniform.screen_size.y / chunk_size));
-    let buffer_width = view_width + 2;  // 额外的缓冲区
+    let buffer_width = view_width + 2;
     let buffer_height = view_height + 2;
     
     // 计算chunk在环形缓存中的相对位置
     let relative_x = chunk_x - (camera_chunk_x - buffer_width / 2);
     let relative_y = chunk_y - (camera_chunk_y - buffer_height / 2);
     
-    // 修改环形缓存索引计算方式与Rust代码一致
+    // 修改环形缓存索引计算方式
     let ring_x = (relative_x + buffer_width) % buffer_width;
     let ring_y = (relative_y + buffer_height) % buffer_height;
     
-    // 修改环形缓存索引的Y轴顺序（反向行优先排列）
-    let chunk_index = (buffer_height - 1 - ring_y) * buffer_width + ring_x;
+    // 计算chunk索引，不再翻转Y轴
+    let chunk_index = ring_y * buffer_width + ring_x;
     
-    // 计算块内的局部坐标，y轴翻转以匹配WGSL坐标系
-    let local_x = i32(world_pos.x - (f32(chunk_x) * chunk_size));
-    let local_y = i32(world_pos.y - (f32(chunk_y) * chunk_size));
+    // 计算块内的局部坐标
+    let local_x = i32((world_pos.x - f32(chunk_x) * chunk_size));
+    let local_y = i32((world_pos.y - f32(chunk_y) * chunk_size));
     
     return vec3<i32>(local_x, local_y, chunk_index);
 }
@@ -183,8 +190,8 @@ fn render_number(number: i32, local_pos: vec2<i32>, dot_size: f32) -> bool {
     
     // 计算当前像素在点阵中的位置
     let dot_x = i32(floor((f32(local_pos.x) - base_x) / dot_size));
-    // 翻转Y轴以匹配点阵数字的定义
-    let dot_y = 6 - i32(floor((f32(local_pos.y) - base_y) / dot_size));
+    // 不再翻转Y轴，因为在get_chunk_coords中已经处理过了
+    let dot_y = i32(floor((f32(local_pos.y) - base_y) / dot_size));
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
@@ -203,15 +210,14 @@ fn render_number(number: i32, local_pos: vec2<i32>, dot_size: f32) -> bool {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Convert UV to world space coordinates relative to camera
     let screen_pos = vec2<f32>(
-        (in.uv.x - 0.5) * screen_size_uniform.screen_size.x,
-        (in.uv.y - 0.5) * screen_size_uniform.screen_size.y
+        (in.uv.x * screen_size_uniform.screen_size.x) - screen_size_uniform.screen_size.x * 0.5,
+        (in.uv.y * screen_size_uniform.screen_size.y) - screen_size_uniform.screen_size.y * 0.5
     );
     
     var visibility = 0.0;
     
-    // Calculate visibility using screen space coordinates
+    // 计算可见性
     for (var i = 0u; i < arrayLength(&sights); i++) {
         let sight = sights[i];
         let dist = distance(screen_pos, sight.position);
@@ -220,25 +226,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
     
-    // Convert screen position to world space coordinates for texture sampling
-    let world_pos = vec2<f32>(
-        screen_pos.x + screen_size_uniform.camera_position.x,
-        screen_pos.y + screen_size_uniform.camera_position.y
-    );
-    
-    // Get chunk coordinates and array index
-    let chunk_coords = get_chunk_coords(world_pos);
+    // 获取chunk坐标
+    let chunk_coords = get_chunk_coords(in.uv);
     let local_pos = vec2<i32>(chunk_coords.xy);
     let chunk_index = chunk_coords.z;
     
-    // Debug visualization for chunks
+    // Debug可视化
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
-        // 计算相对于chunk边界的偏移
         let distance_from_left = f32(local_pos.x);
         let distance_from_top = f32(local_pos.y);
         
-        // 绘制非重叠的chunk边界线（只绘制左边和上边）
         let line_width = 1.0;
         
         // 左边线（所有chunk统一红色）
@@ -250,14 +248,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return vec4<f32>(0.0, 1.0, 0.0, 1.0);
         }
 
-        // 渲染chunk index数字，位置调整到左上角附近
-        let dot_size = chunk_size / 50.0; // 点的大小
+        let dot_size = chunk_size / 50.0;
         if (render_number(chunk_index, local_pos, dot_size)) {
-            return vec4<f32>(0.0, 1.0, 0.0, 1.0); // 绿色数字
+            return vec4<f32>(0.0, 1.0, 0.0, 1.0);
         }
     }
 
-    // Only update explored texture if within bounds
+    // 更新和返回最终颜色
     if (local_pos.x >= 0 && local_pos.x < i32(screen_size_uniform.chunk_size) &&
         local_pos.y >= 0 && local_pos.y < i32(screen_size_uniform.chunk_size) &&
         is_chunk_in_view(chunk_index)) {
@@ -266,11 +263,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let new_explored = max(explored.r, visibility);
         textureStore(explored_texture, local_pos, chunk_index, vec4<f32>(new_explored));
         
-        // Blend current visibility with explored area
         let final_visibility = max(visibility, explored.r * settings.explored_alpha);
         return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
     }
     
-    // If out of bounds, just use current visibility
     return mix(settings.fog_color, vec4<f32>(0.0), visibility);
 }

@@ -9,7 +9,7 @@ use crate::fog_2d::chunk::{
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::{handle_screen_resize, FogOfWar2dPipeline};
 use bevy::asset::load_internal_asset;
-use bevy::color::palettes::basic::LIME;
+use bevy::color::palettes::basic::YELLOW;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
 use bevy::prelude::*;
@@ -137,7 +137,6 @@ impl Default for FogOfWarScreen {
     }
 }
 
-
 impl FogOfWarScreen {
     pub fn calculate_max_chunks(&self) -> (u32, u32) {
         let max_chunks_x = (self.screen_size.x / self.chunk_size).ceil() as u32;
@@ -221,12 +220,15 @@ fn draw_chunk_boundaries(
         for chunk_coord in chunks_query.iter() {
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = CHUNK_SIZE as f32;
-            
+
             // 使用左上角作为矩形的起点
             gizmos.rect_2d(
-                Vec2::new(world_pos.x + chunk_size * 0.5, world_pos.y + chunk_size * 0.5), // 中心点需要偏移半个chunk大小
+                Vec2::new(
+                    world_pos.x + chunk_size * 0.5,
+                    world_pos.y + chunk_size * 0.5,
+                ), // 中心点需要偏移半个chunk大小
                 Vec2::splat(chunk_size),
-                LIME
+                YELLOW,
             );
         }
     }
