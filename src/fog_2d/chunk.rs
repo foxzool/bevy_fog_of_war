@@ -20,14 +20,14 @@ impl ChunkCoord {
     pub fn from_world_pos(pos: Vec2) -> Self {
         Self {
             x: (pos.x as i32).div_euclid(CHUNK_SIZE as i32),
-            y: (pos.y as i32).div_euclid(CHUNK_SIZE as i32),
+            y: -(pos.y as i32).div_euclid(CHUNK_SIZE as i32) - 1, // 反转y轴并向下偏移一个chunk
         }
     }
 
     pub fn to_world_pos(&self) -> Vec2 {
         Vec2::new(
             (self.x * CHUNK_SIZE as i32) as f32,
-            (self.y * CHUNK_SIZE as i32) as f32,
+            ((-self.y - 1) * (CHUNK_SIZE as i32)) as f32, // 修复类型转换顺序
         )
     }
 }
@@ -74,6 +74,7 @@ pub fn update_chunks_system(
         font_size: 20.0,
         ..default()
     };
+    let text_justification = JustifyText::Left;
     // Handle chunk loading for new chunks
     for coord in chunks_in_view.iter() {
         if !existing_coords.contains(coord) {
@@ -88,7 +89,13 @@ pub fn update_chunks_system(
                 ))
                 .with_children(|p| {
                     if DEBUG {
-                        p.spawn((Text2d::default(), text_font.clone(), ChunkDebugText));
+                        p.spawn((
+                            Text2d::default(),
+                            text_font.clone(),
+                            ChunkDebugText,
+                            TextLayout::new_with_justify(text_justification),
+                            Transform::from_xyz(100.0, -20.0, 0.0),
+                        ));
                     }
                 });
         }

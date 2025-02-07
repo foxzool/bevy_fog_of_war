@@ -234,17 +234,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Debug visualization for chunks
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
-        // 计算相对于chunk中心点的偏移，考虑半个chunk的偏移
-        let center_offset_x = f32(local_pos.x) - chunk_size * 0.5;
-        let center_offset_y = f32(local_pos.y) - chunk_size * 0.5;
-        let distance_from_center = max(abs(center_offset_x), abs(center_offset_y));
+        // 计算相对于chunk边界的偏移
+        let distance_from_left = f32(local_pos.x);
+        let distance_from_top = f32(local_pos.y);
         
-        // 以chunk中心为基准画边界线，调整边界线宽度
-        if (abs(distance_from_center - chunk_size * 0.5) < 1.0) {
+        // 在左上角画一个小方块标记chunk位置
+        let block_size = 4.0; // 小方块大小
+        if (distance_from_left < block_size && distance_from_top < block_size) {
+            return vec4<f32>(1.0, 1.0, 0.0, 1.0);  // 黄色方块
+        }
+        
+        // 在chunk边界画线
+        if (distance_from_left < 1.0 || distance_from_left > chunk_size - 1.0 || 
+            distance_from_top < 1.0 || distance_from_top > chunk_size - 1.0) {
             return vec4<f32>(1.0, 0.0, 0.0, 1.0);  // 红色边界
         }
 
-        // 渲染chunk index数字
+        // 渲染chunk index数字，位置调整到左上角附近
         let dot_size = chunk_size / 50.0; // 点的大小
         if (render_number(chunk_index, local_pos, dot_size)) {
             return vec4<f32>(0.0, 1.0, 0.0, 1.0); // 绿色数字
