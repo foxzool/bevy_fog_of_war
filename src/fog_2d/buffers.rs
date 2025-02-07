@@ -43,7 +43,7 @@ pub(super) fn extract_buffers(
                 Some((
                     entity,
                     FogSight2DUniform {
-                        position: Vec2::new(relative_pos.x, -relative_pos.y),
+                        position: relative_pos,
                         radius: settings.radius,
                     },
                 ))

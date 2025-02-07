@@ -182,8 +182,8 @@ fn render_number(number: i32, local_pos: vec2<i32>, dot_size: f32) -> bool {
     
     // 计算当前像素在点阵中的位置
     let dot_x = i32(floor((f32(local_pos.x) - base_x) / dot_size));
-    // 不需要再次翻转y轴，因为local_pos已经是正确的坐标系了
-    let dot_y = i32(floor((f32(local_pos.y) - base_y) / dot_size));
+    // 翻转Y轴以匹配点阵数字的定义
+    let dot_y = 6 - i32(floor((f32(local_pos.y) - base_y) / dot_size));
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
@@ -222,7 +222,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Convert screen position to world space coordinates for texture sampling
     let world_pos = vec2<f32>(
         screen_pos.x + screen_size_uniform.camera_position.x + screen_size_uniform.screen_size.x * 0.5,
-        -screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5
+        screen_pos.y + screen_size_uniform.camera_position.y + screen_size_uniform.screen_size.y * 0.5
     );
     
     // Get chunk coordinates and array index
