@@ -63,7 +63,7 @@ fn setup(
             speed: 500.0,
             chunk_size: 256.0, // 设置默认块大小
         },
-        Transform::from_xyz(0.0, 256.0,0.0),
+        // Transform::from_xyz(0.0, 256.0,0.0),
     ));
 
     // First sight

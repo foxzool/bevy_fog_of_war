@@ -4,7 +4,7 @@ struct FogOfWarScreen {
     chunk_size: f32,
 }
 
-const DEBUG = true;
+const DEBUG = false;
 
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
@@ -49,22 +49,17 @@ fn calculate_chunk_index(relative_x: i32, relative_y: i32, buffer_width: i32, bu
     return ring_y * buffer_width + ring_x;
 }
 
-fn get_world_pos(uv: vec2<f32>) -> vec2<f32> {
-    let screen_pos = vec2<f32>(
-        uv.x * screen_size_uniform.screen_size.x,
-        (1.0 - uv.y) * screen_size_uniform.screen_size.y  // 翻转Y轴
-    );
-    
-    // 计算世界坐标（Y轴需要反向）
+fn get_world_pos(pixel_pos: vec2<f32>) -> vec2<f32> {
+    // 直接使用像素坐标计算世界坐标（Y轴需要反向）
     return vec2<f32>(
-        screen_pos.x + screen_size_uniform.camera_position.x - screen_size_uniform.screen_size.x * 0.5,
-        screen_pos.y - screen_size_uniform.camera_position.y - screen_size_uniform.screen_size.y * 0.5
+        pixel_pos.x + screen_size_uniform.camera_position.x - screen_size_uniform.screen_size.x * 0.5,
+        screen_size_uniform.screen_size.y - pixel_pos.y - screen_size_uniform.camera_position.y - screen_size_uniform.screen_size.y * 0.5
     );
 }
 
-fn get_chunk_coords(uv: vec2<f32>) -> vec2<f32> {
+fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     let chunk_size = screen_size_uniform.chunk_size;
-    let world_pos = get_world_pos(uv);
+    let world_pos = get_world_pos(pixel_pos);
     
     // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
@@ -74,9 +69,9 @@ fn get_chunk_coords(uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(f32(chunk_x) * chunk_size, f32(chunk_y) * chunk_size);
 }
 
-fn get_ring_buffer_position(uv: vec2<f32>) -> vec2<i32> {
+fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
-    let world_pos = get_world_pos(uv);
+    let world_pos = get_world_pos(pixel_pos);
     
     // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
@@ -257,9 +252,9 @@ fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, bas
     return false;
 }
 
-fn get_local_coords(uv: vec2<f32>) -> vec2<i32> {
+fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
-    let world_pos = get_world_pos(uv);
+    let world_pos = get_world_pos(pixel_pos);
     
     // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
@@ -273,10 +268,10 @@ fn get_local_coords(uv: vec2<f32>) -> vec2<i32> {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     let screen_pos = vec2<f32>(
-        (in.uv.x * screen_size_uniform.screen_size.x) - screen_size_uniform.screen_size.x * 0.5,
-        (in.uv.y * screen_size_uniform.screen_size.y) - screen_size_uniform.screen_size.y * 0.5
+        frag_coord.x - screen_size_uniform.screen_size.x * 0.5,
+        frag_coord.y - screen_size_uniform.screen_size.y * 0.5
     );
     
     var visibility = 0.0;
@@ -291,9 +286,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     
     // 获取各种坐标
-    let world_pos = get_chunk_coords(in.uv);
-    let local_pos = get_local_coords(in.uv);
-    let ring_pos = get_ring_buffer_position(in.uv);
+    let pixel_pos = vec2<f32>(frag_coord.x, frag_coord.y);
+    let world_pos = get_chunk_coords(pixel_pos);
+    let local_pos = get_local_coords(pixel_pos);
+    let ring_pos = get_ring_buffer_position(pixel_pos);
     
     // 计算chunk索引
     let view_width = i32(ceil(screen_size_uniform.screen_size.x / screen_size_uniform.chunk_size));
