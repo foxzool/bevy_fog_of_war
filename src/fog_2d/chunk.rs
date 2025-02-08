@@ -118,27 +118,31 @@ pub fn update_chunk_array_indices(
     let buffer_width = chunks_x as i32 + 2;
     let buffer_height = chunks_y as i32 + 2;
 
+    // 计算视口的左上角chunk坐标
+    let viewport_start_x = camera_chunk_x - buffer_width / 2;
+    let viewport_start_y = camera_chunk_y + buffer_height / 2;  // 注意这里改为加号，因为我们要从上往下计数
+
     for (coord, mut array_index) in query.iter_mut() {
-        // 计算chunk在环形缓存中的相对位置
-        let relative_x = coord.x - (camera_chunk_x - buffer_width / 2);
-        let relative_y = coord.y - (camera_chunk_y - buffer_height / 2);
+        // 计算chunk相对于视口左上角的偏移
+        let relative_x = coord.x - viewport_start_x;
+        let relative_y = viewport_start_y - coord.y;  // 注意这里改为减法，反转y轴方向
 
         // 如果chunk在视野范围内（考虑额外的缓冲区）
-        if relative_x >= -1
-            && relative_x <= buffer_width
-            && relative_y >= -1
-            && relative_y <= buffer_height
+        if relative_x >= 0 
+            && relative_x < buffer_width 
+            && relative_y >= 0 
+            && relative_y < buffer_height
         {
             // 保存旧的索引
             array_index.previous = array_index.current;
 
-            // 更新环形缓存中的位置和索引
-            array_index.current = array_index.update_ring_buffer_position(
-                relative_x,
-                relative_y,
-                buffer_width,
-                buffer_height,
-            );
+            // 计算环形缓存中的位置
+            let x = relative_x;
+            let y = relative_y;
+            array_index.ring_buffer_position = Some((x, y));
+            
+            // 从左上到右下计算索引
+            array_index.current = Some(y * buffer_width + x);
 
             if array_index.current != array_index.previous {
                 debug!(
