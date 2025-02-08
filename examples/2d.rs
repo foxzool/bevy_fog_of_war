@@ -23,6 +23,7 @@ struct MovingSight {
 #[derive(Component)]
 struct CameraController {
     speed: f32,
+    chunk_size: f32, // 新增块大小参数
 }
 
 fn main() {
@@ -58,7 +59,10 @@ fn setup(
             fade_width: 0.2,
             explored_alpha: 0.1, // You can adjust this value to control explored area visibility ,
         },
-        CameraController { speed: 500.0 }, // Add camera controller
+        CameraController { 
+            speed: 500.0,
+            chunk_size: 256.0, // 设置默认块大小
+        },
         Transform::from_xyz(0.0, 256.0,0.0),
     ));
 
@@ -166,6 +170,14 @@ fn move_camera(
         }
         if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
             direction.x += 1.0;
+        }
+
+        // 新增块移动逻辑
+        if keyboard.just_pressed(KeyCode::PageUp) {
+            transform.translation.y += controller.chunk_size;
+        }
+        if keyboard.just_pressed(KeyCode::PageDown) {
+            transform.translation.y -= controller.chunk_size;
         }
 
         if direction != Vec3::ZERO {
