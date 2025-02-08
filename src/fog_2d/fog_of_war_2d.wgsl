@@ -184,30 +184,60 @@ fn should_render_dot(digit: i32, x: i32, y: i32) -> bool {
     }
 }
 
-// 渲染数字函数
-fn render_number(number: i32, local_pos: vec2<i32>, dot_size: f32) -> bool {
-    // 提取十位和个位数字
-    let tens = number / 10;
-    let ones = number % 10;
-    
-    // 计算点阵的基准位置（左上角偏移2个点大小）
-    let base_x = 8.0;
-    let base_y = 8.0;
+// 添加渲染负号的函数
+fn should_render_minus(x: i32, y: i32) -> bool {
+    return y == 3 && x >= 0 && x < 3;
+}
+
+// 获取数字的位数
+fn get_num_digits(num: i32) -> i32 {
+    var n = abs(num);
+    if (n == 0) {
+        return 1;
+    }
+    var count = 0;
+    while (n > 0) {
+        count += 1;
+        n = n / 10;
+    }
+    return count;
+}
+
+// 获取特定位置的数字
+fn get_digit_at(num: i32, position: i32) -> i32 {
+    var n = abs(num);
+    for (var i = 0; i < position; i++) {
+        n = n / 10;
+    }
+    return n % 10;
+}
+
+// 修改渲染数字函数以支持任意位数和负数
+fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, base_y: f32, dot_size: f32) -> bool {
+    let is_negative = number < 0;
+    let num_digits = get_num_digits(number);
     
     // 计算当前像素在点阵中的位置
     let dot_x = i32(floor((f32(local_pos.x) - base_x) / dot_size));
-    // 不再翻转Y轴，因为在get_chunk_coords中已经处理过了
     let dot_y = i32(floor((f32(local_pos.y) - base_y) / dot_size));
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
-        // 检查十位数字
-        if (tens > 0 && dot_x >= 0 && dot_x < 5) {
-            return should_render_dot(tens, dot_x, dot_y);
+        // 检查负号
+        if (is_negative && dot_x >= 0 && dot_x < 3) {
+            return should_render_minus(dot_x, dot_y);
         }
-        // 检查个位数字（向右偏移6个点宽度）
-        if (dot_x >= 6 && dot_x < 11) {
-            return should_render_dot(ones, dot_x - 6, dot_y);
+        
+        // 计算数字的起始位置（考虑负号的偏移）
+        let digit_start_x = select(0, 4, is_negative);
+        
+        // 遍历每一位数字
+        for (var i = 0; i < num_digits; i++) {
+            let digit_x = dot_x - (digit_start_x + i * 6);
+            if (digit_x >= 0 && digit_x < 5) {
+                let digit = get_digit_at(number, num_digits - 1 - i);
+                return should_render_dot(digit, digit_x, dot_y);
+            }
         }
     }
     
@@ -241,7 +271,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
         let distance_from_left = f32(local_pos.x);
-        // local_pos.y已经是正确的坐标系了，不需要再次翻转
         let distance_from_top = f32(local_pos.y);
         
         let line_width = 3.0;
@@ -256,9 +285,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
 
-            // 数字渲染也不需要翻转坐标了
             let dot_size = chunk_size / 50.0;
-            if (render_number(chunk_index, local_pos, dot_size)) {
+            
+            // 计算ring坐标
+            let buffer_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 2;
+            let ring_x = chunk_index % buffer_width;
+            let ring_y = chunk_index / buffer_width;
+            
+            // 渲染chunk索引
+            if (render_number_at_position(chunk_index, local_pos, 8.0, 68.0, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
+            
+            // 渲染ring_x
+            if (render_number_at_position(ring_x, local_pos, 8.0, 150.0, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
+            
+            // 渲染ring_y
+            if (render_number_at_position(ring_y, local_pos, 68.0, 150.0, dot_size)) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
         }

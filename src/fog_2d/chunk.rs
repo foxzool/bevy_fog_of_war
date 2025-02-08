@@ -160,8 +160,8 @@ pub fn debug_chunk_indices(
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
                     "({}, {})[{}/{}]",
-                    chunk_coord.to_world_pos().x,
-                    chunk_coord.to_world_pos().y,
+                    chunk_index.ring_buffer_position.unwrap_or_default().0,
+                    chunk_index.ring_buffer_position.unwrap_or_default().1,
                     chunk_index.previous.unwrap_or_default(),
                     chunk_index.current.unwrap_or_default()
                 );
