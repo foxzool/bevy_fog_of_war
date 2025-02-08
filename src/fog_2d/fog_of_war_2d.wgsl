@@ -241,25 +241,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
         let distance_from_left = f32(local_pos.x);
+        // local_pos.y已经是正确的坐标系了，不需要再次翻转
         let distance_from_top = f32(local_pos.y);
         
-        let line_width = 1.0;
+        let line_width = 3.0;
 
         if (chunk_index % 7 == 3) {
+            // 左边线（所有chunk统一红色）
+            if (distance_from_left < line_width) {
+                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+            }
+            // 上边线（所有chunk统一绿色）
+            if (distance_from_top < line_width) {
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
 
-        // 左边线（所有chunk统一红色）
-        if (distance_from_left < line_width) {
-          return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-        }
-        // 上边线（所有chunk统一绿色）
-        if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
-          return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-        }
-
-        let dot_size = chunk_size / 50.0;
-        if (render_number(chunk_index, local_pos, dot_size)) {
-          return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-        }
+            // 数字渲染也不需要翻转坐标了
+            let dot_size = chunk_size / 50.0;
+            if (render_number(chunk_index, local_pos, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            }
         }
     }
 
