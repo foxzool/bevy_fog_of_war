@@ -320,7 +320,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
 
-            let dot_size = chunk_size / 50.0;
+            // 将分母从50调整为80，缩小点阵大小
+            let dot_size = chunk_size / 80.0;
             
             // 计算ring坐标
             let buffer_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 2;
@@ -328,18 +329,33 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let ring_y = chunk_index / buffer_width;
             
             // 渲染chunk索引
-            if (render_number_at_position(chunk_index, local_pos, 8.0, 68.0, dot_size)) {
+            if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
             
-            // 渲染ring_x
-            if (render_number_at_position(ring_x, local_pos, 8.0, 150.0, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            // world_pos坐标显示
+            let world_x = i32(world_pos.x);
+            let world_y = i32(world_pos.y);
+            
+            // 显示world_x (X坐标)
+            if (render_number_at_position(world_x, local_pos, 8.0, 78.0, dot_size)) {
+                return vec4<f32>(1.0, 0.0, 1.0, 1.0); // 品红色
             }
             
-            // 渲染ring_y
-            if (render_number_at_position(ring_y, local_pos, 68.0, 150.0, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            // 显示world_y (Y坐标)
+            if (render_number_at_position(world_y, local_pos, 65.0, 78.0, dot_size)) {
+                return vec4<f32>(1.0, 0.5, 0.0, 1.0); // 橙色
+            }
+
+
+            // 显示ring_x (蓝色)
+            if (render_number_at_position(ring_x, local_pos, 8.0, 108.0, dot_size)) {
+                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
+            }
+            
+            // 显示ring_y (青色)
+            if (render_number_at_position(ring_y, local_pos, 65.0, 108.0, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
             }
         }
     }
