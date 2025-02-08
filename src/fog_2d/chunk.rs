@@ -25,10 +25,7 @@ impl ChunkCoord {
     }
 
     pub fn to_world_pos(&self) -> Vec2 {
-        Vec2::new(
-            self.x as f32 * CHUNK_SIZE,
-            self.y as f32 * CHUNK_SIZE,
-        )
+        Vec2::new(self.x as f32 * CHUNK_SIZE, self.y as f32 * CHUNK_SIZE)
     }
 }
 
@@ -107,17 +104,17 @@ pub fn update_chunk_array_indices(
 
     // 计算视口的左上角chunk坐标
     let viewport_start_x = camera_chunk_x - buffer_width / 2;
-    let viewport_start_y = camera_chunk_y + buffer_height / 2;  // 注意这里改为加号，因为我们要从上往下计数
+    let viewport_start_y = camera_chunk_y + buffer_height / 2; // 注意这里改为加号，因为我们要从上往下计数
 
     for (coord, mut array_index) in query.iter_mut() {
         // 计算chunk相对于视口左上角的偏移
         let relative_x = coord.x - viewport_start_x;
-        let relative_y = viewport_start_y - coord.y;  // 注意这里改为减法，反转y轴方向
+        let relative_y = viewport_start_y - coord.y; // 注意这里改为减法，反转y轴方向
 
         // 如果chunk在视野范围内（考虑额外的缓冲区）
-        if relative_x >= 0 
-            && relative_x < buffer_width 
-            && relative_y >= 0 
+        if relative_x >= 0
+            && relative_x < buffer_width
+            && relative_y >= 0
             && relative_y < buffer_height
         {
             // 保存旧的索引
@@ -127,7 +124,7 @@ pub fn update_chunk_array_indices(
             let x = relative_x;
             let y = relative_y;
             array_index.ring_buffer_position = Some((x, y));
-            
+
             // 从左上到右下计算索引
             array_index.current = Some(y * buffer_width + x);
 
@@ -159,10 +156,11 @@ pub fn debug_chunk_indices(
             for child in children.iter() {
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
-                    "({}, {})[{}/{}]",
+                    "({}, {})[{}, {}] - {}",
+                    chunk_coord.to_world_pos().x,
+                    chunk_coord.to_world_pos().y,
                     chunk_index.ring_buffer_position.unwrap_or_default().0,
                     chunk_index.ring_buffer_position.unwrap_or_default().1,
-                    chunk_index.previous.unwrap_or_default(),
                     chunk_index.current.unwrap_or_default()
                 );
             }

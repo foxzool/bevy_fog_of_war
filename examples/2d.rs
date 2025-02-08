@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::PI;
 
 // Component to control sight scaling
@@ -31,7 +30,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.9, 0.9, 0.9)))
         .init_gizmo_group::<MyRoundGizmos>()
         .add_plugins(DefaultPlugins)
-        .add_plugins(WorldInspectorPlugin::new())
+        // .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FogOfWar2dPlugin)
         .add_systems(Startup, setup)
         // Add sight scaling system

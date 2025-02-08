@@ -49,18 +49,34 @@ fn calculate_chunk_index(relative_x: i32, relative_y: i32, buffer_width: i32, bu
     return ring_y * buffer_width + ring_x;
 }
 
-fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
-    let chunk_size = screen_size_uniform.chunk_size;
+fn get_world_pos(uv: vec2<f32>) -> vec2<f32> {
     let screen_pos = vec2<f32>(
         uv.x * screen_size_uniform.screen_size.x,
         (1.0 - uv.y) * screen_size_uniform.screen_size.y  // 翻转Y轴
     );
     
     // 计算世界坐标（Y轴需要反向）
-    let world_pos = vec2<f32>(
+    return vec2<f32>(
         screen_pos.x + screen_size_uniform.camera_position.x - screen_size_uniform.screen_size.x * 0.5,
         screen_pos.y - screen_size_uniform.camera_position.y - screen_size_uniform.screen_size.y * 0.5
     );
+}
+
+fn get_chunk_coords(uv: vec2<f32>) -> vec2<f32> {
+    let chunk_size = screen_size_uniform.chunk_size;
+    let world_pos = get_world_pos(uv);
+    
+    // 计算块坐标
+    let chunk_x = i32(floor(world_pos.x / chunk_size));
+    let chunk_y = i32(floor(world_pos.y / chunk_size));
+    
+    // 返回世界坐标
+    return vec2<f32>(f32(chunk_x) * chunk_size, f32(chunk_y) * chunk_size);
+}
+
+fn get_ring_buffer_position(uv: vec2<f32>) -> vec2<i32> {
+    let chunk_size = screen_size_uniform.chunk_size;
+    let world_pos = get_world_pos(uv);
     
     // 计算块坐标
     let chunk_x = i32(floor(world_pos.x / chunk_size));
@@ -76,18 +92,15 @@ fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
     let buffer_width = view_width + 2;
     let buffer_height = view_height + 2;
     
-    // 计算chunk在环形缓存中的相对位置
-    let relative_x = chunk_x - (camera_chunk_x - buffer_width / 2);
-    let relative_y = chunk_y - (camera_chunk_y - buffer_height / 2);
+    // 计算视口的左上角chunk坐标
+    let viewport_start_x = camera_chunk_x - buffer_width / 2;
+    let viewport_start_y = camera_chunk_y + buffer_height / 2;
     
-    // 使用新函数计算chunk索引
-    let chunk_index = calculate_chunk_index(relative_x, relative_y, buffer_width, buffer_height);
+    // 计算chunk相对于视口左上角的偏移
+    let relative_x = chunk_x - viewport_start_x;
+    let relative_y = viewport_start_y - chunk_y;
     
-    // 计算块内的局部坐标
-    let local_x = i32((world_pos.x - f32(chunk_x) * chunk_size));
-    let local_y = i32((world_pos.y - f32(chunk_y) * chunk_size));
-    
-    return vec3<i32>(local_x, local_y, chunk_index);
+    return vec2<i32>(relative_x, relative_y);
 }
 
 // 修改视野判断逻辑与Rust代码同步
@@ -244,6 +257,21 @@ fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, bas
     return false;
 }
 
+fn get_local_coords(uv: vec2<f32>) -> vec2<i32> {
+    let chunk_size = screen_size_uniform.chunk_size;
+    let world_pos = get_world_pos(uv);
+    
+    // 计算块坐标
+    let chunk_x = i32(floor(world_pos.x / chunk_size));
+    let chunk_y = i32(floor(world_pos.y / chunk_size));
+    
+    // 计算块内的局部坐标
+    return vec2<i32>(
+        i32((world_pos.x - f32(chunk_x) * chunk_size)),
+        i32((world_pos.y - f32(chunk_y) * chunk_size))
+    );
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let screen_pos = vec2<f32>(
@@ -262,10 +290,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
     
-    // 获取chunk坐标
-    let chunk_coords = get_chunk_coords(in.uv);
-    let local_pos = vec2<i32>(chunk_coords.xy);
-    let chunk_index = chunk_coords.z;
+    // 获取各种坐标
+    let world_pos = get_chunk_coords(in.uv);
+    let local_pos = get_local_coords(in.uv);
+    let ring_pos = get_ring_buffer_position(in.uv);
+    
+    // 计算chunk索引
+    let view_width = i32(ceil(screen_size_uniform.screen_size.x / screen_size_uniform.chunk_size));
+    let view_height = i32(ceil(screen_size_uniform.screen_size.y / screen_size_uniform.chunk_size));
+    let buffer_width = view_width + 2;
+    let buffer_height = view_height + 2;
+    let chunk_index = calculate_chunk_index(ring_pos.x, ring_pos.y, buffer_width, buffer_height);
     
     // Debug可视化
     if DEBUG {
