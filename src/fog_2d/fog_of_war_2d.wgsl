@@ -242,20 +242,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         
         let line_width = 1.0;
         
-        if (chunk_index == 17) {
-            // 左边线（所有chunk统一红色）
-            if (distance_from_left < line_width) {
-                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-            }
-            // 上边线（所有chunk统一绿色）
-            if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-            }
+        // 左边线（所有chunk统一红色）
+        if (distance_from_left < line_width) {
+          return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+        }
+        // 上边线（所有chunk统一绿色）
+        if (distance_from_top < line_width) { // 注意Bevy的Y轴方向
+          return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+        }
 
-            let dot_size = chunk_size / 50.0;
-            if (render_number(chunk_index, local_pos, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-            }
+        let dot_size = chunk_size / 50.0;
+        if (render_number(chunk_index, local_pos, dot_size)) {
+          return vec4<f32>(0.0, 1.0, 0.0, 1.0);
         }
     }
 
