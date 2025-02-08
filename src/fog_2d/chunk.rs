@@ -46,19 +46,6 @@ impl ChunkArrayIndex {
     pub fn require_chunk_transport(&self) -> bool {
         self.previous.is_some() && self.current != self.previous
     }
-
-    pub fn update_ring_buffer_position(
-        &mut self,
-        new_x: i32,
-        new_y: i32,
-        buffer_width: i32,
-        buffer_height: i32,
-    ) -> Option<i32> {
-        let x = new_x.rem_euclid(buffer_width);
-        let y = new_y.rem_euclid(buffer_height);
-        self.ring_buffer_position = Some((x, y));
-        Some(y * buffer_width + x)
-    }
 }
 
 pub fn update_chunks_system(

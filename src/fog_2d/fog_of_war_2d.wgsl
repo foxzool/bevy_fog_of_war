@@ -42,6 +42,13 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>) -> V
     return out;
 }
 
+fn calculate_chunk_index(relative_x: i32, relative_y: i32, buffer_width: i32, buffer_height: i32) -> i32 {
+    // 环形缓存索引计算
+    let ring_x = (relative_x + buffer_width) % buffer_width;
+    let ring_y = (relative_y + buffer_height) % buffer_height;
+    return ring_y * buffer_width + ring_x;
+}
+
 fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
     let screen_pos = vec2<f32>(
@@ -73,12 +80,8 @@ fn get_chunk_coords(uv: vec2<f32>) -> vec3<i32> {
     let relative_x = chunk_x - (camera_chunk_x - buffer_width / 2);
     let relative_y = chunk_y - (camera_chunk_y - buffer_height / 2);
     
-    // 修改环形缓存索引计算方式
-    let ring_x = (relative_x + buffer_width) % buffer_width;
-    let ring_y = (relative_y + buffer_height) % buffer_height;
-    
-    // 计算chunk索引，不再额外翻转Y轴
-    let chunk_index = ring_y * buffer_width + ring_x;
+    // 使用新函数计算chunk索引
+    let chunk_index = calculate_chunk_index(relative_x, relative_y, buffer_width, buffer_height);
     
     // 计算块内的局部坐标
     let local_x = i32((world_pos.x - f32(chunk_x) * chunk_size));
@@ -241,7 +244,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let distance_from_top = f32(local_pos.y);
         
         let line_width = 1.0;
-        
+
+        if (chunk_index % 7 == 3) {
+
         // 左边线（所有chunk统一红色）
         if (distance_from_left < line_width) {
           return vec4<f32>(1.0, 0.0, 0.0, 1.0);
@@ -254,6 +259,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let dot_size = chunk_size / 50.0;
         if (render_number(chunk_index, local_pos, dot_size)) {
           return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+        }
         }
     }
 

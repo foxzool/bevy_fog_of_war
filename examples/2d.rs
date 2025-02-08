@@ -60,6 +60,7 @@ fn setup(
             explored_alpha: 0.1, // You can adjust this value to control explored area visibility ,
         },
         CameraController { speed: 500.0 }, // Add camera controller
+        Transform::from_xyz(0.0, 256.0,0.0),
     ));
 
     // First sight
