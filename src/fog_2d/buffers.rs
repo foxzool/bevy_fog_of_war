@@ -1,14 +1,17 @@
+use crate::fog_2d::chunk::{ChunkArrayIndex, ChunkCoord};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use crate::FogSight2DUniform;
 use crate::{FogOfWarScreen, FogSight2D};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{debug, Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut, Resource};
+use bevy::prelude::{
+    debug, Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut,
+    Resource,
+};
 use bevy::render::camera::Camera;
 use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
-use crate::fog_2d::chunk::{ChunkArrayIndex, ChunkCoord};
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -38,12 +41,11 @@ pub(super) fn extract_buffers(
             let world_pos = transform.translation();
             if is_visible_to_camera(world_pos, settings.radius, camera, camera_transform) {
                 // Calculate position relative to screen space
-                let relative_pos = world_pos.truncate() - camera_pos;
 
                 Some((
                     entity,
                     FogSight2DUniform {
-                        position: relative_pos,
+                        position: world_pos.truncate(),
                         radius: settings.radius,
                     },
                 ))
@@ -145,7 +147,7 @@ pub(super) fn prepare_chunk_texture(
 ) {
     // 获取当前视野内的chunks
     let chunks_in_view = screen.get_chunks_in_view();
-    
+
     // 遍历所有已存在的chunks
     for (coord, mut array_index) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理

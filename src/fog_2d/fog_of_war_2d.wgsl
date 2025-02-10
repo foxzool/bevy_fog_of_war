@@ -1,12 +1,13 @@
 #import bevy_render::view::View
 
+const DEBUG = true;
+
+
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
     chunk_size: f32,
 }
-
-const DEBUG = false;
 
 struct FogOfWarSettings {
     fog_color: vec4<f32>,
@@ -18,8 +19,6 @@ struct FogSight2DUniform {
     position: vec2<f32>,
     radius: f32,
 }
-
-
 
 @group(0) @binding(0)
 var<uniform> view: View;
@@ -277,19 +276,16 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
 
 @fragment
 fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
-    let world_position = position_ndc_to_world(frag_coord_to_ndc(frag_coord));
-
-     let screen_pos = vec2<f32>(
-            frag_coord.x - screen_size_uniform.screen_size.x * 0.5,
-            frag_coord.y - screen_size_uniform.screen_size.y * 0.5
-        );
+    let ndc_position = frag_coord_to_ndc(frag_coord);
+    let world_position = position_ndc_to_world(ndc_position);
 
     var visibility = 0.0;
     
-    // 计算可见性
+    // 计算可见性（使用世界坐标）
     for (var i = 0u; i < arrayLength(&sights); i++) {
         let sight = sights[i];
-        let dist = distance(screen_pos, sight.position);
+        // 直接使用世界坐标计算距离
+        let dist = distance(world_position.xy, sight.position);
         if (dist < sight.radius) {
             visibility = max(visibility, 1.0 - smoothstep(sight.radius - settings.fade_width, sight.radius, dist));
         }
