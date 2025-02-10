@@ -57,11 +57,10 @@ fn calculate_chunk_index(relative_x: i32, relative_y: i32, buffer_width: i32, bu
 }
 
 fn get_world_pos(pixel_pos: vec2<f32>) -> vec2<f32> {
-    // 直接使用像素坐标计算世界坐标（Y轴需要反向）
-    return vec2<f32>(
-        pixel_pos.x + screen_size_uniform.camera_position.x - screen_size_uniform.screen_size.x * 0.5,
-        screen_size_uniform.screen_size.y - pixel_pos.y - screen_size_uniform.camera_position.y - screen_size_uniform.screen_size.y * 0.5
-    );
+    // 使用现有的坐标转换函数替代直接计算
+    let ndc = frag_coord_to_ndc(vec4(pixel_pos, 0.0, 1.0));
+    let world_pos = position_ndc_to_world(ndc);
+    return world_pos.xy;
 }
 
 fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
