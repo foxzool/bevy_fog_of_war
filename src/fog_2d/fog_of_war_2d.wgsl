@@ -1,3 +1,5 @@
+#import bevy_render::view::View
+
 struct FogOfWarScreen {
     screen_size: vec2<f32>,
     camera_position: vec2<f32>,
@@ -17,17 +19,23 @@ struct FogSight2DUniform {
     radius: f32,
 }
 
+
+
 @group(0) @binding(0)
+var<uniform> view: View;
+
+@group(0) @binding(1)
 var<uniform> settings: FogOfWarSettings;
 
-@group(0) @binding(1) 
+@group(0) @binding(2)
 var<storage> sights: array<FogSight2DUniform>;
 
-@group(0) @binding(2)
+@group(0) @binding(3)
 var explored_texture: texture_storage_2d_array<r8unorm, read_write>;
 
-@group(0) @binding(3)
+@group(0) @binding(4)
 var<uniform> screen_size_uniform: FogOfWarScreen;
+
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,

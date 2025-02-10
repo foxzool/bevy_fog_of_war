@@ -2,6 +2,7 @@ use crate::{
     fog_2d::buffers::FogSight2dBuffers, fog_2d::buffers::FogSight2dScreenBuffers,
     fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarScreen, FogOfWarSettings,
 };
+use bevy::ecs::system::lifetimeless::Read;
 use bevy::{
     ecs::query::QueryItem,
     prelude::{default, World},
@@ -16,6 +17,7 @@ use bevy::{
         view::ViewTarget,
     },
 };
+use bevy_render::view::{ViewUniformOffset, ViewUniforms};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogOfWarLabel;
@@ -28,18 +30,26 @@ impl ViewNode for FogOfWar2dNode {
         &'static ViewTarget,
         &'static FogOfWarSettings,
         &'static DynamicUniformIndex<FogOfWarSettings>,
+        Read<ViewUniformOffset>,
     );
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, _fog_of_war_settings, settings_index): QueryItem<Self::ViewQuery>,
+        (view_target, _fog_of_war_settings, settings_index, view_uniform_offset): QueryItem<
+            Self::ViewQuery,
+        >,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let fog_of_war_pipeline = world.resource::<FogOfWar2dPipeline>();
+        let view_uniforms = world.resource::<ViewUniforms>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let fog_sight_buffers = world.resource::<FogSight2dBuffers>();
+
+        let Some(view_uniforms_binding) = view_uniforms.uniforms.binding() else {
+            return Ok(());
+        };
 
         let Some(pipeline) = pipeline_cache.get_render_pipeline(fog_of_war_pipeline.pipeline_id)
         else {
@@ -59,6 +69,7 @@ impl ViewNode for FogOfWar2dNode {
             None,
             &fog_of_war_pipeline.bind_group_layout,
             &BindGroupEntries::sequential((
+                view_uniforms_binding,
                 settings_binding.clone(),
                 fog_sight_buffers.buffers.into_binding(),
                 fog_of_war_pipeline.explored_texture.as_ref().unwrap(),
@@ -80,7 +91,11 @@ impl ViewNode for FogOfWar2dNode {
         });
 
         render_pass.set_render_pipeline(pipeline);
-        render_pass.set_bind_group(0, &bind_group, &[settings_index.index()]);
+        render_pass.set_bind_group(
+            0,
+            &bind_group,
+            &[view_uniform_offset.offset, settings_index.index()],
+        );
         render_pass.set_vertex_buffer(0, fog_of_war_pipeline.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
             fog_of_war_pipeline.index_buffer.slice(..),

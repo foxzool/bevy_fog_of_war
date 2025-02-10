@@ -20,6 +20,7 @@ use bevy::{
     },
 };
 use bevy::prelude::{DetectChanges, Res, ResMut};
+use bevy_render::view::ViewUniform;
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {
@@ -72,6 +73,7 @@ impl FromWorld for FogOfWar2dPipeline {
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
                 (
+                    uniform_buffer::<ViewUniform>(true),
                     uniform_buffer::<FogOfWarSettings>(true),
                     storage_buffer_read_only_sized(false, None),
                     texture_storage_2d_array(
@@ -79,6 +81,7 @@ impl FromWorld for FogOfWar2dPipeline {
                         StorageTextureAccess::ReadWrite,
                     ),
                     uniform_buffer::<FogOfWarScreen>(false),
+
                 ),
             ),
         );
