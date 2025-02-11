@@ -77,22 +77,19 @@ fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
 }
 
 fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
-    let chunk_size = screen_size_uniform.chunk_size;
-    let world_pos = get_world_pos(pixel_pos);
-    
-    // 计算块坐标
-    let chunk_x = i32(floor(world_pos.x / chunk_size));
-    let chunk_y = i32(floor(world_pos.y / chunk_size));
+    let chunk_indices = get_chunk_indices(pixel_pos);
+    let chunk_x = chunk_indices.x;
+    let chunk_y = chunk_indices.y;
     
     // 通过view矩阵获取相机位置（世界坐标）
     let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
-    let camera_chunk_x = i32(floor(camera_pos.x / chunk_size));
-    let camera_chunk_y = i32(floor(camera_pos.y / chunk_size));
+    let camera_chunk_x = i32(floor(camera_pos.x / screen_size_uniform.chunk_size));
+    let camera_chunk_y = i32(floor(camera_pos.y / screen_size_uniform.chunk_size));
     
     // 通过viewport获取实际屏幕尺寸
     let view_size = view.viewport.zw;
-    let view_width = i32(ceil(view_size.x / chunk_size));
-    let view_height = i32(ceil(view_size.y / chunk_size));
+    let view_width = i32(ceil(view_size.x / screen_size_uniform.chunk_size));
+    let view_height = i32(ceil(view_size.y / screen_size_uniform.chunk_size));
     let buffer_width = view_width + 2;
     let buffer_height = view_height + 2;
     
@@ -262,16 +259,16 @@ fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, bas
 
 // 返回像素点在chunk内部的偏移值， 这里是y朝下
 fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
+    let chunk_indices = get_chunk_indices(pixel_pos);
+    let chunk_x = f32(chunk_indices.x);
+    let chunk_y = f32(chunk_indices.y);
+    
     let chunk_size = screen_size_uniform.chunk_size;
     
     // 获取世界坐标并添加微小偏移以避免边界问题
     let world_pos = get_world_pos(pixel_pos) + vec2<f32>(0.001);
     
     // 使用floor进行chunk坐标计算
-    let chunk_x = floor(world_pos.x / chunk_size);
-    let chunk_y = floor(world_pos.y / chunk_size);
-    
-    // 计算chunk的世界空间起点
     let chunk_start_x = chunk_x * chunk_size;
     let chunk_start_y = chunk_y * chunk_size;
     
@@ -610,4 +607,16 @@ fn frag_coord_to_ndc(frag_coord: vec4<f32>) -> vec3<f32> {
 /// viewport size]
 fn ndc_to_frag_coord(ndc: vec2<f32>) -> vec2<f32> {
     return ndc_to_uv(ndc) * view.viewport.zw;
+}
+
+// 新增函数：从像素坐标直接计算chunk坐标
+fn get_chunk_indices(pixel_pos: vec2<f32>) -> vec2<i32> {
+    let chunk_size = screen_size_uniform.chunk_size;
+    let world_pos = get_world_pos(pixel_pos);
+    
+    // 使用floor进行块坐标计算
+    let chunk_x = i32(floor(world_pos.x / chunk_size));
+    let chunk_y = i32(floor(world_pos.y / chunk_size));
+    
+    return vec2<i32>(chunk_x, chunk_y);
 }
