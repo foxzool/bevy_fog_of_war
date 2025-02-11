@@ -134,66 +134,67 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
 
 // 判断点阵数字中的某个点是否应该被渲染
 fn should_render_dot(digit: i32, x: i32, y: i32) -> bool {
+    let y_inv = 6 - y; // 反转Y坐标系统
     // 5x7点阵数字模板定义（0-9）
     switch digit {
         case 0: {
-            return (x == 0 && y > 0 && y < 6) ||  // 左边
-                   (x == 4 && y > 0 && y < 6) ||  // 右边
-                   (y == 0 && x > 0 && x < 4) ||  // 上边
-                   (y == 6 && x > 0 && x < 4);    // 下边
+            return (x == 0 && y_inv > 0 && y_inv < 6) ||  // 左边
+                   (x == 4 && y_inv > 0 && y_inv < 6) ||  // 右边
+                   (y_inv == 0 && x > 0 && x < 4) ||  // 上边
+                   (y_inv == 6 && x > 0 && x < 4);    // 下边
         }
         case 1: {
-            return x == 2 || (y == 6 && x >= 1 && x <= 3);
+            return x == 2 || (y_inv == 6 && x >= 1 && x <= 3);
         }
         case 2: {
-            return (y == 0 && x > 0 && x < 4) ||  // 上边
-                   (y == 3 && x > 0 && x < 4) ||  // 中间
-                   (y == 6 && x > 0 && x < 4) ||  // 下边
-                   (x == 4 && y > 0 && y < 3) ||  // 右上
-                   (x == 0 && y > 3 && y < 6);    // 左下
+            return (y_inv == 0 && x > 0 && x < 4) ||  // 上边
+                   (y_inv == 3 && x > 0 && x < 4) ||  // 中间
+                   (y_inv == 6 && x > 0 && x < 4) ||  // 下边
+                   (x == 4 && y_inv > 0 && y_inv < 3) ||  // 右上
+                   (x == 0 && y_inv > 3 && y_inv < 6);    // 左下
         }
         case 3: {
-            return (y == 0 && x > 0 && x < 4) ||
-                   (y == 3 && x > 0 && x < 4) ||
-                   (y == 6 && x > 0 && x < 4) ||
-                   (x == 4 && y != 0 && y != 3 && y != 6);
+            return (y_inv == 0 && x > 0 && x < 4) ||
+                   (y_inv == 3 && x > 0 && x < 4) ||
+                   (y_inv == 6 && x > 0 && x < 4) ||
+                   (x == 4 && y_inv != 0 && y_inv != 3 && y_inv != 6);
         }
         case 4: {
             return (x == 4) ||
-                   (x == 0 && y < 4) ||
-                   (y == 3);
+                   (x == 0 && y_inv < 4) ||
+                   (y_inv == 3);
         }
         case 5: {
-            return (y == 0 && x > 0 && x < 4) ||
-                   (y == 3 && x > 0 && x < 4) ||
-                   (y == 6 && x > 0 && x < 4) ||
-                   (x == 0 && y > 0 && y < 3) ||
-                   (x == 4 && y > 3 && y < 6);
+            return (y_inv == 0 && x > 0 && x < 4) ||
+                   (y_inv == 3 && x > 0 && x < 4) ||
+                   (y_inv == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y_inv > 0 && y_inv < 3) ||
+                   (x == 4 && y_inv > 3 && y_inv < 6);
         }
         case 6: {
-            return (y == 0 && x > 0 && x < 4) ||
-                   (y == 3 && x > 0 && x < 4) ||
-                   (y == 6 && x > 0 && x < 4) ||
-                   (x == 0 && y > 0 && y < 6) ||
-                   (x == 4 && y > 3 && y < 6);
+            return (y_inv == 0 && x > 0 && x < 4) ||
+                   (y_inv == 3 && x > 0 && x < 4) ||
+                   (y_inv == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y_inv > 0 && y_inv < 6) ||
+                   (x == 4 && y_inv > 3 && y_inv < 6);
         }
         case 7: {
-            return (y == 0) ||
+            return (y_inv == 0) ||
                    (x == 4);
         }
         case 8: {
-            return (y == 0 && x > 0 && x < 4) ||
-                   (y == 3 && x > 0 && x < 4) ||
-                   (y == 6 && x > 0 && x < 4) ||
-                   (x == 0 && y != 0 && y != 3 && y != 6) ||
-                   (x == 4 && y != 0 && y != 3 && y != 6);
+            return (y_inv == 0 && x > 0 && x < 4) ||
+                   (y_inv == 3 && x > 0 && x < 4) ||
+                   (y_inv == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y_inv != 0 && y_inv != 3 && y_inv != 6) ||
+                   (x == 4 && y_inv != 0 && y_inv != 3 && y_inv != 6);
         }
         case 9: {
-            return (y == 0 && x > 0 && x < 4) ||
-                   (y == 3 && x > 0 && x < 4) ||
-                   (y == 6 && x > 0 && x < 4) ||
-                   (x == 0 && y > 0 && y < 3) ||
-                   (x == 4 && y != 3 && y != 6);
+            return (y_inv == 0 && x > 0 && x < 4) ||
+                   (y_inv == 3 && x > 0 && x < 4) ||
+                   (y_inv == 6 && x > 0 && x < 4) ||
+                   (x == 0 && y_inv > 0 && y_inv < 3) ||
+                   (x == 4 && y_inv != 3 && y_inv != 6);
         }
         default: {
             return false;
@@ -203,7 +204,8 @@ fn should_render_dot(digit: i32, x: i32, y: i32) -> bool {
 
 // 添加渲染负号的函数
 fn should_render_minus(x: i32, y: i32) -> bool {
-    return y == 3 && x >= 0 && x < 3;
+    let y_inv = 6 - y; // 反转Y坐标系统
+    return y_inv == 3 && x >= 0 && x < 3;
 }
 
 // 获取数字的位数
@@ -263,16 +265,31 @@ fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, bas
 
 fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
-    let world_pos = get_world_pos(pixel_pos);
     
-    // 计算块坐标
+    // 获取世界坐标
+    let world_pos = get_world_pos(pixel_pos);
     let chunk_x = i32(floor(world_pos.x / chunk_size));
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
-    // 计算块内的局部坐标
+    // 将区块锚点转换到NDC坐标系
+    let chunk_anchor_world = vec3<f32>(
+        f32(chunk_x) * chunk_size,
+        f32(chunk_y) * chunk_size, 
+        0.0
+    );
+    let ndc_anchor = position_world_to_ndc(chunk_anchor_world);
+    
+    // 转换到屏幕像素坐标系（根据wgsl坐标系说明，UV坐标系是左上角原点）
+    let uv_anchor = ndc_to_uv(ndc_anchor.xy);
+    let screen_anchor = uv_anchor * view.viewport.zw;
+    
+    // 计算当前像素相对于锚点的偏移
+    let frag_uv = frag_coord_to_uv(pixel_pos);
+    let screen_pos = frag_uv * view.viewport.zw;
+    
     return vec2<i32>(
-        i32((world_pos.x - f32(chunk_x) * chunk_size)),
-        i32((world_pos.y - f32(chunk_y) * chunk_size))
+        i32(screen_pos.x - screen_anchor.x),
+        i32(screen_pos.y - screen_anchor.y)
     );
 }
 
@@ -319,17 +336,17 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
         let distance_from_left = f32(local_pos.x);
-        let distance_from_top = f32(local_pos.y);
+        let distance_from_bottom = f32(local_pos.y);
         
         let line_width = 3.0;
 
         if (chunk_index == 17) {
             // 左边线（所有chunk统一红色）
-            if (distance_from_left < line_width) {
+            if (f32(local_pos.x) < line_width) {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
-            // 底边线（所有chunk统一绿色）
-            if (distance_from_top > chunk_size - line_width) {
+            // 上边线（所有chunk统一绿色）
+            if (f32(local_pos.y) > f32(chunk_size) - line_width) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
 
@@ -349,15 +366,20 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
 //                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
 //            }
 
-            // 显示ring_x (蓝色)
-            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
-                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
-            }
-
-            // 显示ring_y (青色)
-            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
-            }
+//            // 显示chunk_index
+//            if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
+//                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+//            }
+//
+//            // 显示ring_x (蓝色)
+//            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
+//                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
+//            }
+//
+//            // 显示ring_y (青色)
+//            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
+//                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
+//            }
         }
     }
 
