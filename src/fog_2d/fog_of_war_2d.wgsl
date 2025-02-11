@@ -339,6 +339,15 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            let debug_blue = vec4<f32>(0.0, 0.0, 1.0, 1.0);
+            
+            // 在左上角画一个圆
+            let circle_radius = 10.0;
+            let circle_center = vec2<f32>(circle_radius, chunk_size - circle_radius);
+            let dist_to_circle = distance(local_pos, circle_center);
+            if (dist_to_circle < circle_radius) {
+                return debug_blue;
+            }
             
             // 显示坐标轴（红色X轴，绿色Y轴）
             if (local_pos.x == 0.0) { return debug_red; }
