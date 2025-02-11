@@ -170,7 +170,7 @@ pub fn debug_chunk_indices(
             for child in children.iter() {
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
-                    "({}, {})[{}, {}] - {}",
+                    "({}, {})[{}, {}] {}",
                     chunk_coord.to_world_pos().x,
                     chunk_coord.to_world_pos().y,
                     chunk_index.ring_buffer_position.unwrap_or_default().0,

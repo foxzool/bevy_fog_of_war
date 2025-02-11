@@ -218,6 +218,9 @@ fn draw_chunk_boundaries(
 ) {
     if cfg!(feature = "debug_chunk") {
         for (chunk_coord, chunk_index) in chunks_query.iter() {
+            if chunk_index.current != Some(17) {
+                continue;
+            }
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = fow_screen.chunk_size;
             gizmos.circle_2d(world_pos, 10.0, BLUE );

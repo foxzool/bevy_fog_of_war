@@ -1,6 +1,6 @@
 #import bevy_render::view::View
 
-const DEBUG = false;
+const DEBUG = true;
 
 
 struct FogOfWarScreen {
@@ -331,7 +331,8 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         
         let line_width = 3.0;
 
-        if (true) {
+        if (chunk_index == 17 || chunk_index == 10) {
+            let world_pos = get_world_pos(pixel_pos);
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
@@ -361,9 +362,21 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             // 将分母从50调整为80，缩小点阵大小
             let dot_size = chunk_size / 80.0;
 
-            // 显示chunk_index
-            if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
+            // 显示chunk_index（保持在顶部）
+            if (render_number_at_position(chunk_index, local_pos, 8.0,  60.0, dot_size)) {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+            }
+
+            // 显示world_pos.x（向右移动一些，避免和其他数字重叠）
+            let world_pos_x = i32(world_pos.x);
+            if (render_number_at_position(world_pos_x, local_pos, 96.0, 60.0, dot_size)) {
+                return vec4<f32>(1.0, 1.0, 0.0, 1.0); // 黄色显示x坐标
+            }
+
+            // 显示world_pos.y（再向右移动）
+            let world_pos_y = i32(world_pos.y);
+            if (render_number_at_position(world_pos_y, local_pos, 184.0, 60.0, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色显示y坐标
             }
         }
     }
