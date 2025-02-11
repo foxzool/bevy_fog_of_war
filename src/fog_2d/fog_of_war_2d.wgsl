@@ -83,13 +83,15 @@ fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_x = i32(floor(world_pos.x / chunk_size));
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
-    // 计算相机位置对应的chunk坐标
-    let camera_chunk_x = i32(floor(screen_size_uniform.camera_position.x / chunk_size));
-    let camera_chunk_y = i32(floor(screen_size_uniform.camera_position.y / chunk_size));
+    // 通过view矩阵获取相机位置（世界坐标）
+    let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
+    let camera_chunk_x = i32(floor(camera_pos.x / chunk_size));
+    let camera_chunk_y = i32(floor(camera_pos.y / chunk_size));
     
-    // 计算环形缓存的大小
-    let view_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size));
-    let view_height = i32(ceil(screen_size_uniform.screen_size.y / chunk_size));
+    // 通过viewport获取实际屏幕尺寸
+    let view_size = view.viewport.zw;
+    let view_width = i32(ceil(view_size.x / chunk_size));
+    let view_height = i32(ceil(view_size.y / chunk_size));
     let buffer_width = view_width + 2;
     let buffer_height = view_height + 2;
     
@@ -109,8 +111,8 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     let chunk_size = screen_size_uniform.chunk_size;
     
     // 计算视口可容纳的块数量（不含padding）
-    let view_width = ceil(screen_size_uniform.screen_size.x / chunk_size);
-    let view_height = ceil(screen_size_uniform.screen_size.y / chunk_size);
+    let view_width = ceil(view.viewport.zw.x / chunk_size);
+    let view_height = ceil(view.viewport.zw.y / chunk_size);
     
     // 修改为 +1 保持对称padding（与Rust代码同步）
     let max_x = i32(view_width) + 1;
@@ -297,8 +299,8 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     let ring_pos = get_ring_buffer_position(pixel_pos);
     
     // 计算chunk索引
-    let view_width = i32(ceil(screen_size_uniform.screen_size.x / screen_size_uniform.chunk_size));
-    let view_height = i32(ceil(screen_size_uniform.screen_size.y / screen_size_uniform.chunk_size));
+    let view_width = i32(ceil(view.viewport.zw.x / screen_size_uniform.chunk_size));
+    let view_height = i32(ceil(view.viewport.zw.y / screen_size_uniform.chunk_size));
     let buffer_width = view_width + 2;
     let buffer_height = view_height + 2;
     let chunk_index = calculate_chunk_index(ring_pos.x, ring_pos.y, buffer_width, buffer_height);
@@ -311,7 +313,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         
         let line_width = 3.0;
 
-        if (chunk_index % 7 == 3) {
+        if (chunk_index == 17) {
             // 左边线（所有chunk统一红色）
             if (distance_from_left < line_width) {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
@@ -321,43 +323,31 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
 
-            // 将分母从50调整为80，缩小点阵大小
-            let dot_size = chunk_size / 80.0;
-            
-            // 计算ring坐标
-            let buffer_width = i32(ceil(screen_size_uniform.screen_size.x / chunk_size)) + 2;
-            let ring_x = chunk_index % buffer_width;
-            let ring_y = chunk_index / buffer_width;
-            
-            // 渲染chunk索引
-            if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-            }
-            
-            // world_pos坐标显示
-            let world_x = i32(world_pos.x);
-            let world_y = i32(world_pos.y);
-            
-            // 显示world_x (X坐标)
-            if (render_number_at_position(world_x, local_pos, 8.0, 78.0, dot_size)) {
-                return vec4<f32>(1.0, 0.0, 1.0, 1.0); // 品红色
-            }
-            
-            // 显示world_y (Y坐标)
-            if (render_number_at_position(world_y, local_pos, 65.0, 78.0, dot_size)) {
-                return vec4<f32>(1.0, 0.5, 0.0, 1.0); // 橙色
-            }
-
-
-            // 显示ring_x (蓝色)
-            if (render_number_at_position(ring_x, local_pos, 8.0, 108.0, dot_size)) {
-                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
-            }
-            
-            // 显示ring_y (青色)
-            if (render_number_at_position(ring_y, local_pos, 65.0, 108.0, dot_size)) {
-                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
-            }
+//            // 将分母从50调整为80，缩小点阵大小
+//            let dot_size = chunk_size / 80.0;
+//
+//            // 通过view矩阵获取相机位置（世界坐标）
+//            let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
+//            let world_x = i32(camera_pos.x);
+//            let world_y = i32(camera_pos.y);
+//
+//            // 显示相机坐标
+//            if (render_number_at_position(world_x, local_pos, 8.0, 48.0, dot_size)) {
+//                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+//            }
+//            if (render_number_at_position(world_y, local_pos, 65.0, 48.0, dot_size)) {
+//                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+//            }
+//
+//            // 显示ring_x (蓝色)
+//            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
+//                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
+//            }
+//
+//            // 显示ring_y (青色)
+//            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
+//                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
+//            }
         }
     }
 
