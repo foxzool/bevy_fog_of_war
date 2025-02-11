@@ -72,7 +72,8 @@ fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     let chunk_y = i32(floor(world_pos.y / chunk_size));
     
     // 返回世界坐标
-    return vec2<f32>(f32(chunk_x) * chunk_size, f32(chunk_y) * chunk_size);
+    let chunk_world_pos = vec3<f32>(f32(chunk_x) * chunk_size, f32(chunk_y) * chunk_size, 0.0);
+    return position_world_to_ndc(chunk_world_pos).xy;
 }
 
 fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
@@ -275,6 +276,20 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     );
 }
 
+fn get_chunk_index_from_pixel(pixel_pos: vec2<f32>) -> i32 {
+    // 获取环形缓冲区位置
+    let ring_pos = get_ring_buffer_position(pixel_pos);
+    
+    // 计算缓冲区宽度和高度
+    let view_width = i32(ceil(view.viewport.zw.x / screen_size_uniform.chunk_size));
+    let view_height = i32(ceil(view.viewport.zw.y / screen_size_uniform.chunk_size));
+    let buffer_width = view_width + 2;
+    let buffer_height = view_height + 2;
+    
+    // 使用calculate_chunk_index计算最终的chunk索引
+    return calculate_chunk_index(ring_pos.x, ring_pos.y, buffer_width, buffer_height);
+}
+
 @fragment
 fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     let ndc_position = frag_coord_to_ndc(frag_coord);
@@ -294,16 +309,11 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 获取各种坐标
     let pixel_pos = vec2<f32>(frag_coord.x, frag_coord.y);
-    let world_pos = get_chunk_coords(pixel_pos);
     let local_pos = get_local_coords(pixel_pos);
     let ring_pos = get_ring_buffer_position(pixel_pos);
     
     // 计算chunk索引
-    let view_width = i32(ceil(view.viewport.zw.x / screen_size_uniform.chunk_size));
-    let view_height = i32(ceil(view.viewport.zw.y / screen_size_uniform.chunk_size));
-    let buffer_width = view_width + 2;
-    let buffer_height = view_height + 2;
-    let chunk_index = calculate_chunk_index(ring_pos.x, ring_pos.y, buffer_width, buffer_height);
+    let chunk_index = get_chunk_index_from_pixel(pixel_pos);
     
     // Debug可视化
     if DEBUG {
@@ -318,19 +328,19 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             if (distance_from_left < line_width) {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
-            // 上边线（所有chunk统一绿色）
-            if (distance_from_top < line_width) {
+            // 底边线（所有chunk统一绿色）
+            if (distance_from_top > chunk_size - line_width) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0);
             }
 
-//            // 将分母从50调整为80，缩小点阵大小
-//            let dot_size = chunk_size / 80.0;
-//
-//            // 通过view矩阵获取相机位置（世界坐标）
-//            let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
-//            let world_x = i32(camera_pos.x);
-//            let world_y = i32(camera_pos.y);
-//
+            // 将分母从50调整为80，缩小点阵大小
+            let dot_size = chunk_size / 80.0;
+
+            // 通过view矩阵获取相机位置（世界坐标）
+            let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
+            let world_x = i32(camera_pos.x);
+            let world_y = i32(camera_pos.y);
+
 //            // 显示相机坐标
 //            if (render_number_at_position(world_x, local_pos, 8.0, 48.0, dot_size)) {
 //                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
@@ -338,16 +348,16 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
 //            if (render_number_at_position(world_y, local_pos, 65.0, 48.0, dot_size)) {
 //                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
 //            }
-//
-//            // 显示ring_x (蓝色)
-//            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
-//                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
-//            }
-//
-//            // 显示ring_y (青色)
-//            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
-//                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
-//            }
+
+            // 显示ring_x (蓝色)
+            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
+                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
+            }
+
+            // 显示ring_y (青色)
+            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
+                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
+            }
         }
     }
 
