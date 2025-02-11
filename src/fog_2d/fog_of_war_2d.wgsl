@@ -275,7 +275,8 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     
     // 计算相对于chunk起点的偏移
     let local_x = world_pos.x - chunk_start_x;
-    let local_y = world_pos.y - chunk_start_y;
+    // 翻转y坐标以符合WGSL坐标系（y向下）
+    let local_y = chunk_size - (world_pos.y - chunk_start_y);
     
     // 确保坐标在chunk大小范围内
     let clamped_x = clamp(local_x, 0.0, chunk_size - 1.0);
