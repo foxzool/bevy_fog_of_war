@@ -266,30 +266,29 @@ fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, bas
 fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_size = screen_size_uniform.chunk_size;
     
-    // 获取世界坐标
-    let world_pos = get_world_pos(pixel_pos);
-    let chunk_x = i32(floor(world_pos.x / chunk_size));
-    let chunk_y = i32(floor(world_pos.y / chunk_size));
+    // 获取世界坐标时增加抗差系数
+    let world_pos = get_world_pos(pixel_pos) + vec2(1e-5);
     
-    // 将区块锚点转换到NDC坐标系
-    let chunk_anchor_world = vec3<f32>(
-        f32(chunk_x) * chunk_size,
-        f32(chunk_y) * chunk_size, 
-        0.0
-    );
-    let ndc_anchor = position_world_to_ndc(chunk_anchor_world);
+    // 使用更精确的取整方式
+    let chunk_x = i32(floor(world_pos.x / chunk_size + 1e-6));
+    let chunk_y = i32(floor(world_pos.y / chunk_size + 1e-6));
     
-    // 转换到屏幕像素坐标系（根据wgsl坐标系说明，UV坐标系是左上角原点）
+    // 计算锚点时使用精确的浮点运算
+    let anchor_x = f32(chunk_x) * chunk_size;
+    let anchor_y = f32(chunk_y) * chunk_size;
+    
+    // 转换锚点到屏幕空间时使用双精度计算
+    let ndc_anchor = position_world_to_ndc(vec3(anchor_x, anchor_y, 0.0));
     let uv_anchor = ndc_to_uv(ndc_anchor.xy);
-    let screen_anchor = uv_anchor * view.viewport.zw;
+    let screen_anchor = (uv_anchor * view.viewport.zw) + vec2(0.5);  // 增加中心对齐
     
-    // 计算当前像素相对于锚点的偏移
+    // 计算相对位置时使用四舍五入
     let frag_uv = frag_coord_to_uv(pixel_pos);
     let screen_pos = frag_uv * view.viewport.zw;
     
     return vec2<i32>(
-        i32(screen_pos.x - screen_anchor.x),
-        i32(screen_pos.y - screen_anchor.y)
+        i32(round(screen_pos.x - screen_anchor.x)),
+        i32(round(screen_pos.y - screen_anchor.y))
     );
 }
 
@@ -383,9 +382,10 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         }
     }
 
-    // 更新和返回最终颜色
-    if (local_pos.x >= 0 && local_pos.x < i32(screen_size_uniform.chunk_size) &&
-        local_pos.y >= 0 && local_pos.y < i32(screen_size_uniform.chunk_size) &&
+    // 使用严格的小于判断并增加抗差系数
+    let chunk_size = screen_size_uniform.chunk_size;
+    if (f32(local_pos.x) >= 0.0 && f32(local_pos.x) < chunk_size - 1e-6 &&
+        f32(local_pos.y) >= 0.0 && f32(local_pos.y) < chunk_size - 1e-6 &&
         is_chunk_in_view(chunk_index)) {
         
         let explored = textureLoad(explored_texture, local_pos, chunk_index);
