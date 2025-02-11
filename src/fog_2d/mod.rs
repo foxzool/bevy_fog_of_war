@@ -9,7 +9,7 @@ use crate::fog_2d::chunk::{
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::{handle_screen_resize, FogOfWar2dPipeline};
 use bevy::asset::load_internal_asset;
-use bevy::color::palettes::basic::YELLOW;
+use bevy::color::palettes::basic::{BLUE, RED, YELLOW};
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 
 use bevy::prelude::*;
@@ -212,24 +212,28 @@ pub fn adjust_fow_screen(
 }
 
 fn draw_chunk_boundaries(
-    chunks_query: Query<&ChunkCoord>,
+    chunks_query: Query<(&ChunkCoord, &ChunkArrayIndex)>,
     fow_screen: Res<FogOfWarScreen>,
     mut gizmos: Gizmos,
 ) {
     if crate::DEBUG {
-        for chunk_coord in chunks_query.iter() {
+        for (chunk_coord, chunk_index) in chunks_query.iter() {
             let world_pos = chunk_coord.to_world_pos();
-            let chunk_size = CHUNK_SIZE as f32;
+            let chunk_size = fow_screen.chunk_size;
+            if chunk_index.current == Some(17) {
+                gizmos.circle_2d(world_pos, 10.0, BLUE );
+                // 使用左上角作为矩形的起点
+                gizmos.rect_2d(
+                    Vec2::new(
+                        world_pos.x + chunk_size * 0.5,
+                        world_pos.y - chunk_size * 0.5,
+                    ), // 中心点需要偏移半个chunk大小
+                    Vec2::splat(chunk_size),
+                    YELLOW,
+                );
+            }
 
-            // 使用左上角作为矩形的起点
-            gizmos.rect_2d(
-                Vec2::new(
-                    world_pos.x + chunk_size * 0.5,
-                    world_pos.y + chunk_size * 0.5,
-                ), // 中心点需要偏移半个chunk大小
-                Vec2::splat(chunk_size),
-                YELLOW,
-            );
+
         }
     }
 }

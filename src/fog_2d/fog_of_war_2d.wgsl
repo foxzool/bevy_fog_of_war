@@ -335,7 +335,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         
         let line_width = 3.0;
 
-        if (chunk_index % 7 == 3) {
+        if (chunk_index == 17) {
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
