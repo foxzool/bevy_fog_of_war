@@ -1,6 +1,3 @@
-
-const DEBUG: bool = false;
-
 #[cfg(feature = "2d")]
 mod fog_2d;
 

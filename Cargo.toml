@@ -12,10 +12,10 @@ homepage = "https://github.com/foxzool/bevy_fog_of_war"
 documentation = "https://docs.rs/bevy_fog_of_war"
 
 [features]
-default = ["2d"]
+default = ["2d", "debug_chunk"]
 2d = []
 3d = []
-
+debug_chunk = []
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [

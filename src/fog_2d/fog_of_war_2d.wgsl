@@ -1,6 +1,6 @@
 #import bevy_render::view::View
 
-const DEBUG = true;
+const DEBUG = false;
 
 
 struct FogOfWarScreen {
@@ -102,7 +102,7 @@ fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
     
     // 计算chunk相对于视口左上角的偏移
     let relative_x = chunk_x - viewport_start_x;
-    let relative_y = viewport_start_y - chunk_y - 1; // 减1来上移一个chunk
+    let relative_y = viewport_start_y - chunk_y;
     
     return vec2<i32>(relative_x, relative_y);
 }
@@ -115,10 +115,6 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     let view_width = ceil(view.viewport.zw.x / chunk_size);
     let view_height = ceil(view.viewport.zw.y / chunk_size);
     
-    // 修改为 +1 保持对称padding（与Rust代码同步）
-    let max_x = i32(view_width) + 1;
-    let max_y = i32(view_height) + 1;
-    
     // 修改为与Rust代码相同的判断条件
     let buffer_width = i32(view_width) + 2;
     let buffer_height = i32(view_height) + 2;
@@ -128,8 +124,8 @@ fn is_chunk_in_view(chunk_index: i32) -> bool {
     let rel_chunk_y = chunk_index / buffer_width;
     
     // 判断是否在有效范围内（包含1个块的边界缓冲）
-    return rel_chunk_x >= 0 && rel_chunk_x <= max_x &&
-           rel_chunk_y >= 0 && rel_chunk_y <= max_y;
+    return rel_chunk_x >= 0 && rel_chunk_x < buffer_width &&
+           rel_chunk_y >= 0 && rel_chunk_y < buffer_height;
 }
 
 // 判断点阵数字中的某个点是否应该被渲染

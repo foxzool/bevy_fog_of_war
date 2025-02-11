@@ -216,7 +216,7 @@ fn draw_chunk_boundaries(
     fow_screen: Res<FogOfWarScreen>,
     mut gizmos: Gizmos,
 ) {
-    if crate::DEBUG {
+    if cfg!(feature = "debug_chunk") {
         for (chunk_coord, chunk_index) in chunks_query.iter() {
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = fow_screen.chunk_size;

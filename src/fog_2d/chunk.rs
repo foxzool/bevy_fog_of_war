@@ -1,4 +1,4 @@
-use crate::{FogOfWarScreen, FogOfWarSettings, DEBUG};
+use crate::{FogOfWarScreen, FogOfWarSettings};
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
@@ -72,7 +72,7 @@ pub fn update_chunks_system(
                     Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
                 ))
                 .with_children(|p| {
-                    if DEBUG {
+                    if cfg!(feature = "debug_chunk") {
                         p.spawn((
                             Text2d::default(),
                             text_font.clone(),
@@ -89,13 +89,27 @@ pub fn update_chunks_system(
 pub fn update_chunk_array_indices(
     fow_screen: Res<FogOfWarScreen>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
+    windows: Query<&Window>,
+    camera: Query<(&Camera, &GlobalTransform)>,
 ) {
     if fow_screen.screen_size == Vec2::ZERO {
         return;
     }
-    // 计算相机位置对应的chunk坐标
-    let camera_chunk_x = (fow_screen.camera_position.x / fow_screen.chunk_size).floor() as i32;
-    let camera_chunk_y = (fow_screen.camera_position.y / fow_screen.chunk_size).floor() as i32;
+
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+    let Ok((camera, camera_transform)) = camera.get_single() else {
+        return;
+    };
+
+    let Ok(viewport_center) = camera.viewport_to_world_2d(camera_transform, window.size() * 0.5)
+    else {
+        return;
+    };
+
+    let camera_chunk_x = (viewport_center.x / fow_screen.chunk_size).floor() as i32;
+    let camera_chunk_y = (viewport_center.y / fow_screen.chunk_size).floor() as i32;
 
     // 计算环形缓存的大小（比视口大2行2列）
     let (chunks_x, chunks_y) = fow_screen.calculate_max_chunks();
@@ -151,7 +165,7 @@ pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
     mut text_query: Query<&mut Text2d>,
 ) {
-    if DEBUG {
+    if cfg!(feature = "debug_chunk") {
         for (chunk_index, chunk_coord, children) in chunks_query.iter() {
             for child in children.iter() {
                 let mut text = text_query.get_mut(*child).unwrap();
