@@ -280,15 +280,15 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     // 转换锚点到屏幕空间时使用双精度计算
     let ndc_anchor = position_world_to_ndc(vec3(anchor_x, anchor_y, 0.0));
     let uv_anchor = ndc_to_uv(ndc_anchor.xy);
-    let screen_anchor = (uv_anchor * view.viewport.zw) + vec2(0.5);  // 增加中心对齐
+    let screen_anchor = (uv_anchor * view.viewport.zw) + view.viewport.xy;  // 修正视口偏移
     
     // 计算相对位置时使用四舍五入
     let frag_uv = frag_coord_to_uv(pixel_pos);
-    let screen_pos = frag_uv * view.viewport.zw;
+    let screen_pos = frag_uv * view.viewport.zw + view.viewport.xy;
     
     return vec2<i32>(
         i32(round(screen_pos.x - screen_anchor.x)),
-        i32(round(screen_pos.y - screen_anchor.y))
+        i32(round(screen_anchor.y - screen_pos.y))  // 反转Y轴方向
     );
 }
 
@@ -340,30 +340,26 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         let line_width = 3.0;
 
         if (chunk_index == 17) {
-            // 左边线（所有chunk统一红色）
+            // 调试坐标系可视化
+            let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+            let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            
+            // 显示坐标轴（红色X轴，绿色Y轴）
+            if (local_pos.x == 0) { return debug_red; }
+            if (local_pos.y == 0) { return debug_green; }
+
+            // 左边线（红色）
             if (f32(local_pos.x) < line_width) {
-                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+                return debug_red;
             }
-            // 上边线（所有chunk统一绿色）
-            if (f32(local_pos.y) > f32(chunk_size) - line_width) {
-                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+            // 修正上边线判断（考虑Y轴反转）
+            if (f32(local_pos.y) > f32(screen_size_uniform.chunk_size) - line_width * 2.0) {
+                return debug_green;
             }
 
             // 将分母从50调整为80，缩小点阵大小
             let dot_size = chunk_size / 80.0;
 
-            // 通过view矩阵获取相机位置（世界坐标）
-            let camera_pos = position_ndc_to_world(vec3(0.0)).xy;
-            let world_x = i32(camera_pos.x);
-            let world_y = i32(camera_pos.y);
-
-//            // 显示相机坐标
-//            if (render_number_at_position(world_x, local_pos, 8.0, 48.0, dot_size)) {
-//                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-//            }
-//            if (render_number_at_position(world_y, local_pos, 65.0, 48.0, dot_size)) {
-//                return vec4<f32>(0.0, 1.0, 0.0, 1.0);
-//            }
 
 //            // 显示chunk_index
 //            if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
