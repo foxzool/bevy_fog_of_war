@@ -341,22 +341,22 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             
             // 在左上角画一个圆
             let circle_radius = 10.0;
-            let circle_center = vec2<f32>(circle_radius, chunk_size - circle_radius);
+            let circle_center = vec2<f32>(circle_radius, chunk_size - circle_radius);  // 修正圆的位置到左上角
             let dist_to_circle = distance(local_pos, circle_center);
             if (dist_to_circle < circle_radius) {
                 return debug_blue;
             }
             
             // 显示坐标轴（红色X轴，绿色Y轴）
-            if (local_pos.x == 0.0) { return debug_red; }
-            if (local_pos.y == 0.0) { return debug_green; }
+            if (local_pos.x == 0.0) { return debug_red; }  // 左边界
+            if (local_pos.y == 0.0) { return debug_green; }  // 上边界
 
             // 左边线（红色）
             if (local_pos.x < line_width) {
                 return debug_red;
             }
-            // 修正上边线判断（考虑Y轴反转）
-            if (local_pos.y > chunk_size - line_width) {
+            // 上边线（绿色）
+            if (local_pos.y < line_width) {
                 return debug_green;
             }
 
@@ -369,13 +369,13 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             }
 
             // 显示world_pos.x（向右移动一些，避免和其他数字重叠）
-            let world_pos_x = i32(world_pos.x);
+            let world_pos_x = i32(local_pos.x);
             if (render_number_at_position(world_pos_x, local_pos, 96.0, 60.0, dot_size)) {
                 return vec4<f32>(1.0, 1.0, 0.0, 1.0); // 黄色显示x坐标
             }
 
             // 显示world_pos.y（再向右移动）
-            let world_pos_y = i32(world_pos.y);
+            let world_pos_y = i32(local_pos.y);
             if (render_number_at_position(world_pos_y, local_pos, 184.0, 60.0, dot_size)) {
                 return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色显示y坐标
             }
