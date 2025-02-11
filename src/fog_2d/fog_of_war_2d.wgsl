@@ -73,7 +73,7 @@ fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     
     // 返回世界坐标
     let chunk_world_pos = vec3<f32>(f32(chunk_x) * chunk_size, f32(chunk_y) * chunk_size, 0.0);
-    return position_world_to_ndc(chunk_world_pos).xy;
+    return ndc_to_frag_coord(position_world_to_ndc(chunk_world_pos).xy);
 }
 
 fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
@@ -232,9 +232,9 @@ fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, bas
     let is_negative = number < 0;
     let num_digits = get_num_digits(number);
     
-    // 计算当前像素在点阵中的位置
+    // 计算当前像素在点阵中的位置，y坐标需要翻转
     let dot_x = i32(floor((local_pos.x - base_x) / dot_size));
-    let dot_y = i32(floor((local_pos.y - base_y) / dot_size));
+    let dot_y = 6 - i32(floor((local_pos.y - base_y) / dot_size)); // 翻转y坐标
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
@@ -259,6 +259,8 @@ fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, bas
     return false;
 }
 
+
+// 返回像素点在chunk内部的偏移值， 这里是y朝下
 fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     let chunk_size = screen_size_uniform.chunk_size;
     
@@ -275,8 +277,7 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     
     // 计算相对于chunk起点的偏移
     let local_x = world_pos.x - chunk_start_x;
-    // 翻转y坐标以符合WGSL坐标系（y向下）
-    let local_y = chunk_size - (world_pos.y - chunk_start_y);
+    let local_y = chunk_size - (world_pos.y - chunk_start_y); // 修改这里，将y坐标翻转
     
     // 确保坐标在chunk大小范围内
     let clamped_x = clamp(local_x, 0.0, chunk_size - 1.0);
@@ -323,7 +324,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 计算chunk索引
     let chunk_index = get_chunk_index_from_pixel(pixel_pos);
-    
+    let chunk_size = screen_size_uniform.chunk_size;
     // Debug可视化
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
@@ -332,8 +333,8 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         
         let line_width = 3.0;
 
-        if (chunk_index == 17 || chunk_index == 10) {
-            let world_pos = get_world_pos(pixel_pos);
+        if (chunk_index == 17 ) {
+            let world_pos = get_chunk_coords(pixel_pos);
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
@@ -341,21 +342,21 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             
             // 在左上角画一个圆
             let circle_radius = 10.0;
-            let circle_center = vec2<f32>(circle_radius, chunk_size - circle_radius);  // 修正圆的位置到左上角
+            let circle_center = vec2<f32>(circle_radius, circle_radius);
             let dist_to_circle = distance(local_pos, circle_center);
             if (dist_to_circle < circle_radius) {
                 return debug_blue;
             }
             
             // 显示坐标轴（红色X轴，绿色Y轴）
-            if (local_pos.x == 0.0) { return debug_red; }  // 左边界
-            if (local_pos.y == 0.0) { return debug_green; }  // 上边界
+            if (local_pos.x == 0.0) { return debug_red; }
+            if (local_pos.y == 0.0) { return debug_green; }
 
             // 左边线（红色）
             if (local_pos.x < line_width) {
                 return debug_red;
             }
-            // 上边线（绿色）
+            // 修正上边线判断（考虑Y轴朝下）
             if (local_pos.y < line_width) {
                 return debug_green;
             }
@@ -369,20 +370,20 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             }
 
             // 显示world_pos.x（向右移动一些，避免和其他数字重叠）
-            let world_pos_x = i32(local_pos.x);
+            let world_pos_x = i32(world_pos.x);
             if (render_number_at_position(world_pos_x, local_pos, 96.0, 60.0, dot_size)) {
                 return vec4<f32>(1.0, 1.0, 0.0, 1.0); // 黄色显示x坐标
             }
 
             // 显示world_pos.y（再向右移动）
-            let world_pos_y = i32(local_pos.y);
+            let world_pos_y = i32(world_pos.y);
             if (render_number_at_position(world_pos_y, local_pos, 184.0, 60.0, dot_size)) {
                 return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色显示y坐标
             }
         }
     }
 
-    let chunk_size = screen_size_uniform.chunk_size;
+
     
     // 检查是否在有效的chunk范围内
     if (is_chunk_in_view(chunk_index)) {
