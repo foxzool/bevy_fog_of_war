@@ -232,13 +232,13 @@ fn get_digit_at(num: i32, position: i32) -> i32 {
 }
 
 // 修改渲染数字函数以支持任意位数和负数
-fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, base_y: f32, dot_size: f32) -> bool {
+fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, base_y: f32, dot_size: f32) -> bool {
     let is_negative = number < 0;
     let num_digits = get_num_digits(number);
     
     // 计算当前像素在点阵中的位置
-    let dot_x = i32(floor((f32(local_pos.x) - base_x) / dot_size));
-    let dot_y = i32(floor((f32(local_pos.y) - base_y) / dot_size));
+    let dot_x = i32(floor((local_pos.x - base_x) / dot_size));
+    let dot_y = i32(floor((local_pos.y - base_y) / dot_size));
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
@@ -263,7 +263,7 @@ fn render_number_at_position(number: i32, local_pos: vec2<i32>, base_x: f32, bas
     return false;
 }
 
-fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
+fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
     let chunk_size = screen_size_uniform.chunk_size;
     
     // 获取世界坐标并添加微小偏移以避免边界问题
@@ -277,19 +277,15 @@ fn get_local_coords(pixel_pos: vec2<f32>) -> vec2<i32> {
     let chunk_start_x = chunk_x * chunk_size;
     let chunk_start_y = chunk_y * chunk_size;
     
-    // 计算相对于chunk起点的偏移，使用fract来确保精确的小数部分
+    // 计算相对于chunk起点的偏移
     let local_x = world_pos.x - chunk_start_x;
     let local_y = world_pos.y - chunk_start_y;
     
-    // 使用floor而不是round，并确保结果在有效范围内
-    let x = i32(floor(local_x + 0.5));
-    let y = i32(floor(local_y + 0.5));
-    
     // 确保坐标在chunk大小范围内
-    let clamped_x = clamp(x, 0, i32(chunk_size) - 1);
-    let clamped_y = clamp(y, 0, i32(chunk_size) - 1);
+    let clamped_x = clamp(local_x, 0.0, chunk_size - 1.0);
+    let clamped_y = clamp(local_y, 0.0, chunk_size - 1.0);
     
-    return vec2<i32>(clamped_x, clamped_y);
+    return vec2<f32>(clamped_x, clamped_y);
 }
 
 fn get_chunk_index_from_pixel(pixel_pos: vec2<f32>) -> i32 {
@@ -334,8 +330,8 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     // Debug可视化
     if DEBUG {
         let chunk_size = screen_size_uniform.chunk_size;
-        let distance_from_left = f32(local_pos.x);
-        let distance_from_bottom = f32(local_pos.y);
+        let distance_from_left = local_pos.x;
+        let distance_from_bottom = local_pos.y;
         
         let line_width = 3.0;
 
@@ -345,36 +341,25 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
             
             // 显示坐标轴（红色X轴，绿色Y轴）
-            if (local_pos.x == 0) { return debug_red; }
-            if (local_pos.y == 0) { return debug_green; }
+            if (local_pos.x == 0.0) { return debug_red; }
+            if (local_pos.y == 0.0) { return debug_green; }
 
             // 左边线（红色）
-            if (f32(local_pos.x) < line_width) {
+            if (local_pos.x < line_width) {
                 return debug_red;
             }
             // 修正上边线判断（考虑Y轴反转）
-            if (f32(local_pos.y) > f32(screen_size_uniform.chunk_size) - line_width) {
+            if (local_pos.y > chunk_size - line_width) {
                 return debug_green;
             }
 
             // 将分母从50调整为80，缩小点阵大小
             let dot_size = chunk_size / 80.0;
 
-
             // 显示chunk_index
             if (render_number_at_position(chunk_index, local_pos, 8.0, 48.0, dot_size)) {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
-//
-//            // 显示ring_x (蓝色)
-//            if (render_number_at_position(ring_pos.x, local_pos, 8.0, 108.0, dot_size)) {
-//                return vec4<f32>(0.0, 0.0, 1.0, 1.0); // 蓝色
-//            }
-//
-//            // 显示ring_y (青色)
-//            if (render_number_at_position(ring_pos.y, local_pos, 65.0, 108.0, dot_size)) {
-//                return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色
-//            }
         }
     }
 
@@ -382,12 +367,13 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 检查是否在有效的chunk范围内
     if (is_chunk_in_view(chunk_index)) {
-        let explored = textureLoad(explored_texture, local_pos, chunk_index);
+        let local_pos_i32 = vec2<i32>(local_pos);
+        let explored = textureLoad(explored_texture, local_pos_i32, chunk_index);
         let new_explored = max(explored.r, visibility);
         
         // 计算到chunk边界的距离
-        let edge_dist_x = min(f32(local_pos.x), chunk_size - f32(local_pos.x));
-        let edge_dist_y = min(f32(local_pos.y), chunk_size - f32(local_pos.y));
+        let edge_dist_x = min(local_pos.x, chunk_size - local_pos.x);
+        let edge_dist_y = min(local_pos.y, chunk_size - local_pos.y);
         let edge_dist = min(edge_dist_x, edge_dist_y);
         
         // 在边界处轻微扩展可见区域
@@ -395,7 +381,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         let adjusted_explored = mix(new_explored + 0.001, new_explored, edge_blend);
         
         // 存储结果
-        textureStore(explored_texture, local_pos, chunk_index, vec4<f32>(adjusted_explored));
+        textureStore(explored_texture, local_pos_i32, chunk_index, vec4<f32>(adjusted_explored));
         
         let final_visibility = max(visibility, adjusted_explored * settings.explored_alpha);
         return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
