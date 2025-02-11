@@ -102,7 +102,7 @@ fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
     
     // 计算chunk相对于视口左上角的偏移
     let relative_x = chunk_x - viewport_start_x;
-    let relative_y = viewport_start_y - chunk_y;
+    let relative_y = viewport_start_y - chunk_y - 1; // 减1来上移一个chunk
     
     return vec2<i32>(relative_x, relative_y);
 }
@@ -335,7 +335,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         
         let line_width = 3.0;
 
-        if (chunk_index == 17) {
+        if (true) {
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);

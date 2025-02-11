@@ -220,18 +220,16 @@ fn draw_chunk_boundaries(
         for (chunk_coord, chunk_index) in chunks_query.iter() {
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = fow_screen.chunk_size;
-            if chunk_index.current == Some(17) {
-                gizmos.circle_2d(world_pos, 10.0, BLUE );
-                // 使用左上角作为矩形的起点
-                gizmos.rect_2d(
-                    Vec2::new(
-                        world_pos.x + chunk_size * 0.5,
-                        world_pos.y - chunk_size * 0.5,
-                    ), // 中心点需要偏移半个chunk大小
-                    Vec2::splat(chunk_size),
-                    YELLOW,
-                );
-            }
+            gizmos.circle_2d(world_pos, 10.0, BLUE );
+            // 使用左上角作为矩形的起点
+            gizmos.rect_2d(
+                Vec2::new(
+                    world_pos.x + chunk_size * 0.5,
+                    world_pos.y - chunk_size * 0.5,
+                ), // 中心点需要偏移半个chunk大小
+                Vec2::splat(chunk_size),
+                YELLOW,
+            );
 
 
         }
