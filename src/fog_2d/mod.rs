@@ -4,7 +4,7 @@ use crate::fog_2d::buffers::{
 };
 use crate::fog_2d::chunk::{
     debug_chunk_indices, update_chunk_array_indices, update_chunks_system, ChunkArrayIndex,
-    ChunkCoord, CHUNK_SIZE,
+    ChunkCoord,
 };
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
@@ -188,7 +188,7 @@ fn draw_chunk_boundaries(
             if chunk_index.current != Some(17) {
                 continue;
             }
-            let world_pos = chunk_coord.to_world_pos();
+            let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
             let chunk_size = settings.chunk_size;
             gizmos.circle_2d(world_pos, 10.0, BLUE);
             // 使用左上角作为矩形的起点

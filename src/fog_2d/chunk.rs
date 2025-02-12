@@ -6,8 +6,6 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, T
 use bevy::window::{PrimaryWindow, WindowResized};
 use std::collections::HashMap;
 
-pub const CHUNK_SIZE: f32 = 256.;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
 pub struct ChunkCoord {
     pub x: i32,
@@ -19,15 +17,8 @@ impl ChunkCoord {
         Self { x, y }
     }
 
-    pub fn from_world_pos(pos: Vec2) -> Self {
-        Self {
-            x: (pos.x / CHUNK_SIZE).floor() as i32,
-            y: (pos.y / CHUNK_SIZE).floor() as i32,
-        }
-    }
-
-    pub fn to_world_pos(&self) -> Vec2 {
-        Vec2::new(self.x as f32 * CHUNK_SIZE, self.y as f32 * CHUNK_SIZE)
+    pub fn to_world_pos(&self, chunk_size: f32) -> Vec2 {
+        Vec2::new(self.x as f32 * chunk_size, self.y as f32 * chunk_size)
     }
 }
 
@@ -78,8 +69,12 @@ pub fn update_chunks_system(
         // Handle chunk loading for new chunks
         for coord in chunks_in_view.iter() {
             if !existing_coords.contains(coord) {
-                let world_pos = coord.to_world_pos();
-                debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
+                let world_pos = coord.to_world_pos(settings.chunk_size);
+                debug!(
+                    "spawn coord: {:?} {:?}",
+                    coord,
+                    coord.to_world_pos(settings.chunk_size)
+                );
                 commands
                     .spawn((
                         *coord,
@@ -181,6 +176,7 @@ pub fn update_chunk_array_indices(
 
 pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
+    settings: Res<FogOfWarSettings>,
     mut text_query: Query<&mut Text2d>,
 ) {
     if cfg!(feature = "debug_chunk") {
@@ -189,8 +185,8 @@ pub fn debug_chunk_indices(
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
                     "({}, {})[{}, {}] {}",
-                    chunk_coord.to_world_pos().x,
-                    chunk_coord.to_world_pos().y,
+                    chunk_coord.to_world_pos(settings.chunk_size).x,
+                    chunk_coord.to_world_pos(settings.chunk_size).y,
                     chunk_index.ring_buffer_position.unwrap_or_default().0,
                     chunk_index.ring_buffer_position.unwrap_or_default().1,
                     chunk_index.current.unwrap_or_default()

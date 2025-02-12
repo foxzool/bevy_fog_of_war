@@ -1,4 +1,3 @@
-use crate::fog_2d::chunk::{ChunkCoord, CHUNK_SIZE};
 use crate::{calculate_max_chunks, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
 use bevy::math::Vec2;
 use bevy::prelude::{DetectChanges, EventReader, Res, ResMut};
@@ -36,7 +35,6 @@ pub struct FogOfWar2dPipeline {
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
-        println!("from world");
         // 计算基于屏幕大小的最大可见chunks
         let extracted_windows = world.resource::<ExtractedWindows>();
         let primary_window = extracted_windows
@@ -44,13 +42,14 @@ impl FromWorld for FogOfWar2dPipeline {
             .get(&extracted_windows.primary.unwrap())
             .unwrap();
         let settings = world.resource::<FogOfWarSettings>();
+        let chunk_size = settings.chunk_size;
 
         let (chunks_x, chunks_y) = calculate_max_chunks(
             Vec2::new(
                 primary_window.physical_width as f32,
                 primary_window.physical_height as f32,
             ),
-            settings.chunk_size,
+            chunk_size,
         );
         let render_device = world.resource_mut::<RenderDevice>();
 
@@ -61,8 +60,8 @@ impl FromWorld for FogOfWar2dPipeline {
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
-                width: CHUNK_SIZE as u32,
-                height: CHUNK_SIZE as u32,
+                width: chunk_size as u32,
+                height: chunk_size as u32,
                 depth_or_array_layers: texture_array_size,
             },
             mip_level_count: 1,
@@ -173,10 +172,10 @@ impl FromWorld for FogOfWar2dPipeline {
 }
 
 impl FogOfWar2dPipeline {
-    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: i32) {
+    pub fn clear_explored_texture(&self, queue: &RenderQueue, chunk_index: i32, chunk_size: f32) {
         if let Some(texture) = &self.texture {
             // 创建一个全零的缓冲区，大小为一个chunk的大小
-            let zeros = vec![0u8; (CHUNK_SIZE * CHUNK_SIZE) as usize];
+            let zeros = vec![0u8; (chunk_size * chunk_size) as usize];
 
             // 写入数据到纹理的指定层
             queue.write_texture(
@@ -193,12 +192,12 @@ impl FogOfWar2dPipeline {
                 &zeros,
                 bevy::render::render_resource::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(CHUNK_SIZE as u32),
-                    rows_per_image: Some(CHUNK_SIZE as u32),
+                    bytes_per_row: Some(chunk_size as u32),
+                    rows_per_image: Some(chunk_size as u32),
                 },
                 Extent3d {
-                    width: CHUNK_SIZE as u32,
-                    height: CHUNK_SIZE as u32,
+                    width: chunk_size as u32,
+                    height: chunk_size as u32,
                     depth_or_array_layers: 1,
                 },
             );
@@ -211,6 +210,7 @@ impl FogOfWar2dPipeline {
         queue: &RenderQueue,
         from_index: i32,
         to_index: i32,
+        chunk_size: f32,
     ) {
         if let Some(texture) = &self.texture {
             // 创建一个命令编码器
@@ -245,8 +245,8 @@ impl FogOfWar2dPipeline {
                     aspect: bevy::render::render_resource::TextureAspect::All,
                 },
                 Extent3d {
-                    width: CHUNK_SIZE as u32,
-                    height: CHUNK_SIZE as u32,
+                    width: chunk_size as u32,
+                    height: chunk_size as u32,
                     depth_or_array_layers: 1,
                 },
             );
@@ -255,7 +255,7 @@ impl FogOfWar2dPipeline {
             queue.submit(std::iter::once(encoder.finish()));
 
             // 清空源chunk
-            self.clear_explored_texture(queue, from_index);
+            self.clear_explored_texture(queue, from_index, chunk_size);
         }
     }
 }
