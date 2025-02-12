@@ -1,5 +1,6 @@
 use crate::fog_2d::chunk::{ChunkCoord, CHUNK_SIZE};
 use crate::{FogOfWarScreen, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
+use bevy::prelude::{DetectChanges, Res, ResMut};
 use bevy::render::renderer::RenderQueue;
 use bevy::{
     prelude::{FromWorld, Resource, World},
@@ -19,7 +20,6 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
-use bevy::prelude::{DetectChanges, Res, ResMut};
 use bevy_render::view::ViewUniform;
 
 #[derive(Resource)]
@@ -39,8 +39,6 @@ impl FromWorld for FogOfWar2dPipeline {
         let (chunks_x, chunks_y) = screen.calculate_max_chunks();
         let render_device = world.resource_mut::<RenderDevice>();
 
-
-        
         // 为了实现环形缓存，我们需要比实际视口多2行2列的chunks
         // 这样在相机移动时可以预先加载新的chunks
         let texture_array_size = ((chunks_x + 2) * (chunks_y + 2)) as u32;
@@ -80,8 +78,6 @@ impl FromWorld for FogOfWar2dPipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::ReadWrite,
                     ),
-                    uniform_buffer::<FogOfWarScreen>(false),
-
                 ),
             ),
         );

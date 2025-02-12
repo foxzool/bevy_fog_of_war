@@ -100,18 +100,12 @@ pub(super) struct FogSight2dBuffers {
     pub(super) buffers: StorageBuffer<Vec<FogSight2DUniform>>,
 }
 
-#[derive(Resource, Default)]
-pub(super) struct FogSight2dScreenBuffers {
-    pub(super) buffers: UniformBuffer<FogOfWarScreen>,
-}
-
 pub(super) fn prepare_buffers(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut extracted: ResMut<ExtractedSight2DBuffers>,
     mut buffer_res: ResMut<FogSight2dBuffers>,
     screen: Res<FogOfWarScreen>,
-    mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
 ) {
     for (entity, fog_sight_2d) in extracted.changed.drain(..) {
         match buffer_res.sights.entry(entity) {
@@ -133,13 +127,11 @@ pub(super) fn prepare_buffers(
     buffer_res.buffers = StorageBuffer::from(sights);
     buffer_res.buffers.write_buffer(&device, &queue);
 
-    screen_buffer.buffers = UniformBuffer::from(screen.clone());
-    screen_buffer.buffers.write_buffer(&device, &queue);
+
 }
 
 pub(super) fn prepare_chunk_texture(
     screen: Res<FogOfWarScreen>,
-    mut screen_buffer: ResMut<FogSight2dScreenBuffers>,
     mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,

@@ -54,12 +54,8 @@ fn setup(
 ) {
     commands.spawn((
         Camera2d::default(),
-        FogOfWarSettings {
-            fog_color: Color::BLACK.into(),
-            fade_width: 0.2,
-            explored_alpha: 0.1, // You can adjust this value to control explored area visibility ,
-        },
-        CameraController { 
+        FogOfWarSettings::default(),
+        CameraController {
             speed: 500.0,
             chunk_size: 256.0, // 设置默认块大小
         },

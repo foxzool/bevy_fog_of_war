@@ -1,6 +1,5 @@
 use crate::fog_2d::buffers::{
     extract_buffers, prepare_buffers, prepare_chunk_texture, FogSight2dBuffers,
-    FogSight2dScreenBuffers,
 };
 use crate::fog_2d::chunk::{
     debug_chunk_indices, update_chunk_array_indices, update_chunks_system, ChunkArrayIndex,
@@ -74,7 +73,6 @@ impl Plugin for FogOfWar2dPlugin {
 
         render_app
             .init_resource::<FogSight2dBuffers>()
-            .init_resource::<FogSight2dScreenBuffers>()
             .add_systems(ExtractSchedule, extract_buffers)
             .add_systems(
                 Render,
@@ -105,6 +103,7 @@ impl Plugin for FogOfWar2dPlugin {
 
 #[derive(Component, Debug, Clone, Reflect, ExtractComponent, ShaderType)]
 pub struct FogOfWarSettings {
+    pub chunk_size: f32,
     pub fog_color: LinearRgba,
     pub fade_width: f32,
     pub explored_alpha: f32,
@@ -113,9 +112,10 @@ pub struct FogOfWarSettings {
 impl Default for FogOfWarSettings {
     fn default() -> Self {
         Self {
+            chunk_size: 256.0,
             fog_color: Color::BLACK.into(),
-            fade_width: 50.0,
-            explored_alpha: 0.5,
+            fade_width: 10.0,
+            explored_alpha: 0.1,
         }
     }
 }
@@ -223,7 +223,7 @@ fn draw_chunk_boundaries(
             }
             let world_pos = chunk_coord.to_world_pos();
             let chunk_size = fow_screen.chunk_size;
-            gizmos.circle_2d(world_pos, 10.0, BLUE );
+            gizmos.circle_2d(world_pos, 10.0, BLUE);
             // 使用左上角作为矩形的起点
             gizmos.rect_2d(
                 Vec2::new(
@@ -233,8 +233,6 @@ fn draw_chunk_boundaries(
                 Vec2::splat(chunk_size),
                 YELLOW,
             );
-
-
         }
     }
 }
