@@ -363,29 +363,36 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         }
     }
 
-
-    
     // 检查是否在有效的chunk范围内
-//    if (is_chunk_in_view(chunk_index)) {
-//        let local_pos_i32 = vec2<i32>(local_pos);
-//        let explored = textureLoad(explored_texture, local_pos_i32, chunk_index);
-//        let new_explored = max(explored.r, visibility);
-//
-//        // 计算到chunk边界的距离
-//        let edge_dist_x = min(local_pos.x, chunk_size - local_pos.x);
-//        let edge_dist_y = min(local_pos.y, chunk_size - local_pos.y);
-//        let edge_dist = min(edge_dist_x, edge_dist_y);
-//
-//        // 在边界处轻微扩展可见区域
-//        let edge_blend = smoothstep(0.0, 1.0, edge_dist);
-//        let adjusted_explored = mix(new_explored + 0.001, new_explored, edge_blend);
-//
-//        // 存储结果
-//        textureStore(explored_texture, local_pos_i32, chunk_index, vec4<f32>(adjusted_explored));
-//
-//        let final_visibility = max(visibility, adjusted_explored * settings.explored_alpha);
-//        return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
-//    }
+    if (is_chunk_in_view(chunk_index)) {
+        // 获取世界坐标并计算局部坐标
+        let world_pos = get_world_pos(pixel_pos);
+        let chunk_x = floor(world_pos.x / chunk_size);
+        let chunk_y = floor(world_pos.y / chunk_size);
+        
+        // 计算在chunk内的局部坐标
+        let local_x = i32(floor(world_pos.x - chunk_x * chunk_size));
+        let local_y = i32(floor(world_pos.y - chunk_y * chunk_size));
+        let local_pos_i32 = vec2<i32>(local_x, local_y);
+
+        let explored = textureLoad(explored_texture, local_pos_i32, chunk_index);
+        let new_explored = max(explored.r, visibility);
+
+        // 计算到chunk边界的距离
+        let edge_dist_x = min(f32(local_x), chunk_size - f32(local_x));
+        let edge_dist_y = min(f32(local_y), chunk_size - f32(local_y));
+        let edge_dist = min(edge_dist_x, edge_dist_y);
+
+        // 在边界处轻微扩展可见区域
+        let edge_blend = smoothstep(0.0, 1.0, edge_dist);
+        let adjusted_explored = mix(new_explored + 0.001, new_explored, edge_blend);
+
+        // 存储结果
+        textureStore(explored_texture, local_pos_i32, chunk_index, vec4<f32>(adjusted_explored));
+
+        let final_visibility = max(visibility, adjusted_explored * settings.explored_alpha);
+        return mix(settings.fog_color, vec4<f32>(0.0), final_visibility);
+    }
     
     return mix(settings.fog_color, vec4<f32>(0.0), visibility);
 }
