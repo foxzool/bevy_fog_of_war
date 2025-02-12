@@ -63,7 +63,8 @@ fn get_world_pos(pixel_pos: vec2<f32>) -> vec2<f32> {
     return world_pos.xy;
 }
 
-fn get_chunk_coords(pixel_pos: vec2<f32>) -> vec2<f32> {
+// 通过屏幕像素，换算chunk锚点所在的屏幕像素
+fn get_chunk_anchor(pixel_pos: vec2<f32>) -> vec2<f32> {
     let chunk_size = screen_size_uniform.chunk_size;
     let world_pos = get_world_pos(pixel_pos);
     
@@ -316,6 +317,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 获取各种坐标
     let pixel_pos = vec2<f32>(frag_coord.x, frag_coord.y);
+    let chunk_anchor = get_chunk_anchor(pixel_pos);
     let local_pos = get_local_coords(pixel_pos);
     let ring_pos = get_ring_buffer_position(pixel_pos);
     
@@ -331,7 +333,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         let line_width = 3.0;
 
         if (chunk_index == 17 ) {
-            let world_pos = get_chunk_coords(pixel_pos);
+
             // 调试坐标系可视化
             let debug_red = vec4<f32>(1.0, 0.0, 0.0, 1.0);
             let debug_green = vec4<f32>(0.0, 1.0, 0.0, 1.0);
@@ -366,15 +368,13 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
 
-            // 显示world_pos.x（向右移动一些，避免和其他数字重叠）
-            let world_pos_x = i32(world_pos.x);
-            if (render_number_at_position(world_pos_x, local_pos, 96.0, 60.0, dot_size)) {
+            // 显示chunk_anchor.x（向右移动一些，避免和其他数字重叠）
+            if (render_number_at_position(i32(chunk_anchor.x), local_pos, 96.0, 60.0, dot_size)) {
                 return vec4<f32>(1.0, 1.0, 0.0, 1.0); // 黄色显示x坐标
             }
 
-            // 显示world_pos.y（再向右移动）
-            let world_pos_y = i32(world_pos.y);
-            if (render_number_at_position(world_pos_y, local_pos, 184.0, 60.0, dot_size)) {
+            // 显示chunk_anchor.y（再向右移动）
+            if (render_number_at_position(i32(chunk_anchor.y), local_pos, 184.0, 60.0, dot_size)) {
                 return vec4<f32>(0.0, 1.0, 1.0, 1.0); // 青色显示y坐标
             }
         }
