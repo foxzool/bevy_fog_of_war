@@ -1,7 +1,9 @@
-use crate::{FogOfWarScreen, FogOfWarSettings};
+use crate::FogOfWarSettings;
+use crate::{calculate_max_chunks, calculate_visible_chunks, FogOfWarCamera};
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+use bevy::window::{PrimaryWindow, WindowResized};
 use std::collections::HashMap;
 
 pub const CHUNK_SIZE: f32 = 256.;
@@ -46,56 +48,67 @@ impl ChunkArrayIndex {
 }
 
 pub fn update_chunks_system(
-    fow_screen: Res<FogOfWarScreen>,
+    mut resize_events: EventReader<WindowResized>,
+    settings: Res<FogOfWarSettings>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cameras: Query<&Transform, With<FogOfWarCamera>>,
     mut commands: Commands,
     mut chunks_query: Query<(Entity, &ChunkCoord, &ChunkCache)>,
 ) {
-    let chunks_in_view = fow_screen.get_chunks_in_view();
-    let mut existing_coords: Vec<ChunkCoord> =
-        chunks_query.iter().map(|(_, coord, _)| *coord).collect();
-
-    let text_font = TextFont {
-        font_size: 20.0,
-        ..default()
+    let Ok(window) = windows.get_single() else {
+        return;
     };
-    let text_justification = JustifyText::Left;
-    // Handle chunk loading for new chunks
-    for coord in chunks_in_view.iter() {
-        if !existing_coords.contains(coord) {
-            let world_pos = coord.to_world_pos();
-            debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
-            commands
-                .spawn((
-                    *coord,
-                    ChunkCache::default(),
-                    ChunkArrayIndex::default(),
-                    Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                ))
-                .with_children(|p| {
-                    if cfg!(feature = "debug_chunk") {
-                        p.spawn((
-                            Text2d::default(),
-                            text_font.clone(),
-                            ChunkDebugText,
-                            TextLayout::new_with_justify(text_justification),
-                            Transform::from_xyz(100.0, -20.0, 0.0),
-                        ));
-                    }
-                });
+    let Ok(camera) = cameras.get_single() else {
+        return;
+    };
+    for event in resize_events.read() {
+        let chunks_in_view = calculate_visible_chunks(
+            window.physical_size(),
+            camera.translation.xy(),
+            settings.chunk_size,
+        );
+        let mut existing_coords: Vec<ChunkCoord> =
+            chunks_query.iter().map(|(_, coord, _)| *coord).collect();
+
+        let text_font = TextFont {
+            font_size: 20.0,
+            ..default()
+        };
+        let text_justification = JustifyText::Left;
+        // Handle chunk loading for new chunks
+        for coord in chunks_in_view.iter() {
+            if !existing_coords.contains(coord) {
+                let world_pos = coord.to_world_pos();
+                debug!("spawn coord: {:?} {:?}", coord, coord.to_world_pos());
+                commands
+                    .spawn((
+                        *coord,
+                        ChunkCache::default(),
+                        ChunkArrayIndex::default(),
+                        Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+                    ))
+                    .with_children(|p| {
+                        if cfg!(feature = "debug_chunk") {
+                            p.spawn((
+                                Text2d::default(),
+                                text_font.clone(),
+                                ChunkDebugText,
+                                TextLayout::new_with_justify(text_justification),
+                                Transform::from_xyz(100.0, -20.0, 0.0),
+                            ));
+                        }
+                    });
+            }
         }
     }
 }
 
 pub fn update_chunk_array_indices(
-    fow_screen: Res<FogOfWarScreen>,
+    fow_settings: Res<FogOfWarSettings>,
     mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
-    windows: Query<&Window>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform)>,
 ) {
-    if fow_screen.screen_size == Vec2::ZERO {
-        return;
-    }
-
     let Ok(window) = windows.get_single() else {
         return;
     };
@@ -108,11 +121,17 @@ pub fn update_chunk_array_indices(
         return;
     };
 
-    let camera_chunk_x = (viewport_center.x / fow_screen.chunk_size).floor() as i32;
-    let camera_chunk_y = (viewport_center.y / fow_screen.chunk_size).floor() as i32;
+    let camera_chunk_x = (viewport_center.x / fow_settings.chunk_size).floor() as i32;
+    let camera_chunk_y = (viewport_center.y / fow_settings.chunk_size).floor() as i32;
 
     // 计算环形缓存的大小（比视口大2行2列）
-    let (chunks_x, chunks_y) = fow_screen.calculate_max_chunks();
+    let (chunks_x, chunks_y) = calculate_max_chunks(
+        Vec2::new(
+            window.resolution.physical_width() as f32,
+            window.resolution.physical_height() as f32,
+        ),
+        fow_settings.chunk_size,
+    );
     let buffer_width = chunks_x as i32 + 2;
     let buffer_height = chunks_y as i32 + 2;
 
@@ -161,7 +180,6 @@ pub fn update_chunk_array_indices(
 }
 
 pub fn debug_chunk_indices(
-    fow_screen: Res<FogOfWarScreen>,
     chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
     mut text_query: Query<&mut Text2d>,
 ) {

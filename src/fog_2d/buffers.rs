@@ -1,17 +1,18 @@
 use crate::fog_2d::chunk::{ChunkArrayIndex, ChunkCoord};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
-use crate::FogSight2DUniform;
-use crate::{FogOfWarScreen, FogSight2D};
+use crate::{calculate_visible_chunks, FogOfWarCamera, FogSight2D};
+use crate::{FogOfWarSettings, FogSight2DUniform};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     debug, Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut,
-    Resource,
+    Resource, Single, Transform, Vec3Swizzles, Window, With,
 };
 use bevy::render::camera::Camera;
 use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
+use bevy::window::PrimaryWindow;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -100,12 +101,26 @@ pub(super) struct FogSight2dBuffers {
     pub(super) buffers: StorageBuffer<Vec<FogSight2DUniform>>,
 }
 
+#[derive(Resource, Default)]
+pub struct FogOfWarSettingBuffer {
+    pub buffer: UniformBuffer<FogOfWarSettings>,
+}
+
+pub fn prepare_settings_buffer(
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    settings: Res<FogOfWarSettings>,
+    mut settings_buffer: ResMut<FogOfWarSettingBuffer>,
+) {
+    settings_buffer.buffer = UniformBuffer::from(settings.clone());
+    settings_buffer.buffer.write_buffer(&device, &queue);
+}
+
 pub(super) fn prepare_buffers(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut extracted: ResMut<ExtractedSight2DBuffers>,
     mut buffer_res: ResMut<FogSight2dBuffers>,
-    screen: Res<FogOfWarScreen>,
 ) {
     for (entity, fog_sight_2d) in extracted.changed.drain(..) {
         match buffer_res.sights.entry(entity) {
@@ -126,19 +141,30 @@ pub(super) fn prepare_buffers(
     let sights: Vec<_> = buffer_res.sights.values().cloned().collect();
     buffer_res.buffers = StorageBuffer::from(sights);
     buffer_res.buffers.write_buffer(&device, &queue);
-
-
 }
 
 pub(super) fn prepare_chunk_texture(
-    screen: Res<FogOfWarScreen>,
+    settings: Res<FogOfWarSettings>,
     mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cameras: Query<&Transform, With<FogOfWarCamera>>,
     mut chunks_query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+    let Ok(camera) = cameras.get_single() else {
+        return;
+    };
     // 获取当前视野内的chunks
-    let chunks_in_view = screen.get_chunks_in_view();
+    // let chunks_in_view = screen.get_chunks_in_view();
+    let chunks_in_view = calculate_visible_chunks(
+        window.physical_size(),
+        camera.translation.xy(),
+        settings.chunk_size,
+    );
 
     // 遍历所有已存在的chunks
     for (coord, mut array_index) in chunks_query.iter_mut() {

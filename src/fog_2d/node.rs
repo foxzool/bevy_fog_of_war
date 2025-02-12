@@ -1,5 +1,6 @@
+use crate::fog_2d::buffers::FogOfWarSettingBuffer;
 use crate::{
-    fog_2d::buffers::FogSight2dBuffers, fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarScreen,
+    fog_2d::buffers::FogSight2dBuffers, fog_2d::pipeline::FogOfWar2dPipeline,
     FogOfWarSettings,
 };
 use bevy::ecs::system::lifetimeless::Read;
@@ -26,20 +27,13 @@ pub struct FogOfWarLabel;
 pub struct FogOfWar2dNode;
 
 impl ViewNode for FogOfWar2dNode {
-    type ViewQuery = (
-        &'static ViewTarget,
-        &'static FogOfWarSettings,
-        &'static DynamicUniformIndex<FogOfWarSettings>,
-        Read<ViewUniformOffset>,
-    );
+    type ViewQuery = (&'static ViewTarget, Read<ViewUniformOffset>);
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, _fog_of_war_settings, settings_index, view_uniform_offset): QueryItem<
-            Self::ViewQuery,
-        >,
+        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let fog_of_war_pipeline = world.resource::<FogOfWar2dPipeline>();
@@ -56,8 +50,8 @@ impl ViewNode for FogOfWar2dNode {
             return Ok(());
         };
 
-        let settings_uniforms = world.resource::<ComponentUniforms<FogOfWarSettings>>();
-        let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
+        let Some(settings_binding) = world.resource::<FogOfWarSettingBuffer>().buffer.binding()
+        else {
             return Ok(());
         };
 
@@ -88,11 +82,7 @@ impl ViewNode for FogOfWar2dNode {
         });
 
         render_pass.set_render_pipeline(pipeline);
-        render_pass.set_bind_group(
-            0,
-            &bind_group,
-            &[view_uniform_offset.offset, settings_index.index()],
-        );
+        render_pass.set_bind_group(0, &bind_group, &[view_uniform_offset.offset]);
         render_pass.set_vertex_buffer(0, fog_of_war_pipeline.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
             fog_of_war_pipeline.index_buffer.slice(..),

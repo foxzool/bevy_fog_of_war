@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_fog_of_war::{FogOfWar2dPlugin, FogOfWarSettings, FogSight2D};
+use bevy_fog_of_war::{FogOfWar2dPlugin, FogOfWarCamera, FogSight2D};
 use std::f32::consts::PI;
 
 // Component to control sight scaling
@@ -54,7 +54,7 @@ fn setup(
 ) {
     commands.spawn((
         Camera2d::default(),
-        FogOfWarSettings::default(),
+        FogOfWarCamera,
         CameraController {
             speed: 500.0,
             chunk_size: 256.0, // 设置默认块大小
