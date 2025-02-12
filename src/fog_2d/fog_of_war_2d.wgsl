@@ -96,11 +96,11 @@ fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
     
     // 计算视口的左上角chunk坐标
     let viewport_start_x = camera_chunk_x - buffer_width / 2;
-    let viewport_start_y = camera_chunk_y + buffer_height / 2;
+    let viewport_start_y = camera_chunk_y - buffer_height / 2;
     
     // 计算chunk相对于视口左上角的偏移
     let relative_x = chunk_x - viewport_start_x;
-    let relative_y = viewport_start_y - chunk_y;
+    let relative_y = chunk_y - viewport_start_y;
     
     return vec2<i32>(relative_x, relative_y);
 }
@@ -230,9 +230,9 @@ fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, bas
     let is_negative = number < 0;
     let num_digits = get_num_digits(number);
     
-    // 计算当前像素在点阵中的位置，y坐标需要翻转
+    // 计算当前像素在点阵中的位置，不再翻转y坐标
     let dot_x = i32(floor((local_pos.x - base_x) / dot_size));
-    let dot_y = 6 - i32(floor((local_pos.y - base_y) / dot_size)); // 翻转y坐标
+    let dot_y = i32(floor((local_pos.y - base_y) / dot_size));
     
     // 检查是否在点阵范围内
     if (dot_y >= 0 && dot_y < 7) {
@@ -327,7 +327,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 修改后的调试可视化
     if DEBUG {
-        if chunk_index == 17 {
+        if (chunk_index % 7 == 3) {
             // 获取世界坐标并计算局部坐标
             let world_pos = get_world_pos(pixel_pos);
             let chunk_x = floor(world_pos.x / chunk_size);
@@ -344,14 +344,18 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
             
-            // 新增：在chunk中心显示索引数字
-            let number_pos = vec2<f32>(chunk_x * chunk_size + 5.0, chunk_y * chunk_size + 5.0);
+            // 修改：在chunk中心显示索引数字
+            // 计算chunk的中心位置
+            let center_x = chunk_x * chunk_size + chunk_size / 2.0;
+            let center_y = chunk_y * chunk_size + chunk_size / 2.0;
+            // 调整数字的偏移量，使其居中显示
+            let number_offset = 15.0; // 根据数字大小调整
             let dot_size = 2.0;
             if render_number_at_position(
                 chunk_index, 
                 world_pos.xy,
-                number_pos.x,
-                number_pos.y,
+                center_x - number_offset,
+                center_y - number_offset,
                 dot_size
             ) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0); // 绿色数字
