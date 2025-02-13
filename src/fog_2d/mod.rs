@@ -48,13 +48,18 @@ impl Plugin for FogOfWar2dPlugin {
             render_app.init_resource::<FogOfWarSettingBuffer>();
         }
 
+        if cfg!(feature = "debug_chunk") {
+           app.add_systems(
+                Update,
+                debug_chunk_indices,
+            );
+        }
+
         app.add_systems(
             Update,
             (
                 update_chunk_array_indices,
                 update_chunks_system,
-                debug_chunk_indices,
-                draw_chunk_boundaries,
             ),
         )
         .add_plugins((
@@ -176,32 +181,6 @@ impl Default for FogSight2D {
 pub struct FogSight2DUniform {
     pub position: Vec2,
     pub radius: f32,
-}
-
-fn draw_chunk_boundaries(
-    chunks_query: Query<(&ChunkCoord, &ChunkArrayIndex)>,
-    settings: Res<FogOfWarSettings>,
-    mut gizmos: Gizmos,
-) {
-    if cfg!(feature = "debug_chunk") {
-        for (chunk_coord, chunk_index) in chunks_query.iter() {
-            if chunk_index.current != Some(17) {
-                continue;
-            }
-            let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
-            let chunk_size = settings.chunk_size;
-            gizmos.circle_2d(world_pos, 10.0, BLUE);
-            // 使用左上角作为矩形的起点
-            gizmos.rect_2d(
-                Vec2::new(
-                    world_pos.x + chunk_size * 0.5,
-                    world_pos.y - chunk_size * 0.5,
-                ), // 中心点需要偏移半个chunk大小
-                Vec2::splat(chunk_size),
-                YELLOW,
-            );
-        }
-    }
 }
 
 fn create_pipeline(mut commands: Commands) {

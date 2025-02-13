@@ -5,6 +5,7 @@ use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::window::{PrimaryWindow, WindowResized};
 use std::collections::HashMap;
+use bevy::color::palettes::basic::{BLUE, YELLOW};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
 pub struct ChunkCoord {
@@ -52,7 +53,7 @@ pub fn update_chunks_system(
     let Ok(camera) = cameras.get_single() else {
         return;
     };
-    for event in resize_events.read() {
+    for _ in resize_events.read() {
         let chunks_in_view = calculate_visible_chunks(
             window.physical_size(),
             camera.translation.xy(),
@@ -178,6 +179,7 @@ pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
     settings: Res<FogOfWarSettings>,
     mut text_query: Query<&mut Text2d>,
+    mut gizmos: Gizmos,
 ) {
     if cfg!(feature = "debug_chunk") {
         for (chunk_index, chunk_coord, children) in chunks_query.iter() {
@@ -185,13 +187,26 @@ pub fn debug_chunk_indices(
                 let mut text = text_query.get_mut(*child).unwrap();
                 text.0 = format!(
                     "({}, {})[{}, {}] {}",
-                    chunk_coord.to_world_pos(settings.chunk_size).x,
-                    chunk_coord.to_world_pos(settings.chunk_size).y,
+                    chunk_coord.x,
+                    chunk_coord.y,
                     chunk_index.ring_buffer_position.unwrap_or_default().0,
                     chunk_index.ring_buffer_position.unwrap_or_default().1,
                     chunk_index.current.unwrap_or_default()
                 );
             }
+
+            let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
+            let chunk_size = settings.chunk_size;
+            gizmos.circle_2d(world_pos, 10.0, BLUE);
+            // 使用左上角作为矩形的起点
+            gizmos.rect_2d(
+                Vec2::new(
+                    world_pos.x + chunk_size * 0.5,
+                    world_pos.y - chunk_size * 0.5,
+                ), // 中心点需要偏移半个chunk大小
+                Vec2::splat(chunk_size),
+                YELLOW,
+            );
         }
     }
 }
