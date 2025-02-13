@@ -144,9 +144,9 @@ pub(super) fn prepare_buffers(
     buffer_res.buffers.write_buffer(&device, &queue);
 }
 
-pub(super) fn prepare_chunk_texture(
+pub fn prepare_chunk_texture(
     settings: Res<FogOfWarSettings>,
-    mut fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
+    fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -175,7 +175,7 @@ pub(super) fn prepare_chunk_texture(
         get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
 
     // 遍历所有已存在的chunks
-    for (coord, mut array_index) in chunks_query.iter_mut() {
+    for (coord, array_index) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {

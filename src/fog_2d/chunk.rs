@@ -30,9 +30,6 @@ impl ChunkCoord {
     }
 }
 
-#[derive(Component, Deref, DerefMut, Default)]
-pub struct ChunkCache(pub Vec<u8>);
-
 #[derive(Component, Default, ExtractComponent, Clone, Debug)]
 pub struct ChunkArrayIndex {
     pub current: Option<i32>,
@@ -51,7 +48,7 @@ pub fn update_chunks_system(
     settings: Res<FogOfWarSettings>,
     cameras: Query<(&OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut commands: Commands,
-    chunks_query: Query<(Entity, &ChunkCoord, &ChunkCache)>,
+    chunks_query: Query<(Entity, &ChunkCoord)>,
 ) {
     let Ok((projection, global_transform)) = cameras.get_single() else {
         return;
@@ -73,7 +70,7 @@ pub fn update_chunks_system(
 
 
         let existing_coords: Vec<ChunkCoord> =
-            chunks_query.iter().map(|(_, coord, _)| *coord).collect();
+            chunks_query.iter().map(|(_, coord)| *coord).collect();
 
         let text_font = TextFont {
             font_size: 20.0,
@@ -92,7 +89,6 @@ pub fn update_chunks_system(
                 commands
                     .spawn((
                         *coord,
-                        ChunkCache::default(),
                         ChunkArrayIndex::default(),
                         Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
                     ))
