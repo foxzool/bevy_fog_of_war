@@ -1,6 +1,6 @@
-use crate::fog_2d::chunk::{ChunkArrayIndex, ChunkCoord};
+use crate::fog_2d::chunk::{get_chunks_in_rect, ChunkArrayIndex, ChunkCoord};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
-use crate::{calculate_visible_chunks, FogOfWarCamera, FogSight2D};
+use crate::{FogOfWarCamera, FogSight2D};
 use crate::{FogOfWarSettings, FogSight2DUniform};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
@@ -13,6 +13,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
 use bevy::window::PrimaryWindow;
+use bevy_render::prelude::OrthographicProjection;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -149,22 +150,29 @@ pub(super) fn prepare_chunk_texture(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    cameras: Query<&Transform, With<FogOfWarCamera>>,
+    cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut chunks_query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
 ) {
     let Ok(window) = windows.get_single() else {
         return;
     };
-    let Ok(camera) = cameras.get_single() else {
+    let Ok((camera, projection, global_transform)) = cameras.get_single() else {
         return;
     };
     // 获取当前视野内的chunks
-    // let chunks_in_view = screen.get_chunks_in_view();
-    let chunks_in_view = calculate_visible_chunks(
-        window.physical_size(),
-        camera.translation.xy(),
-        settings.chunk_size,
-    );
+    let min_pos = global_transform.transform_point(Vec3::new(
+        projection.area.min.x,
+        projection.area.min.y,
+        0.0,
+    ));
+
+    let max_pos = global_transform.transform_point(Vec3::new(
+        projection.area.max.x,
+        projection.area.max.y,
+        0.0,
+    ));
+    let chunks_in_view =
+        get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
 
     // 遍历所有已存在的chunks
     for (coord, mut array_index) in chunks_query.iter_mut() {
@@ -185,7 +193,13 @@ pub(super) fn prepare_chunk_texture(
             // 如果chunk的索引发生变化，需要转移数据
             debug!("{:?} clean {:?}", coord, array_index);
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
-                fog_of_war_pipeline.transfer_chunk_data(&device, &queue, prev_index, index, settings.chunk_size);
+                fog_of_war_pipeline.transfer_chunk_data(
+                    &device,
+                    &queue,
+                    prev_index,
+                    index,
+                    settings.chunk_size,
+                );
             }
         }
     }

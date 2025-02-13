@@ -1,11 +1,11 @@
 use crate::FogOfWarSettings;
-use crate::{calculate_max_chunks, calculate_visible_chunks, FogOfWarCamera};
+use crate::{calculate_max_chunks, FogOfWarCamera};
+use bevy::color::palettes::basic::{BLUE, YELLOW};
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::window::{PrimaryWindow, WindowResized};
 use std::collections::HashMap;
-use bevy::color::palettes::basic::{BLUE, YELLOW};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
 pub struct ChunkCoord {
@@ -20,6 +20,13 @@ impl ChunkCoord {
 
     pub fn to_world_pos(&self, chunk_size: f32) -> Vec2 {
         Vec2::new(self.x as f32 * chunk_size, self.y as f32 * chunk_size)
+    }
+
+    pub fn from_world_pos(world_pos: Vec2, chunk_size: f32) -> Self {
+        Self {
+            x: (world_pos.x / chunk_size).floor() as i32,
+            y: (world_pos.y / chunk_size).floor() as i32,
+        }
     }
 }
 
@@ -42,24 +49,30 @@ impl ChunkArrayIndex {
 pub fn update_chunks_system(
     mut resize_events: EventReader<WindowResized>,
     settings: Res<FogOfWarSettings>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    cameras: Query<&Transform, With<FogOfWarCamera>>,
+    cameras: Query<(&OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut commands: Commands,
-    mut chunks_query: Query<(Entity, &ChunkCoord, &ChunkCache)>,
+    chunks_query: Query<(Entity, &ChunkCoord, &ChunkCache)>,
 ) {
-    let Ok(window) = windows.get_single() else {
-        return;
-    };
-    let Ok(camera) = cameras.get_single() else {
+    let Ok((projection, global_transform)) = cameras.get_single() else {
         return;
     };
     for _ in resize_events.read() {
-        let chunks_in_view = calculate_visible_chunks(
-            window.physical_size(),
-            camera.translation.xy(),
-            settings.chunk_size,
-        );
-        let mut existing_coords: Vec<ChunkCoord> =
+        let min_pos = global_transform.transform_point(Vec3::new(
+            projection.area.min.x,
+            projection.area.min.y,
+            0.0,
+        ));
+
+        let max_pos = global_transform.transform_point(Vec3::new(
+            projection.area.max.x,
+            projection.area.max.y,
+            0.0,
+        ));
+        let chunks_in_view =
+            get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
+
+
+        let existing_coords: Vec<ChunkCoord> =
             chunks_query.iter().map(|(_, coord, _)| *coord).collect();
 
         let text_font = TextFont {
@@ -197,7 +210,7 @@ pub fn debug_chunk_indices(
 
             let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
             let chunk_size = settings.chunk_size;
-            gizmos.circle_2d(world_pos, 10.0, BLUE);
+            // gizmos.circle_2d(world_pos, 10.0, BLUE);
             // 使用左上角作为矩形的起点
             gizmos.rect_2d(
                 Vec2::new(
@@ -213,3 +226,36 @@ pub fn debug_chunk_indices(
 
 #[derive(Component)]
 pub struct ChunkDebugText;
+
+/// Finds all chunk coordinates within a given rectangle.
+///
+/// # Parameters
+///
+/// * `min_pos`: The lower-left corner of the rectangle.
+/// * `max_pos`: The upper-right corner of the rectangle.
+/// * `chunk_size`: The size of one chunk.
+///
+/// # Returns
+///
+/// A vector containing all chunk coordinates within the rectangle.
+pub fn get_chunks_in_rect(
+    min_pos: Vec2, // 左下
+    max_pos: Vec2, // 右上
+    chunk_size: f32,
+) -> Vec<ChunkCoord> {
+    // 找出所有角坐标中的最小/最大坐标
+    let min_x = ChunkCoord::from_world_pos(min_pos, chunk_size).x;
+
+    let min_y = ChunkCoord::from_world_pos(min_pos, chunk_size).y;
+    let max_x = ChunkCoord::from_world_pos(max_pos, chunk_size).x;
+    let max_y = ChunkCoord::from_world_pos(max_pos, chunk_size).y;
+
+    // 生成所有可能的区块坐标组合
+    let mut chunks = Vec::new();
+    for x in min_x..=max_x {
+        for y in min_y..=max_y {
+            chunks.push(ChunkCoord::new(x, y));
+        }
+    }
+    chunks
+}

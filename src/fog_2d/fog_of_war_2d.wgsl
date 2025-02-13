@@ -292,7 +292,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 修改后的调试可视化
     if DEBUG {
-        if (chunk_index % 7 == 3) {
+        if (true) {
             // 获取世界坐标并计算局部坐标
             let world_pos = get_world_pos(pixel_pos);
             let chunk_x = floor(world_pos.x / chunk_size);
@@ -302,12 +302,12 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             let local_x = world_pos.x - chunk_x * chunk_size;
             let local_y = world_pos.y - chunk_y * chunk_size;
             
-            // 绘制四周边框（1像素宽度）
-            let border = 1.0;
-            if local_x < border || local_x > chunk_size - border ||
-               local_y < border || local_y > chunk_size - border {
-                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-            }
+//            // 绘制四周边框（1像素宽度）
+//            let border = 1.0;
+//            if local_x < border || local_x > chunk_size - border ||
+//               local_y < border || local_y > chunk_size - border {
+//                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+//            }
             
             // 修改：在chunk中心显示索引数字
             // 计算chunk的中心位置

@@ -49,25 +49,16 @@ impl Plugin for FogOfWar2dPlugin {
         }
 
         if cfg!(feature = "debug_chunk") {
-           app.add_systems(
-                Update,
-                debug_chunk_indices,
-            );
+            app.add_systems(Update, debug_chunk_indices);
         }
 
-        app.add_systems(
-            Update,
-            (
-                update_chunk_array_indices,
-                update_chunks_system,
-            ),
-        )
-        .add_plugins((
-            ExtractComponentPlugin::<FogOfWarCamera>::default(),
-            ExtractComponentPlugin::<ChunkCoord>::default(),
-            ExtractComponentPlugin::<ChunkArrayIndex>::default(),
-            ExtractResourcePlugin::<FogOfWarSettings>::default(),
-        ));
+        app.add_systems(Update, (update_chunk_array_indices, update_chunks_system))
+            .add_plugins((
+                ExtractComponentPlugin::<FogOfWarCamera>::default(),
+                ExtractComponentPlugin::<ChunkCoord>::default(),
+                ExtractComponentPlugin::<ChunkArrayIndex>::default(),
+                ExtractResourcePlugin::<FogOfWarSettings>::default(),
+            ));
 
         app.register_type::<FogSight2D>();
 
@@ -126,40 +117,6 @@ pub fn calculate_max_chunks(size: Vec2, chunk_size: f32) -> (u32, u32) {
     let max_chunks_x = (size.x / chunk_size).ceil() as u32;
     let max_chunks_y = (size.y / chunk_size).ceil() as u32;
     (max_chunks_x, max_chunks_y)
-}
-
-/// 独立计算视野内区块坐标的方法
-/// 参数说明:
-/// - screen_size: 屏幕尺寸 (UVec2)
-/// - camera_pos: 相机位置 (Vec2)
-/// - chunk_size: 区块大小 (f32)
-pub fn calculate_visible_chunks(
-    screen_size: UVec2,
-    camera_pos: Vec2,
-    chunk_size: f32,
-) -> Vec<ChunkCoord> {
-    let half_width = screen_size.x as f32 * 0.5;
-    let half_height = screen_size.y as f32 * 0.5;
-    let min_x = camera_pos.x - half_width;
-    let max_x = camera_pos.x + half_width;
-    let min_y = camera_pos.y - half_height;
-    let max_y = camera_pos.y + half_height;
-
-    // 转换为区块坐标并扩展1个区块确保覆盖
-    let start_chunk_x = (min_x as i32).div_euclid(chunk_size as i32) - 1;
-    let end_chunk_x = (max_x as i32).div_euclid(chunk_size as i32) + 1;
-    let start_chunk_y = (min_y as i32).div_euclid(chunk_size as i32) - 1;
-    let end_chunk_y = (max_y as i32).div_euclid(chunk_size as i32) + 1;
-
-    // 收集所有与可视区域相交的区块
-    let mut chunks_in_view = Vec::new();
-    for x in start_chunk_x..=end_chunk_x {
-        for y in start_chunk_y..=end_chunk_y {
-            chunks_in_view.push(ChunkCoord::new(x, y));
-        }
-    }
-
-    chunks_in_view
 }
 
 #[derive(Component, Reflect, Debug)]
