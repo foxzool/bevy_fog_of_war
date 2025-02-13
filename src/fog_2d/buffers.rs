@@ -1,4 +1,4 @@
-use crate::fog_2d::chunk::{get_chunks_in_rect, ChunkRingBuffer, ChunkCoord};
+use crate::fog_2d::chunk::{get_chunks_in_rect, ChunkCoord, ChunkRingBuffer};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use crate::{FogOfWarCamera, FogSight2D};
 use crate::{FogOfWarSettings, FogSight2DUniform};
@@ -153,45 +153,34 @@ pub fn prepare_chunk_texture(
     cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
 ) {
-    let Ok(window) = windows.get_single() else {
-        return;
-    };
     let Ok((camera, projection, global_transform)) = cameras.get_single() else {
         return;
     };
     // 获取当前视野内的chunks
-    let min_pos = global_transform.transform_point(Vec3::new(
-        projection.area.min.x,
-        projection.area.min.y,
-        0.0,
-    ));
-    let max_pos = global_transform.transform_point(Vec3::new(
-        projection.area.max.x,
-        projection.area.max.y,
-        0.0,
-    ));
     let chunks_in_view =
-        get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
+        get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
 
     // 遍历所有已存在的chunks
-    for (coord, array_index) in chunks_query.iter_mut() {
+    for (coord, mut ring_buffer) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
-            if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
+            if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {
                 // 应该同时清空新旧两个索引的纹理
                 debug!("{:?} clean both {} {}", coord, index, prev_index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index, settings.chunk_size);
                 fog_of_war_pipeline.clear_explored_texture(&queue, prev_index, settings.chunk_size);
+                ring_buffer.previous = None;
             }
             // 处理只有当前索引的情况
-            else if let Some(index) = array_index.current {
+            else if let Some(index) = ring_buffer.current {
                 debug!("{:?} clean {}", coord, index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index, settings.chunk_size);
+                ring_buffer.current = None;
             }
-        } else if array_index.require_chunk_transport() {
+        } else if ring_buffer.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            debug!("{:?} transfer {:?}", coord, array_index);
-            if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
+            debug!("{:?} transfer {:?}", coord, ring_buffer);
+            if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {
                 fog_of_war_pipeline.transfer_chunk_data(
                     &device,
                     &queue,

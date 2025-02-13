@@ -48,28 +48,17 @@ pub fn update_chunks_system(
     settings: Res<FogOfWarSettings>,
     cameras: Query<(&OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut commands: Commands,
-    chunks_query: Query<(Entity, &ChunkCoord)>,
+    chunks_query: Query<(Entity, &ChunkCoord, &ChunkRingBuffer)>,
 ) {
     let Ok((projection, global_transform)) = cameras.get_single() else {
         return;
     };
     for _ in resize_events.read() {
-        let min_pos = global_transform.transform_point(Vec3::new(
-            projection.area.min.x,
-            projection.area.min.y,
-            0.0,
-        ));
-
-        let max_pos = global_transform.transform_point(Vec3::new(
-            projection.area.max.x,
-            projection.area.max.y,
-            0.0,
-        ));
         let chunks_in_view =
-            get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
+            get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
 
         let existing_coords: Vec<ChunkCoord> =
-            chunks_query.iter().map(|(_, coord)| *coord).collect();
+            chunks_query.iter().map(|(_, coord, _)| *coord).collect();
 
         let text_font = TextFont {
             font_size: 20.0,
@@ -220,22 +209,18 @@ pub fn debug_chunk_indices(
 #[derive(Component)]
 pub struct ChunkDebugText;
 
-/// Finds all chunk coordinates within a given rectangle.
-///
-/// # Parameters
-///
-/// * `min_pos`: The lower-left corner of the rectangle.
-/// * `max_pos`: The upper-right corner of the rectangle.
-/// * `chunk_size`: The size of one chunk.
-///
-/// # Returns
-///
-/// A vector containing all chunk coordinates within the rectangle.
+
 pub fn get_chunks_in_rect(
-    min_pos: Vec2, // 左下
-    max_pos: Vec2, // 右上
+    area: Rect,
+    global_transform: &GlobalTransform,
     chunk_size: f32,
 ) -> Vec<ChunkCoord> {
+    let min_pos = global_transform
+        .transform_point(Vec3::new(area.min.x, area.min.y, 0.0))
+        .truncate();
+    let max_pos = global_transform
+        .transform_point(Vec3::new(area.max.x, area.max.y, 0.0))
+        .truncate();
     // 找出所有角坐标中的最小/最大坐标
     let min_x = ChunkCoord::from_world_pos(min_pos, chunk_size).x;
 
