@@ -31,13 +31,13 @@ impl ChunkCoord {
 }
 
 #[derive(Component, Default, ExtractComponent, Clone, Debug)]
-pub struct ChunkArrayIndex {
+pub struct ChunkRingBuffer {
     pub current: Option<i32>,
     pub previous: Option<i32>,
     pub ring_buffer_position: Option<(i32, i32)>, // 在环形缓存中的位置 (x, y)
 }
 
-impl ChunkArrayIndex {
+impl ChunkRingBuffer {
     pub fn require_chunk_transport(&self) -> bool {
         self.previous.is_some() && self.current != self.previous
     }
@@ -68,7 +68,6 @@ pub fn update_chunks_system(
         let chunks_in_view =
             get_chunks_in_rect(min_pos.truncate(), max_pos.truncate(), settings.chunk_size);
 
-
         let existing_coords: Vec<ChunkCoord> =
             chunks_query.iter().map(|(_, coord)| *coord).collect();
 
@@ -89,7 +88,7 @@ pub fn update_chunks_system(
                 commands
                     .spawn((
                         *coord,
-                        ChunkArrayIndex::default(),
+                        ChunkRingBuffer::default(),
                         Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
                     ))
                     .with_children(|p| {
@@ -108,9 +107,9 @@ pub fn update_chunks_system(
     }
 }
 
-pub fn update_chunk_array_indices(
+pub fn update_chunk_ring_buffer(
     fow_settings: Res<FogOfWarSettings>,
-    mut query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
+    mut query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform)>,
 ) {
@@ -185,38 +184,36 @@ pub fn update_chunk_array_indices(
 }
 
 pub fn debug_chunk_indices(
-    chunks_query: Query<(&ChunkArrayIndex, &ChunkCoord, &Children)>,
+    chunks_query: Query<(&ChunkRingBuffer, &ChunkCoord, &Children)>,
     settings: Res<FogOfWarSettings>,
     mut text_query: Query<&mut Text2d>,
     mut gizmos: Gizmos,
 ) {
-    if cfg!(feature = "debug_chunk") {
-        for (chunk_index, chunk_coord, children) in chunks_query.iter() {
-            for child in children.iter() {
-                let mut text = text_query.get_mut(*child).unwrap();
-                text.0 = format!(
-                    "({}, {})[{}, {}] {}",
-                    chunk_coord.x,
-                    chunk_coord.y,
-                    chunk_index.ring_buffer_position.unwrap_or_default().0,
-                    chunk_index.ring_buffer_position.unwrap_or_default().1,
-                    chunk_index.current.unwrap_or_default()
-                );
-            }
-
-            let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
-            let chunk_size = settings.chunk_size;
-            // gizmos.circle_2d(world_pos, 10.0, BLUE);
-            // 使用左上角作为矩形的起点
-            gizmos.rect_2d(
-                Vec2::new(
-                    world_pos.x + chunk_size * 0.5,
-                    world_pos.y - chunk_size * 0.5,
-                ), // 中心点需要偏移半个chunk大小
-                Vec2::splat(chunk_size),
-                YELLOW,
+    for (chunk_index, chunk_coord, children) in chunks_query.iter() {
+        for child in children.iter() {
+            let mut text = text_query.get_mut(*child).unwrap();
+            text.0 = format!(
+                "({}, {})[{}, {}] {}",
+                chunk_coord.x,
+                chunk_coord.y,
+                chunk_index.ring_buffer_position.unwrap_or_default().0,
+                chunk_index.ring_buffer_position.unwrap_or_default().1,
+                chunk_index.current.unwrap_or_default()
             );
         }
+
+        let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
+        let chunk_size = settings.chunk_size;
+        // gizmos.circle_2d(world_pos, 10.0, BLUE);
+        // 使用左上角作为矩形的起点
+        gizmos.rect_2d(
+            Vec2::new(
+                world_pos.x + chunk_size * 0.5,
+                world_pos.y - chunk_size * 0.5,
+            ), // 中心点需要偏移半个chunk大小
+            Vec2::splat(chunk_size),
+            YELLOW,
+        );
     }
 }
 

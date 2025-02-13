@@ -1,4 +1,4 @@
-use crate::fog_2d::chunk::{get_chunks_in_rect, ChunkArrayIndex, ChunkCoord};
+use crate::fog_2d::chunk::{get_chunks_in_rect, ChunkRingBuffer, ChunkCoord};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
 use crate::{FogOfWarCamera, FogSight2D};
 use crate::{FogOfWarSettings, FogSight2DUniform};
@@ -151,7 +151,7 @@ pub fn prepare_chunk_texture(
     queue: Res<RenderQueue>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
-    mut chunks_query: Query<(&ChunkCoord, &mut ChunkArrayIndex)>,
+    mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
 ) {
     let Ok(window) = windows.get_single() else {
         return;
@@ -165,7 +165,6 @@ pub fn prepare_chunk_texture(
         projection.area.min.y,
         0.0,
     ));
-
     let max_pos = global_transform.transform_point(Vec3::new(
         projection.area.max.x,
         projection.area.max.y,
@@ -180,7 +179,7 @@ pub fn prepare_chunk_texture(
         if !chunks_in_view.contains(coord) {
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 // 应该同时清空新旧两个索引的纹理
-                debug!("{:?} clean {} {}", coord, index, prev_index);
+                debug!("{:?} clean both {} {}", coord, index, prev_index);
                 fog_of_war_pipeline.clear_explored_texture(&queue, index, settings.chunk_size);
                 fog_of_war_pipeline.clear_explored_texture(&queue, prev_index, settings.chunk_size);
             }
@@ -191,7 +190,7 @@ pub fn prepare_chunk_texture(
             }
         } else if array_index.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            debug!("{:?} clean {:?}", coord, array_index);
+            debug!("{:?} transfer {:?}", coord, array_index);
             if let (Some(index), Some(prev_index)) = (array_index.current, array_index.previous) {
                 fog_of_war_pipeline.transfer_chunk_data(
                     &device,
