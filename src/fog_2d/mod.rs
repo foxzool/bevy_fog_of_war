@@ -1,6 +1,6 @@
 use crate::fog_2d::buffers::{
     extract_buffers, prepare_buffers, prepare_chunk_texture, prepare_settings_buffer,
-    FogOfWarSettingBuffer, FogSight2dBuffers,
+    FogOfWarRingBuffers, FogOfWarSettingBuffer, FogSight2dBuffers, RingBuffer,
 };
 use crate::fog_2d::chunk::{
     debug_chunk_indices, update_chunk_ring_buffer, update_chunks_system, ChunkCoord,
@@ -44,10 +44,6 @@ impl Plugin for FogOfWar2dPlugin {
         app.register_type::<FogOfWarSettings>()
             .init_resource::<FogOfWarSettings>();
 
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.init_resource::<FogOfWarSettingBuffer>();
-        }
-
         if cfg!(feature = "debug_chunk") {
             app.add_systems(Update, debug_chunk_indices);
         }
@@ -66,6 +62,8 @@ impl Plugin for FogOfWar2dPlugin {
         };
 
         render_app
+            .init_resource::<FogOfWarSettingBuffer>()
+            .init_resource::<FogOfWarRingBuffers>()
             .init_resource::<FogSight2dBuffers>()
             .add_systems(ExtractSchedule, extract_buffers)
             .add_systems(Render, create_pipeline.run_if(need_surface_configuration))

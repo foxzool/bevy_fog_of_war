@@ -1,7 +1,6 @@
-use crate::fog_2d::buffers::FogOfWarSettingBuffer;
+use crate::fog_2d::buffers::{FogOfWarRingBuffers, FogOfWarSettingBuffer};
 use crate::{
-    fog_2d::buffers::FogSight2dBuffers, fog_2d::pipeline::FogOfWar2dPipeline,
-    FogOfWarSettings,
+    fog_2d::buffers::FogSight2dBuffers, fog_2d::pipeline::FogOfWar2dPipeline, FogOfWarSettings,
 };
 use bevy::ecs::system::lifetimeless::Read;
 use bevy::{
@@ -40,6 +39,7 @@ impl ViewNode for FogOfWar2dNode {
         let view_uniforms = world.resource::<ViewUniforms>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let fog_sight_buffers = world.resource::<FogSight2dBuffers>();
+        let ring_buffers = world.resource::<FogOfWarRingBuffers>();
 
         let Some(view_uniforms_binding) = view_uniforms.uniforms.binding() else {
             return Ok(());
@@ -65,6 +65,7 @@ impl ViewNode for FogOfWar2dNode {
                 settings_binding.clone(),
                 fog_sight_buffers.buffers.into_binding(),
                 fog_of_war_pipeline.explored_texture.as_ref().unwrap(),
+                ring_buffers.buffers.into_binding(),
             )),
         );
 

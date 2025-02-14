@@ -14,6 +14,7 @@ use bevy::render::Extract;
 use bevy::utils::{Entry, HashMap};
 use bevy::window::PrimaryWindow;
 use bevy_render::prelude::OrthographicProjection;
+use bevy_render::render_resource::ShaderType;
 
 #[derive(Resource)]
 pub(super) struct ExtractedSight2DBuffers {
@@ -97,14 +98,26 @@ fn is_visible_to_camera(
 }
 
 #[derive(Resource, Default)]
-pub(super) struct FogSight2dBuffers {
-    pub(super) sights: HashMap<Entity, FogSight2DUniform>,
-    pub(super) buffers: StorageBuffer<Vec<FogSight2DUniform>>,
+pub struct FogSight2dBuffers {
+    pub sights: HashMap<Entity, FogSight2DUniform>,
+    pub buffers: StorageBuffer<Vec<FogSight2DUniform>>,
 }
 
 #[derive(Resource, Default)]
 pub struct FogOfWarSettingBuffer {
     pub buffer: UniformBuffer<FogOfWarSettings>,
+}
+
+#[derive(Resource, Default)]
+pub struct FogOfWarRingBuffers {
+    pub buffers: StorageBuffer<Vec<RingBuffer>>,
+}
+
+#[derive(Clone, Default, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, ShaderType)]
+#[repr(C)]
+pub struct RingBuffer {
+    pub position: Vec2,
+    pub index: i32,
 }
 
 pub fn prepare_settings_buffer(
@@ -151,20 +164,37 @@ pub fn prepare_chunk_texture(
     queue: Res<RenderQueue>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
-    mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
+    mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer, &GlobalTransform)>,
+    mut ring_res: ResMut<FogOfWarRingBuffers>,
 ) {
-    let Ok((camera, projection, global_transform)) = cameras.get_single() else {
+    let Ok((_camera, projection, global_transform)) = cameras.get_single() else {
         return;
     };
     // 获取当前视野内的chunks
-    let chunks_in_view =
-        get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
+    let chunks_in_view = get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
+
+    let buffers = chunks_query
+        .iter()
+        .filter_map(|(_, ring_buffer, global_transform)| {
+            let Some(current) = ring_buffer.current else {
+                return None;
+            };
+            let pos = global_transform.translation().truncate();
+            Some(RingBuffer {
+                position: pos,
+                index: current,
+            })
+        })
+        .collect::<Vec<RingBuffer>>();
+
+    ring_res.buffers = StorageBuffer::from(buffers);
+    ring_res.buffers.write_buffer(&device, &queue);
 
     // FIXME
     return;
 
     // 遍历所有已存在的chunks
-    for (coord, mut ring_buffer) in chunks_query.iter_mut() {
+    for (coord, mut ring_buffer, _) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
             if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {

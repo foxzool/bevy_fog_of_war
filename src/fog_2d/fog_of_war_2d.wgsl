@@ -14,6 +14,11 @@ struct FogSight2DUniform {
     radius: f32,
 }
 
+struct RingBuffer {
+    position: vec2<f32>,
+    index: i32,
+}
+
 @group(0) @binding(0)
 var<uniform> view: View;
 
@@ -25,6 +30,9 @@ var<storage> sights: array<FogSight2DUniform>;
 
 @group(0) @binding(3)
 var explored_texture: texture_storage_2d_array<r8unorm, read_write>;
+
+@group(0) @binding(4)
+var<storage> rings: array<RingBuffer>;
 
 
 

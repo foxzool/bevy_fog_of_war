@@ -82,6 +82,7 @@ impl FromWorld for FogOfWar2dPipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::ReadWrite,
                     ),
+                    storage_buffer_read_only_sized(false, None),
                 ),
             ),
         );
