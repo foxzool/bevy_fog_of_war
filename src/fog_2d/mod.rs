@@ -52,22 +52,18 @@ impl Plugin for FogOfWar2dPlugin {
             app.add_systems(Update, debug_chunk_indices);
         }
 
-        app.add_systems(Update, update_chunks_system)
-            .add_plugins((
-                ExtractComponentPlugin::<FogOfWarCamera>::default(),
-                ExtractComponentPlugin::<ChunkCoord>::default(),
-                ExtractComponentPlugin::<ChunkRingBuffer>::default(),
-                ExtractResourcePlugin::<FogOfWarSettings>::default(),
-            ));
+        app.add_systems(Update, update_chunks_system).add_plugins((
+            ExtractComponentPlugin::<FogOfWarCamera>::default(),
+            ExtractComponentPlugin::<ChunkCoord>::default(),
+            ExtractComponentPlugin::<ChunkRingBuffer>::default(),
+            ExtractResourcePlugin::<FogOfWarSettings>::default(),
+        ));
 
         app.register_type::<FogSight2D>();
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-
-        // FIXME
-        return;
 
         render_app
             .init_resource::<FogSight2dBuffers>()

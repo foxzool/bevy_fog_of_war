@@ -1,3 +1,4 @@
+use crate::fog_2d::chunk::{ChunkCoord, ChunkRingBuffer};
 use crate::{calculate_max_chunks, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
 use bevy::math::Vec2;
 use bevy::prelude::{DetectChanges, EventReader, Res, ResMut};
@@ -35,34 +36,23 @@ pub struct FogOfWar2dPipeline {
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
-        // 计算基于屏幕大小的最大可见chunks
-        let extracted_windows = world.resource::<ExtractedWindows>();
-        let primary_window = extracted_windows
-            .windows
-            .get(&extracted_windows.primary.unwrap())
-            .unwrap();
+        let chunks = world
+            .query::<&ChunkRingBuffer>()
+            .iter(&world)
+            .collect::<Vec<_>>();
+        let views_chunk_count = chunks.iter().map(|c| c.visible()).filter(|b| *b).count() as u32;
+
         let settings = world.resource::<FogOfWarSettings>();
         let chunk_size = settings.chunk_size;
 
-        let (chunks_x, chunks_y) = calculate_max_chunks(
-            Vec2::new(
-                primary_window.physical_width as f32,
-                primary_window.physical_height as f32,
-            ),
-            chunk_size,
-        );
         let render_device = world.resource_mut::<RenderDevice>();
-
-        // 为了实现环形缓存，我们需要比实际视口多2行2列的chunks
-        // 这样在相机移动时可以预先加载新的chunks
-        let texture_array_size = ((chunks_x + 2) * (chunks_y + 2)) as u32;
 
         let texture = render_device.create_texture(&TextureDescriptor {
             label: Some("fog_explored_texture"),
             size: Extent3d {
                 width: chunk_size as u32,
                 height: chunk_size as u32,
-                depth_or_array_layers: texture_array_size,
+                depth_or_array_layers: views_chunk_count,
             },
             mip_level_count: 1,
             sample_count: 1,

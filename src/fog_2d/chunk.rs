@@ -53,6 +53,10 @@ impl ChunkRingBuffer {
         }
     }
 
+    pub fn visible(&self) -> bool {
+        self.current.is_some()
+    }
+
     pub fn set_current(&mut self, current: i32) {
         self.previous = self.current;
         self.current = Some(current);
