@@ -160,6 +160,9 @@ pub fn prepare_chunk_texture(
     let chunks_in_view =
         get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
 
+    // FIXME
+    return;
+
     // 遍历所有已存在的chunks
     for (coord, mut ring_buffer) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理

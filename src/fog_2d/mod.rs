@@ -3,8 +3,8 @@ use crate::fog_2d::buffers::{
     FogOfWarSettingBuffer, FogSight2dBuffers,
 };
 use crate::fog_2d::chunk::{
-    debug_chunk_indices, update_chunk_ring_buffer, update_chunks_system, ChunkRingBuffer,
-    ChunkCoord,
+    debug_chunk_indices, update_chunk_ring_buffer, update_chunks_system, ChunkCoord,
+    ChunkRingBuffer,
 };
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
@@ -52,7 +52,7 @@ impl Plugin for FogOfWar2dPlugin {
             app.add_systems(Update, debug_chunk_indices);
         }
 
-        app.add_systems(Update, (update_chunk_ring_buffer, update_chunks_system))
+        app.add_systems(Update, update_chunks_system)
             .add_plugins((
                 ExtractComponentPlugin::<FogOfWarCamera>::default(),
                 ExtractComponentPlugin::<ChunkCoord>::default(),
@@ -65,6 +65,9 @@ impl Plugin for FogOfWar2dPlugin {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
+
+        // FIXME
+        return;
 
         render_app
             .init_resource::<FogSight2dBuffers>()

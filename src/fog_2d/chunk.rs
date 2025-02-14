@@ -23,10 +23,17 @@ impl ChunkCoord {
     }
 
     pub fn from_world_pos(world_pos: Vec2, chunk_size: f32) -> Self {
-        Self {
-            x: (world_pos.x / chunk_size).floor() as i32,
-            y: (world_pos.y / chunk_size).floor() as i32,
-        }
+        let x = if world_pos.x >= 0.0 {
+            (world_pos.x / chunk_size) as i32
+        } else {
+            ((world_pos.x - chunk_size + 1.0) / chunk_size).ceil() as i32
+        };
+        let y = if world_pos.y >= 0.0 {
+            ((world_pos.y + chunk_size - 1.0) / chunk_size) as i32
+        } else {
+            (world_pos.y / chunk_size).ceil() as i32
+        };
+        Self { x, y }
     }
 }
 
@@ -38,61 +45,85 @@ pub struct ChunkRingBuffer {
 }
 
 impl ChunkRingBuffer {
+    pub fn new(current: i32) -> Self {
+        Self {
+            current: Some(current),
+            previous: None,
+            ring_buffer_position: None,
+        }
+    }
+
+    pub fn set_current(&mut self, current: i32) {
+        self.previous = self.current;
+        self.current = Some(current);
+        self.ring_buffer_position = None;
+    }
+
+    pub fn clean_current(&mut self) {
+        self.current = None;
+        self.previous = None;
+        self.ring_buffer_position = None;
+    }
+
     pub fn require_chunk_transport(&self) -> bool {
         self.previous.is_some() && self.current != self.previous
     }
 }
 
 pub fn update_chunks_system(
-    mut resize_events: EventReader<WindowResized>,
     settings: Res<FogOfWarSettings>,
     cameras: Query<(&OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut commands: Commands,
-    chunks_query: Query<(Entity, &ChunkCoord, &ChunkRingBuffer)>,
+    mut chunks_query: Query<(Entity, &ChunkCoord, &mut ChunkRingBuffer)>,
 ) {
     let Ok((projection, global_transform)) = cameras.get_single() else {
         return;
     };
-    for _ in resize_events.read() {
-        let chunks_in_view =
-            get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
+    let chunks_in_view = get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
 
-        let existing_coords: Vec<ChunkCoord> =
-            chunks_query.iter().map(|(_, coord, _)| *coord).collect();
+    let mut chunks_with_index = chunks_in_view.into_iter().enumerate().collect::<Vec<_>>();
 
-        let text_font = TextFont {
-            font_size: 20.0,
-            ..default()
-        };
-        let text_justification = JustifyText::Left;
-        // Handle chunk loading for new chunks
-        for coord in chunks_in_view.iter() {
-            if !existing_coords.contains(coord) {
-                let world_pos = coord.to_world_pos(settings.chunk_size);
-                debug!(
-                    "spawn coord: {:?} {:?}",
-                    coord,
-                    coord.to_world_pos(settings.chunk_size)
-                );
-                commands
-                    .spawn((
-                        *coord,
-                        ChunkRingBuffer::default(),
-                        Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                    ))
-                    .with_children(|p| {
-                        if cfg!(feature = "debug_chunk") {
-                            p.spawn((
-                                Text2d::default(),
-                                text_font.clone(),
-                                ChunkDebugText,
-                                TextLayout::new_with_justify(text_justification),
-                                Transform::from_xyz(100.0, -20.0, 0.0),
-                            ));
-                        }
-                    });
-            }
+    for (entity, chunk_coord, mut chunk_ring_buffer) in chunks_query.iter_mut() {
+        if let Some((i, _)) = chunks_with_index
+            .iter()
+            .position(|(_, coord)| *coord == *chunk_coord)
+            .map(|i| chunks_with_index.swap_remove(i))
+        {
+            chunk_ring_buffer.set_current(i as i32);
+        } else {
+            chunk_ring_buffer.clean_current();
         }
+    }
+
+    // Handle chunk loading for new chunks
+    for (i, coord) in chunks_with_index.iter() {
+        let world_pos = coord.to_world_pos(settings.chunk_size);
+        debug!(
+            "spawn coord: {:?} {} {:?}",
+            coord,
+            i,
+            coord.to_world_pos(settings.chunk_size)
+        );
+        commands
+            .spawn((
+                *coord,
+                ChunkRingBuffer::new(*i as i32),
+                Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+            ))
+            .with_children(|p| {
+                if cfg!(feature = "debug_chunk") {
+                    p.spawn((
+                        Text2d::default(),
+                        TextFont {
+                            font_size: 16.0,
+                            ..default()
+                        },
+                        ChunkDebugText,
+                        TextLayout::new_with_justify(JustifyText::Left),
+                        Transform::from_xyz(100.0, -20.0, 0.0),
+                    ));
+                }
+            });
     }
 }
 
@@ -114,8 +145,8 @@ pub fn update_chunk_ring_buffer(
         return;
     };
 
-    let camera_chunk_x = (viewport_center.x / fow_settings.chunk_size).floor() as i32;
-    let camera_chunk_y = (viewport_center.y / fow_settings.chunk_size).floor() as i32;
+    let camera_chunk_x = (viewport_center.x / fow_settings.chunk_size).ceil() as i32;
+    let camera_chunk_y = (viewport_center.y / fow_settings.chunk_size).ceil() as i32;
 
     // 计算环形缓存的大小（比视口大2行2列）
     let (chunks_x, chunks_y) = calculate_max_chunks(
@@ -179,19 +210,19 @@ pub fn debug_chunk_indices(
     mut gizmos: Gizmos,
 ) {
     for (chunk_index, chunk_coord, children) in chunks_query.iter() {
+        let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
         for child in children.iter() {
             let mut text = text_query.get_mut(*child).unwrap();
             text.0 = format!(
                 "({}, {})[{}, {}] {}",
                 chunk_coord.x,
                 chunk_coord.y,
-                chunk_index.ring_buffer_position.unwrap_or_default().0,
-                chunk_index.ring_buffer_position.unwrap_or_default().1,
+                world_pos.x,
+                world_pos.y,
                 chunk_index.current.unwrap_or_default()
             );
         }
 
-        let world_pos = chunk_coord.to_world_pos(settings.chunk_size);
         let chunk_size = settings.chunk_size;
         // gizmos.circle_2d(world_pos, 10.0, BLUE);
         // 使用左上角作为矩形的起点
@@ -209,31 +240,48 @@ pub fn debug_chunk_indices(
 #[derive(Component)]
 pub struct ChunkDebugText;
 
-
 pub fn get_chunks_in_rect(
     area: Rect,
     global_transform: &GlobalTransform,
     chunk_size: f32,
 ) -> Vec<ChunkCoord> {
     let min_pos = global_transform
-        .transform_point(Vec3::new(area.min.x, area.min.y, 0.0))
+        .transform_point(Vec3::new(area.min.x - 1.0, area.min.y - 1.0, 0.0))
         .truncate();
     let max_pos = global_transform
-        .transform_point(Vec3::new(area.max.x, area.max.y, 0.0))
+        .transform_point(Vec3::new(area.max.x + 1.0, area.max.y + 1.0, 0.0))
         .truncate();
     // 找出所有角坐标中的最小/最大坐标
     let min_x = ChunkCoord::from_world_pos(min_pos, chunk_size).x;
-
     let min_y = ChunkCoord::from_world_pos(min_pos, chunk_size).y;
     let max_x = ChunkCoord::from_world_pos(max_pos, chunk_size).x;
     let max_y = ChunkCoord::from_world_pos(max_pos, chunk_size).y;
 
     // 生成所有可能的区块坐标组合
     let mut chunks = Vec::new();
-    for x in min_x..=max_x {
-        for y in min_y..=max_y {
+    for y in (min_y..=max_y).rev() {
+        for x in min_x..=max_x {
             chunks.push(ChunkCoord::new(x, y));
         }
     }
     chunks
+}
+
+#[test]
+fn test_wold_pos() {
+    let chunk_pos = ChunkCoord::from_world_pos(Vec2::new(0.0, 0.0), 256.0);
+    assert_eq!(chunk_pos.x, 0);
+    assert_eq!(chunk_pos.y, 0);
+
+    let chunk_pos = ChunkCoord::from_world_pos(Vec2::new(641.0, 361.0), 256.0);
+    assert_eq!(chunk_pos.x, 2);
+    assert_eq!(chunk_pos.y, 2);
+
+    let chunk_pos = ChunkCoord::from_world_pos(Vec2::new(256.0, 256.0), 256.0);
+    assert_eq!(chunk_pos.x, 1);
+    assert_eq!(chunk_pos.y, 1);
+
+    let chunk_pos = ChunkCoord::from_world_pos(Vec2::new(-641.0, -361.0), 256.0);
+    assert_eq!(chunk_pos.x, -3);
+    assert_eq!(chunk_pos.y, -1);
 }
