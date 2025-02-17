@@ -116,7 +116,7 @@ pub struct FogOfWarRingBuffers {
 #[derive(Clone, Default, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, ShaderType)]
 #[repr(C)]
 pub struct RingBuffer {
-    pub position: Vec2,
+    pub viewport_position: Vec2,
     pub index: i32,
 }
 
@@ -162,16 +162,15 @@ pub fn prepare_chunk_texture(
     fog_of_war_pipeline: ResMut<FogOfWar2dPipeline>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
-    windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
     mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer, &GlobalTransform)>,
     mut ring_res: ResMut<FogOfWarRingBuffers>,
 ) {
-    let Ok((_camera, projection, global_transform)) = cameras.get_single() else {
+    let Ok((camera, projection, camera_global_transform)) = cameras.get_single() else {
         return;
     };
     // 获取当前视野内的chunks
-    let chunks_in_view = get_chunks_in_rect(projection.area, global_transform, settings.chunk_size);
+    let chunks_in_view = get_chunks_in_rect(projection.area, camera_global_transform, settings.chunk_size);
 
     let buffers = chunks_query
         .iter()
@@ -179,11 +178,13 @@ pub fn prepare_chunk_texture(
             let Some(current) = ring_buffer.current else {
                 return None;
             };
-            let pos = global_transform.translation().truncate();
-            Some(RingBuffer {
-                position: pos,
-                index: current,
-            })
+            camera
+                .world_to_viewport(camera_global_transform, global_transform.translation())
+                .map(|viewport_position| RingBuffer {
+                    viewport_position,
+                    index: current,
+                })
+                .ok()
         })
         .collect::<Vec<RingBuffer>>();
 

@@ -1,9 +1,4 @@
-use crate::fog_2d::chunk::{ChunkCoord, ChunkRingBuffer};
-use crate::{calculate_max_chunks, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
-use bevy::math::Vec2;
-use bevy::prelude::{DetectChanges, EventReader, Res, ResMut};
-use bevy::render::renderer::RenderQueue;
-use bevy::window::WindowResized;
+use crate::{fog_2d::chunk::ChunkRingBuffer, FogOfWarSettings, FOG_OF_WAR_2D_SHADER_HANDLE};
 use bevy::{
     prelude::{FromWorld, Resource, World},
     render::{
@@ -19,10 +14,10 @@ use bevy::{
             TextureUsages, TextureView, TextureViewDescriptor, VertexAttribute, VertexFormat,
             VertexState, VertexStepMode,
         },
-        renderer::RenderDevice,
+        renderer::{RenderDevice, RenderQueue},
     },
 };
-use bevy_render::view::{ExtractedView, ExtractedWindows, ViewUniform};
+use bevy_render::view::ViewUniform;
 
 #[derive(Resource)]
 pub struct FogOfWar2dPipeline {

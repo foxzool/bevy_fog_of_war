@@ -15,7 +15,7 @@ struct FogSight2DUniform {
 }
 
 struct RingBuffer {
-    position: vec2<f32>,
+    viewport_position: vec2<f32>,
     index: i32,
 }
 
