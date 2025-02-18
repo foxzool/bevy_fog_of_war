@@ -4,8 +4,8 @@ use crate::{FogOfWarCamera, FogSight2D};
 use crate::{FogOfWarSettings, FogSight2DUniform};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
-    debug, Changed, Commands, Entity, GlobalTransform, Query, RemovedComponents, Res, ResMut,
-    Resource, Single, Transform, Vec3Swizzles, Window, With,
+    debug, Changed, Commands, Entity, GlobalTransform, IVec2, Query, RemovedComponents, Res,
+    ResMut, Resource, Single, Transform, Vec3Swizzles, Window, With,
 };
 use bevy::render::camera::Camera;
 use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
@@ -116,7 +116,7 @@ pub struct FogOfWarRingBuffers {
 #[derive(Clone, Default, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, ShaderType)]
 #[repr(C)]
 pub struct RingBuffer {
-    pub viewport_position: Vec2,
+    pub coord: IVec2,
     pub index: i32,
 }
 
@@ -163,30 +163,36 @@ pub fn prepare_chunk_texture(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     cameras: Query<(&Camera, &OrthographicProjection, &GlobalTransform), With<FogOfWarCamera>>,
-    mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer, &GlobalTransform)>,
+    mut chunks_query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
     mut ring_res: ResMut<FogOfWarRingBuffers>,
 ) {
     let Ok((camera, projection, camera_global_transform)) = cameras.get_single() else {
         return;
     };
     // 获取当前视野内的chunks
-    let chunks_in_view = get_chunks_in_rect(projection.area, camera_global_transform, settings.chunk_size);
+    let chunks_in_view = get_chunks_in_rect(
+        projection.area,
+        camera_global_transform,
+        settings.chunk_size,
+    );
 
     let buffers = chunks_query
         .iter()
-        .filter_map(|(_, ring_buffer, global_transform)| {
+        .filter_map(|(coord, ring_buffer)| {
             let Some(current) = ring_buffer.current else {
                 return None;
             };
-            camera
-                .world_to_viewport(camera_global_transform, global_transform.translation())
-                .map(|viewport_position| RingBuffer {
-                    viewport_position,
-                    index: current,
-                })
-                .ok()
+            let ring_buffer = RingBuffer {
+                coord: IVec2::new(coord.x, coord.y),
+                index: current,
+            };
+            println!("coord: {:?} ", ring_buffer);
+
+            Some(ring_buffer)
         })
         .collect::<Vec<RingBuffer>>();
+
+    println!("buffers in view: {}", buffers.len());
 
     ring_res.buffers = StorageBuffer::from(buffers);
     ring_res.buffers.write_buffer(&device, &queue);
@@ -195,7 +201,7 @@ pub fn prepare_chunk_texture(
     return;
 
     // 遍历所有已存在的chunks
-    for (coord, mut ring_buffer, _) in chunks_query.iter_mut() {
+    for (coord, mut ring_buffer) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
         if !chunks_in_view.contains(coord) {
             if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {

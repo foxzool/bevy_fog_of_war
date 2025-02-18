@@ -15,7 +15,7 @@ struct FogSight2DUniform {
 }
 
 struct RingBuffer {
-    viewport_position: vec2<f32>,
+    coord: vec2<i32>,
     index: i32,
 }
 
@@ -77,8 +77,9 @@ fn get_chunk_anchor(pixel_pos: vec2<f32>) -> vec2<f32> {
     return ndc_to_frag_coord(position_world_to_ndc(chunk_world_pos).xy);
 }
 
+
 fn get_ring_buffer_position(pixel_pos: vec2<f32>) -> vec2<i32> {
-    let chunk_indices = get_chunk_indices(pixel_pos);
+    let chunk_indices = get_chunk_coord(pixel_pos);
     let chunk_x = chunk_indices.x;
     let chunk_y = chunk_indices.y;
     
@@ -257,18 +258,42 @@ fn render_number_at_position(number: i32, local_pos: vec2<f32>, base_x: f32, bas
     return false;
 }
 
+// 从像素坐标直接计算chunk坐标
+fn get_chunk_coord(pixel_pos: vec2<f32>) -> vec2<i32> {
+    let world_pos = get_world_pos(pixel_pos);
+    let chunk_size = settings.chunk_size;
+    
+    // X坐标计算
+    let chunk_x = select(
+        i32(ceil((world_pos.x - chunk_size + 1.0) / chunk_size)), // x < 0
+        i32(world_pos.x / chunk_size),                          // x >= 0
+        world_pos.x >= 0.0
+    );
+    
+    // Y坐标计算
+    let chunk_y = select(
+        i32(ceil(world_pos.y / chunk_size)),                    // y < 0
+        i32((world_pos.y + chunk_size - 1.0) / chunk_size),     // y >= 0
+        world_pos.y >= 0.0
+    );
+    
+    return vec2<i32>(chunk_x, chunk_y);
+}
+
 fn get_chunk_index_from_pixel(pixel_pos: vec2<f32>) -> i32 {
-    // 获取环形缓冲区位置
-    let ring_pos = get_ring_buffer_position(pixel_pos);
+    // 获取chunk坐标
+    let chunk_coord = get_chunk_coord(pixel_pos);
     
-    // 计算缓冲区宽度和高度
-    let view_width = i32(ceil(view.viewport.zw.x / settings.chunk_size));
-    let view_height = i32(ceil(view.viewport.zw.y / settings.chunk_size));
-    let buffer_width = view_width + 2;
-    let buffer_height = view_height + 2;
+    // 遍历rings数组找到对应的chunk
+    for (var i = 0u; i < arrayLength(&rings); i = i + 1u) {
+        let ring = rings[i];
+        if (ring.coord.x == chunk_coord.x && ring.coord.y == chunk_coord.y) {
+            return ring.index;
+        }
+    }
     
-    // 使用calculate_chunk_index计算最终的chunk索引
-    return calculate_chunk_index(ring_pos.x, ring_pos.y, buffer_width, buffer_height);
+    // 如果没找到，返回-1
+    return -1;
 }
 
 @fragment
@@ -290,6 +315,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // 获取各种坐标
     let pixel_pos = vec2<f32>(frag_coord.x, frag_coord.y);
+    let chunk_coord = get_chunk_coord(pixel_pos);
 //    let chunk_anchor = get_chunk_anchor(pixel_pos);
 //    let local_pos = get_local_coords(pixel_pos);
     // let ring_pos = get_ring_buffer_position(pixel_pos);
@@ -333,6 +359,26 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
             ) {
                 return vec4<f32>(0.0, 1.0, 0.0, 1.0); // 绿色数字
             }
+
+             if render_number_at_position(
+                            chunk_coord.y,
+                            world_pos.xy,
+                            center_x + number_offset,
+                            center_y + number_offset,
+                            dot_size
+                        ) {
+                            return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+                        }
+
+            if render_number_at_position(
+                                chunk_coord.x,
+                                world_pos.xy,
+                                center_x - 2 * number_offset,
+                                center_y + number_offset,
+                                dot_size
+                            ) {
+                                return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+                            }
         }
     }
 
@@ -572,17 +618,3 @@ fn ndc_to_frag_coord(ndc: vec2<f32>) -> vec2<f32> {
     return ndc_to_uv(ndc) * view.viewport.zw;
 }
 
-// 新增函数：从像素坐标直接计算chunk坐标
-fn get_chunk_indices(pixel_pos: vec2<f32>) -> vec2<i32> {
-    let chunk_size = settings.chunk_size;
-    let world_pos = get_world_pos(pixel_pos);
-    
-    // 添加Y轴翻转（根据Bevy坐标系）
-    let adjusted_world_pos = vec2<f32>(world_pos.x, -world_pos.y);
-    
-    // 使用floor进行块坐标计算
-    let chunk_x = i32(floor(adjusted_world_pos.x / chunk_size));
-    let chunk_y = i32(floor(adjusted_world_pos.y / chunk_size));
-    
-    return vec2<i32>(chunk_x, chunk_y);
-}
