@@ -87,7 +87,7 @@ pub fn update_chunks_system(
 
     let mut chunks_with_index = chunks_in_view.into_iter().enumerate().collect::<Vec<_>>();
 
-    for (entity, chunk_coord, mut chunk_ring_buffer) in chunks_query.iter_mut() {
+    for (_entity, chunk_coord, mut chunk_ring_buffer) in chunks_query.iter_mut() {
         if let Some((i, _)) = chunks_with_index
             .iter()
             .position(|(_, coord)| *coord == *chunk_coord)
@@ -131,81 +131,7 @@ pub fn update_chunks_system(
     }
 }
 
-pub fn update_chunk_ring_buffer(
-    fow_settings: Res<FogOfWarSettings>,
-    mut query: Query<(&ChunkCoord, &mut ChunkRingBuffer)>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    camera: Query<(&Camera, &GlobalTransform)>,
-) {
-    let Ok(window) = windows.get_single() else {
-        return;
-    };
-    let Ok((camera, camera_transform)) = camera.get_single() else {
-        return;
-    };
 
-    let Ok(viewport_center) = camera.viewport_to_world_2d(camera_transform, window.size() * 0.5)
-    else {
-        return;
-    };
-
-    let camera_chunk_x = (viewport_center.x / fow_settings.chunk_size).ceil() as i32;
-    let camera_chunk_y = (viewport_center.y / fow_settings.chunk_size).ceil() as i32;
-
-    // 计算环形缓存的大小（比视口大2行2列）
-    let (chunks_x, chunks_y) = calculate_max_chunks(
-        Vec2::new(
-            window.resolution.physical_width() as f32,
-            window.resolution.physical_height() as f32,
-        ),
-        fow_settings.chunk_size,
-    );
-    let buffer_width = chunks_x as i32 + 2;
-    let buffer_height = chunks_y as i32 + 2;
-
-    // 计算视口的左上角chunk坐标
-    let viewport_start_x = camera_chunk_x - buffer_width / 2;
-    let viewport_start_y = camera_chunk_y + buffer_height / 2; // 注意这里改为加号，因为我们要从上往下计数
-
-    for (coord, mut array_index) in query.iter_mut() {
-        // 计算chunk相对于视口左上角的偏移
-        let relative_x = coord.x - viewport_start_x;
-        let relative_y = viewport_start_y - coord.y; // 注意这里改为减法，反转y轴方向
-
-        // 如果chunk在视野范围内（考虑额外的缓冲区）
-        if relative_x >= 0
-            && relative_x < buffer_width
-            && relative_y >= 0
-            && relative_y < buffer_height
-        {
-            // 保存旧的索引
-            array_index.previous = array_index.current;
-
-            // 计算环形缓存中的位置
-            let x = relative_x;
-            let y = relative_y;
-            array_index.ring_buffer_position = Some((x, y));
-
-            // 从左上到右下计算索引
-            array_index.current = Some(y * buffer_width + x);
-
-            if array_index.current != array_index.previous {
-                debug!(
-                    "{:?} index update {:?} => {:?} at ring buffer pos {:?}",
-                    coord,
-                    array_index.previous,
-                    array_index.current,
-                    array_index.ring_buffer_position
-                );
-            }
-        } else {
-            // 如果chunk不在视野范围内，清除其索引
-            array_index.previous = array_index.current;
-            array_index.current = None;
-            array_index.ring_buffer_position = None;
-        }
-    }
-}
 
 pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkRingBuffer, &ChunkCoord, &Children)>,

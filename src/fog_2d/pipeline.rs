@@ -37,6 +37,9 @@ impl FromWorld for FogOfWar2dPipeline {
             .collect::<Vec<_>>();
         let views_chunk_count = chunks.iter().map(|c| c.visible()).filter(|b| *b).count() as u32;
 
+        // 加上4个额外的chunk
+        let views_chunk_count = views_chunk_count + 4;
+
         let settings = world.resource::<FogOfWarSettings>();
         let chunk_size = settings.chunk_size;
 

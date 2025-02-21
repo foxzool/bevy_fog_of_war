@@ -186,24 +186,18 @@ pub fn prepare_chunk_texture(
                 coord: IVec2::new(coord.x, coord.y),
                 index: current,
             };
-            println!("coord: {:?} ", ring_buffer);
 
             Some(ring_buffer)
         })
         .collect::<Vec<RingBuffer>>();
 
-    println!("buffers in view: {}", buffers.len());
-
     ring_res.buffers = StorageBuffer::from(buffers);
     ring_res.buffers.write_buffer(&device, &queue);
-
-    // FIXME
-    return;
 
     // 遍历所有已存在的chunks
     for (coord, mut ring_buffer) in chunks_query.iter_mut() {
         // 如果chunk不在视野内，清空其纹理
-        if !chunks_in_view.contains(coord) {
+        if ring_buffer.current.is_none() {
             if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {
                 // 应该同时清空新旧两个索引的纹理
                 debug!("{:?} clean both {} {}", coord, index, prev_index);
@@ -211,15 +205,12 @@ pub fn prepare_chunk_texture(
                 fog_of_war_pipeline.clear_explored_texture(&queue, prev_index, settings.chunk_size);
                 ring_buffer.previous = None;
             }
-            // 处理只有当前索引的情况
-            else if let Some(index) = ring_buffer.current {
-                debug!("{:?} clean {}", coord, index);
-                fog_of_war_pipeline.clear_explored_texture(&queue, index, settings.chunk_size);
-                ring_buffer.current = None;
-            }
         } else if ring_buffer.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            debug!("{:?} transfer {:?}", coord, ring_buffer);
+            if *coord == ChunkCoord::new(-2, 1) {
+                debug!("{:?} transfer {:?}", coord, ring_buffer);
+            }
+
             if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {
                 fog_of_war_pipeline.transfer_chunk_data(
                     &device,
@@ -228,6 +219,7 @@ pub fn prepare_chunk_texture(
                     index,
                     settings.chunk_size,
                 );
+                ring_buffer.previous = None;
             }
         }
     }

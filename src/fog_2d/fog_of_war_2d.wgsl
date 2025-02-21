@@ -388,7 +388,7 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
         let world_pos = get_world_pos(pixel_pos);
         let chunk_x = floor(world_pos.x / chunk_size);
         let chunk_y = floor(world_pos.y / chunk_size);
-        
+
         // 计算在chunk内的局部坐标
         let local_x = i32(floor(world_pos.x - chunk_x * chunk_size));
         let local_y = i32(floor(world_pos.y - chunk_y * chunk_size));
