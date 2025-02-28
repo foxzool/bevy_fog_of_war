@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::window::{PrimaryWindow, WindowResized};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, ExtractComponent)]
@@ -23,16 +24,8 @@ impl ChunkCoord {
     }
 
     pub fn from_world_pos(world_pos: Vec2, chunk_size: f32) -> Self {
-        let x = if world_pos.x >= 0.0 {
-            (world_pos.x / chunk_size) as i32
-        } else {
-            ((world_pos.x - chunk_size + 1.0) / chunk_size).ceil() as i32
-        };
-        let y = if world_pos.y >= 0.0 {
-            ((world_pos.y + chunk_size - 1.0) / chunk_size) as i32
-        } else {
-            (world_pos.y / chunk_size).ceil() as i32
-        };
+        let x = (world_pos.x / chunk_size).floor() as i32;
+        let y = (world_pos.y / chunk_size).floor() as i32;
         Self { x, y }
     }
 }
@@ -42,6 +35,27 @@ pub struct ChunkRingBuffer {
     pub current: Option<i32>,
     pub previous: Option<i32>,
     pub ring_buffer_position: Option<(i32, i32)>, // 在环形缓存中的位置 (x, y)
+    pub stable_index: Option<i32>,  // 稳定的索引，一旦分配就不会改变
+}
+
+impl Eq for ChunkRingBuffer {}
+
+impl PartialEq<Self> for ChunkRingBuffer {
+    fn eq(&self, other: &Self) -> bool {
+       self.current == other.current
+    }
+}
+
+impl PartialOrd<Self> for ChunkRingBuffer {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.current.partial_cmp(&other.current)
+    }
+}
+
+impl Ord for ChunkRingBuffer {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.current.cmp(&other.current)
+    }
 }
 
 impl ChunkRingBuffer {
@@ -50,6 +64,7 @@ impl ChunkRingBuffer {
             current: Some(current),
             previous: None,
             ring_buffer_position: None,
+            stable_index: None,
         }
     }
 
@@ -58,19 +73,26 @@ impl ChunkRingBuffer {
     }
 
     pub fn set_current(&mut self, current: i32) {
+        if self.stable_index.is_none() {
+            self.stable_index = Some(current);
+        }
         self.previous = self.current;
         self.current = Some(current);
         self.ring_buffer_position = None;
     }
 
     pub fn clean_current(&mut self) {
+        self.previous = self.current;
         self.current = None;
-        self.previous = None;
         self.ring_buffer_position = None;
     }
 
     pub fn require_chunk_transport(&self) -> bool {
-        self.previous.is_some() && self.current != self.previous
+        if let (Some(current), Some(previous)) = (self.current, self.previous) {
+            current != previous
+        } else {
+            false
+        }
     }
 }
 
@@ -102,12 +124,7 @@ pub fn update_chunks_system(
     // Handle chunk loading for new chunks
     for (i, coord) in chunks_with_index.iter() {
         let world_pos = coord.to_world_pos(settings.chunk_size);
-        debug!(
-            "spawn coord: {:?} {} {:?}",
-            coord,
-            i,
-            coord.to_world_pos(settings.chunk_size)
-        );
+        debug!("spawn coord: ({}, {}) {}", coord.x, coord.y, i);
         commands
             .spawn((
                 *coord,
@@ -130,8 +147,6 @@ pub fn update_chunks_system(
             });
     }
 }
-
-
 
 pub fn debug_chunk_indices(
     chunks_query: Query<(&ChunkRingBuffer, &ChunkCoord, &Children)>,

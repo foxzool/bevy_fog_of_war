@@ -263,19 +263,9 @@ fn get_chunk_coord(pixel_pos: vec2<f32>) -> vec2<i32> {
     let world_pos = get_world_pos(pixel_pos);
     let chunk_size = settings.chunk_size;
     
-    // X坐标计算
-    let chunk_x = select(
-        i32(ceil((world_pos.x - chunk_size + 1.0) / chunk_size)), // x < 0
-        i32(world_pos.x / chunk_size),                          // x >= 0
-        world_pos.x >= 0.0
-    );
-    
-    // Y坐标计算
-    let chunk_y = select(
-        i32(ceil(world_pos.y / chunk_size)),                    // y < 0
-        i32((world_pos.y + chunk_size - 1.0) / chunk_size),     // y >= 0
-        world_pos.y >= 0.0
-    );
+    // 使用floor函数统一处理正负坐标
+    let chunk_x = i32(floor(world_pos.x / chunk_size));
+    let chunk_y = i32(floor(world_pos.y / chunk_size));
     
     return vec2<i32>(chunk_x, chunk_y);
 }
@@ -617,4 +607,3 @@ fn frag_coord_to_ndc(frag_coord: vec4<f32>) -> vec3<f32> {
 fn ndc_to_frag_coord(ndc: vec2<f32>) -> vec2<f32> {
     return ndc_to_uv(ndc) * view.viewport.zw;
 }
-

@@ -202,16 +202,16 @@ impl FogOfWar2dPipeline {
         chunk_size: f32,
     ) {
         if let Some(texture) = &self.texture {
-            // 创建一个命令编码器
             let mut encoder = device.create_command_encoder(
                 &bevy::render::render_resource::CommandEncoderDescriptor {
                     label: Some("transfer_chunk_data_encoder"),
                 },
             );
 
-            // println!("from_index: {}, to_index: {}", from_index, to_index);
-
-            // 使用copy_texture_to_texture在同一纹理的不同层之间复制数据
+            // 使用临时层来避免数据冲突
+            let temp_index = texture.depth_or_array_layers() - 1;
+            
+            // 先复制到临时层
             encoder.copy_texture_to_texture(
                 bevy::render::render_resource::ImageCopyTexture {
                     texture,
@@ -220,6 +220,35 @@ impl FogOfWar2dPipeline {
                         x: 0,
                         y: 0,
                         z: from_index as u32,
+                    },
+                    aspect: bevy::render::render_resource::TextureAspect::All,
+                },
+                bevy::render::render_resource::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: bevy::render::render_resource::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: temp_index,
+                    },
+                    aspect: bevy::render::render_resource::TextureAspect::All,
+                },
+                Extent3d {
+                    width: chunk_size as u32,
+                    height: chunk_size as u32,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            // 从临时层复制到目标层
+            encoder.copy_texture_to_texture(
+                bevy::render::render_resource::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: bevy::render::render_resource::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: temp_index,
                     },
                     aspect: bevy::render::render_resource::TextureAspect::All,
                 },

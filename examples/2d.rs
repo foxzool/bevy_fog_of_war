@@ -79,18 +79,18 @@ fn setup(
         },
     ));
 
-    // Second sight
-    commands.spawn((
-        FogSight2D { radius: 200.0 },
-        SightPulse {
-            base_radius: 250.0,
-            pulse_range: 50.0,
-            speed: 3.0,
-            time: PI,
-        },
-        // Add transform component
-        Transform::from_xyz(100.0, 0.0, 0.0),
-    ));
+    // // Second sight
+    // commands.spawn((
+    //     FogSight2D { radius: 200.0 },
+    //     SightPulse {
+    //         base_radius: 250.0,
+    //         pulse_range: 50.0,
+    //         speed: 3.0,
+    //         time: PI,
+    //     },
+    //     // Add transform component
+    //     Transform::from_xyz(100.0, 0.0, 0.0),
+    // ));
 
     let shapes = [
         meshes.add(Circle::new(50.0)),

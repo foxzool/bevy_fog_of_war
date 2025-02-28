@@ -170,18 +170,22 @@ pub fn prepare_chunk_texture(
         return;
     };
     // 获取当前视野内的chunks
-    let chunks_in_view = get_chunks_in_rect(
-        projection.area,
-        camera_global_transform,
-        settings.chunk_size,
-    );
+    // let chunks_in_view = get_chunks_in_rect(
+    //     projection.area,
+    //     camera_global_transform,
+    //     settings.chunk_size,
+    // );
 
     let buffers = chunks_query
         .iter()
+        .sort_by::<(&ChunkCoord, &ChunkRingBuffer)>(|(_, a), (_, b)| a.cmp(b))
         .filter_map(|(coord, ring_buffer)| {
             let Some(current) = ring_buffer.current else {
                 return None;
             };
+            // if coord.x == -2 && coord.y == 1 {
+            //     println!("({},{}) {}", coord.x, coord.y, current);
+            // }
             let ring_buffer = RingBuffer {
                 coord: IVec2::new(coord.x, coord.y),
                 index: current,
@@ -207,8 +211,8 @@ pub fn prepare_chunk_texture(
             }
         } else if ring_buffer.require_chunk_transport() {
             // 如果chunk的索引发生变化，需要转移数据
-            if *coord == ChunkCoord::new(-2, 1) {
-                debug!("{:?} transfer {:?}", coord, ring_buffer);
+            if *coord == ChunkCoord::new(-3, 0) {
+                debug!("{:?} transfer {} => {}", coord, ring_buffer.previous.unwrap(), ring_buffer.current.unwrap());
             }
 
             if let (Some(index), Some(prev_index)) = (ring_buffer.current, ring_buffer.previous) {

@@ -3,8 +3,7 @@ use crate::fog_2d::buffers::{
     FogOfWarRingBuffers, FogOfWarSettingBuffer, FogSight2dBuffers, RingBuffer,
 };
 use crate::fog_2d::chunk::{
-    debug_chunk_indices, update_chunks_system, ChunkCoord,
-    ChunkRingBuffer,
+    debug_chunk_indices, update_chunks_system, ChunkCoord, ChunkRingBuffer,
 };
 use crate::fog_2d::node::{FogOfWar2dNode, FogOfWarLabel};
 use crate::fog_2d::pipeline::FogOfWar2dPipeline;
