@@ -12,6 +12,7 @@ documentation = "https://docs.rs/bevy_fog_of_war"
 
 
 [dependencies]
+bytemuck = { version = "1.14", features = ["derive"] }
 bevy = { version = "0.15", default-features = false, features = [
     "animation",
     "bevy_asset",

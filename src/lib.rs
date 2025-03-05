@@ -2,8 +2,10 @@ use bevy::prelude::*;
 
 mod chunk;
 mod systems;
+mod fog;
 
 pub use chunk::{Chunk, ChunkManager};
+pub use fog::{FogSettings, FogPlugin};
 use systems::{check_and_generate_chunks_in_view, process_chunk_generation, debug_draw_chunk_boundaries};
 
 /// 迷雾战争插件配置
@@ -38,6 +40,8 @@ impl Plugin for FogOfWarPlugin {
         app
             .init_resource::<FogOfWarConfig>()
             .init_resource::<ChunkManager>()
+            .init_resource::<FogSettings>()
+            .add_plugins(FogPlugin)
             .add_systems(Update, (
                 check_and_generate_chunks_in_view,
                 process_chunk_generation,

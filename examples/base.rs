@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_fog_of_war::{FogOfWarPlugin, FogOfWarConfig, setup_fog_of_war};
+use bevy_fog_of_war::{FogOfWarPlugin, FogOfWarConfig, setup_fog_of_war, FogSettings};
 
 fn main() {
     App::new()
@@ -17,8 +17,14 @@ fn main() {
             debug_draw: true,
         })
         .add_plugins(FogOfWarPlugin)
+        .insert_resource(FogSettings {
+            color: Color::rgba(0.1, 0.1, 0.2, 1.0),
+            density: 0.003,
+            fog_range: 2000.0,
+            max_intensity: 0.9,
+        })
         .add_systems(Startup, (setup, setup_fog_of_war))
-        .add_systems(Update, camera_movement)
+        .add_systems(Update, (camera_movement, update_fog_settings))
         .run();
 }
 
@@ -63,5 +69,35 @@ fn camera_movement(
             direction = direction.normalize();
             camera_transform.translation += direction * speed * time.delta_secs();
         }
+    }
+}
+
+// 更新迷雾设置系统
+// Update fog settings system
+fn update_fog_settings(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut fog_settings: ResMut<FogSettings>,
+) {
+    // 调整迷雾密度
+    // Adjust fog density
+    if keyboard.pressed(KeyCode::KeyZ) {
+        fog_settings.density = (fog_settings.density - 0.001 * time.delta_secs()).max(0.0001);
+        println!("迷雾密度 / Fog density: {}", fog_settings.density);
+    }
+    if keyboard.pressed(KeyCode::KeyX) {
+        fog_settings.density = (fog_settings.density + 0.001 * time.delta_secs()).min(0.01);
+        println!("迷雾密度 / Fog density: {}", fog_settings.density);
+    }
+    
+    // 调整迷雾最大强度
+    // Adjust maximum fog intensity
+    if keyboard.pressed(KeyCode::KeyC) {
+        fog_settings.max_intensity = (fog_settings.max_intensity - 0.1 * time.delta_secs()).max(0.1);
+        println!("迷雾最大强度 / Max fog intensity: {}", fog_settings.max_intensity);
+    }
+    if keyboard.pressed(KeyCode::KeyV) {
+        fog_settings.max_intensity = (fog_settings.max_intensity + 0.1 * time.delta_secs()).min(1.0);
+        println!("迷雾最大强度 / Max fog intensity: {}", fog_settings.max_intensity);
     }
 }
