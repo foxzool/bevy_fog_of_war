@@ -36,7 +36,10 @@ impl Chunk {
     /// 创建一个新的区块
     /// Create a new chunk
     pub fn new(index: IVec2, size: f32) -> Self {
-        Self { index, size }
+        Self {
+            index,
+            size,
+        }
     }
 
     /// 从世界坐标创建区块
