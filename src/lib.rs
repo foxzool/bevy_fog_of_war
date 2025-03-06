@@ -5,7 +5,7 @@ mod systems;
 mod fog;
 
 pub use chunk::{Chunk, ChunkManager};
-pub use fog::{FogSettings, FogPlugin};
+pub use fog::{FogSettings, FogPlugin, FogCameraMarker};
 use systems::{check_and_generate_chunks_in_view, process_chunk_generation, debug_draw_chunk_boundaries};
 
 /// 迷雾战争插件配置

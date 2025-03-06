@@ -1,5 +1,7 @@
 use bevy::prelude::*;
-use bevy_fog_of_war::{FogOfWarPlugin, FogOfWarConfig, setup_fog_of_war, FogSettings};
+use bevy_fog_of_war::{
+    setup_fog_of_war, FogCameraMarker, FogOfWarConfig, FogOfWarPlugin, FogSettings,
+};
 
 fn main() {
     App::new()
@@ -34,11 +36,7 @@ struct MainCamera;
 fn setup(mut commands: Commands) {
     // 生成相机
     // Spawn camera
-    commands.spawn((
-        Camera2d,
-        MainCamera,
-    ));
-
+    commands.spawn((Camera2d, FogCameraMarker, MainCamera));
 }
 
 // 相机移动系统
@@ -64,7 +62,7 @@ fn camera_movement(
         if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
             direction.x += 1.0;
         }
-        
+
         if direction != Vec3::ZERO {
             direction = direction.normalize();
             camera_transform.translation += direction * speed * time.delta_secs();
@@ -89,15 +87,23 @@ fn update_fog_settings(
         fog_settings.density = (fog_settings.density + 0.001 * time.delta_secs()).min(0.01);
         println!("迷雾密度 / Fog density: {}", fog_settings.density);
     }
-    
+
     // 调整迷雾最大强度
     // Adjust maximum fog intensity
     if keyboard.pressed(KeyCode::KeyC) {
-        fog_settings.max_intensity = (fog_settings.max_intensity - 0.1 * time.delta_secs()).max(0.1);
-        println!("迷雾最大强度 / Max fog intensity: {}", fog_settings.max_intensity);
+        fog_settings.max_intensity =
+            (fog_settings.max_intensity - 0.1 * time.delta_secs()).max(0.1);
+        println!(
+            "迷雾最大强度 / Max fog intensity: {}",
+            fog_settings.max_intensity
+        );
     }
     if keyboard.pressed(KeyCode::KeyV) {
-        fog_settings.max_intensity = (fog_settings.max_intensity + 0.1 * time.delta_secs()).min(1.0);
-        println!("迷雾最大强度 / Max fog intensity: {}", fog_settings.max_intensity);
+        fog_settings.max_intensity =
+            (fog_settings.max_intensity + 0.1 * time.delta_secs()).min(1.0);
+        println!(
+            "迷雾最大强度 / Max fog intensity: {}",
+            fog_settings.max_intensity
+        );
     }
 }

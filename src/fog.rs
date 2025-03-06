@@ -1,6 +1,13 @@
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::ecs::query::QueryItem;
+use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
+use bevy::render::render_graph::{RenderGraphApp, RenderLabel, ViewNode, ViewNodeRunner};
+use bevy::render::render_resource::{
+    BufferInitDescriptor, CachedRenderPipelineId, LoadOp, Operations, RenderPassColorAttachment,
+    RenderPassDescriptor, RenderPipeline, StoreOp,
+};
+use bevy::render::renderer::RenderContext;
 use bevy::render::Render;
-use bytemuck;
 use bevy::{
     core_pipeline::{core_2d, fullscreen_vertex_shader::fullscreen_shader_vertex_state},
     prelude::*,
@@ -22,11 +29,13 @@ use bevy::{
         RenderApp, RenderSet,
     },
 };
+use bytemuck;
 use std::num::NonZeroU32;
-use bevy::ecs::query::QueryItem;
-use bevy::render::render_graph::{RenderGraphApp, RenderLabel, ViewNode, ViewNodeRunner};
-use bevy::render::render_resource::{BufferInitDescriptor, CachedRenderPipelineId, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, StoreOp};
-use bevy::render::renderer::RenderContext;
+
+/// 迷雾相机标记组件
+/// Fog camera marker component
+#[derive(Component, ExtractComponent, Default, Clone, Copy, Debug)]
+pub struct FogCameraMarker;
 
 /// 迷雾设置资源
 /// Fog settings resource
@@ -49,7 +58,7 @@ pub struct FogSettings {
 impl Default for FogSettings {
     fn default() -> Self {
         Self {
-            color: Color::rgba(0.5, 0.5, 0.5, 1.0),
+            color: Color::srgba(0.5, 0.5, 0.5, 1.0),
             density: 0.05,
             fog_range: 1000.0,
             max_intensity: 0.8,
@@ -64,6 +73,7 @@ pub struct FogPlugin;
 impl Plugin for FogPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FogSettings>()
+            .add_plugins(ExtractComponentPlugin::<FogCameraMarker>::default())
             .add_plugins(ExtractResourcePlugin::<FogSettings>::default());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -71,7 +81,6 @@ impl Plugin for FogPlugin {
         };
 
         render_app
-
             .add_systems(Render, prepare_fog_settings.in_set(RenderSet::Prepare))
             .add_render_graph_node::<ViewNodeRunner<FogNode>>(Core2d, FogNodeLabel)
             .add_render_graph_edges(
@@ -218,8 +227,9 @@ struct FogSettingsUniform {
 fn prepare_fog_settings(
     render_device: Res<RenderDevice>,
     fog_settings: Res<FogSettings>,
-    mut fog_settings_uniform: Local<Option<FogSettingsUniform>>,
-    views: Query<(&ExtractedView, &Camera, &GlobalTransform)>,
+    mut commands: Commands,
+    mut fog_settings_uniform: Option<ResMut<FogSettingsUniform>>,
+    views: Query<(&ExtractedView, &Camera, &GlobalTransform), With<FogCameraMarker>>,
 ) {
     // 只处理第一个相机
     // Only process the first camera
@@ -227,6 +237,8 @@ fn prepare_fog_settings(
         Some(v) => v,
         None => return,
     };
+
+    println!("get camera");
 
     let camera_position = transform.translation().truncate();
 
@@ -247,7 +259,11 @@ fn prepare_fog_settings(
         contents: bytemuck::cast_slice(&[settings]),
     });
 
-    *fog_settings_uniform = Some(FogSettingsUniform { buffer });
+    if let Some(mut fog_settings_uniform) = fog_settings_uniform {
+        *fog_settings_uniform = FogSettingsUniform { buffer };
+    } else {
+        commands.insert_resource(FogSettingsUniform { buffer });
+    }
 }
 
 /// 迷雾节点
@@ -257,7 +273,6 @@ struct FogNode {
 }
 
 impl FogNode {
-
     fn new() -> Self {
         Self { bind_group: None }
     }
@@ -267,10 +282,11 @@ impl ViewNode for FogNode {
     type ViewQuery = (&'static ViewTarget,);
 
     fn update(&mut self, world: &mut World) {
-        // 只处理第一个相机
-        // Only process the first camera
+        // 只处理带有FogCameraMarker组件的相机
+        // Only process cameras with FogCameraMarker component
         let view_entity = {
-            let mut query = world.query_filtered::<Entity, With<ExtractedView>>();
+            let mut query =
+                world.query_filtered::<Entity, (With<ExtractedView>, With<FogCameraMarker>)>();
             let mut iter = query.iter(world);
             match iter.next() {
                 Some(entity) => entity,
@@ -280,10 +296,24 @@ impl ViewNode for FogNode {
 
         // 先获取所有需要的资源
         // Get all required resources first
-        let view_target = world.get::<ViewTarget>(view_entity).unwrap();
-        let fog_pipeline = world.resource::<FogPipeline>();
-        let fog_settings_uniform = world.resource::<FogSettingsUniform>();
+        let Some(view_target) = world.get::<ViewTarget>(view_entity) else {
+            return;
+        };
+
+        println!("get view_target");
+
+        let fog_pipeline = world.get_resource::<FogPipeline>();
+        let fog_settings_uniform = world.get_resource::<FogSettingsUniform>();
         let render_device = world.resource::<RenderDevice>();
+
+        // 如果任何必要资源不存在，则提前返回
+        // Return early if any necessary resource doesn't exist
+        let (fog_pipeline, fog_settings_uniform) = match (fog_pipeline, fog_settings_uniform) {
+            (Some(pipeline), Some(settings)) => (pipeline, settings),
+            _ => return,
+        };
+
+        println!("get all needed");
 
         self.bind_group = Some(render_device.create_bind_group(
             "fog_bind_group",
@@ -313,7 +343,7 @@ impl ViewNode for FogNode {
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, ): QueryItem<Self::ViewQuery>,
+        (view_target,): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let fog_pipeline = world.resource::<FogPipeline>();
@@ -329,42 +359,20 @@ impl ViewNode for FogNode {
             None => return Ok(()),
         };
 
-        // 只处理第一个相机
-        // Only process the first camera
-        // 使用不可变方法获取视图实体
-        // Use immutable method to get view entity
-        let view_entity = {
-            let mut entities = Vec::new();
-            for entity in world.iter_entities() {
-                if world.get::<ExtractedView>(entity.id()).is_some() {
-                    entities.push(entity.id());
-                    break;
-                }
-            }
-            match entities.first() {
-                Some(entity) => *entity,
-                None => return Ok(()),
-            }
-        };
-
-
-
-        let mut render_pass = render_context.begin_tracked_render_pass(
-            RenderPassDescriptor {
-                label: Some("fog_pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: view_target.main_texture_view(),
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Load,
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            },
-        );
+        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+            label: Some("fog_pass"),
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view: view_target.main_texture_view(),
+                resolve_target: None,
+                ops: Operations {
+                    load: LoadOp::Load,
+                    store: StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
         render_pass.set_render_pipeline(pipeline);
         render_pass.set_bind_group(0, bind_group, &[]);
