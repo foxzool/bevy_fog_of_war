@@ -2,10 +2,7 @@ use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::ecs::query::QueryItem;
 use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
 use bevy::render::render_graph::{RenderGraphApp, RenderLabel, ViewNode, ViewNodeRunner};
-use bevy::render::render_resource::{
-    BufferInitDescriptor, CachedRenderPipelineId, LoadOp, Operations, RenderPassColorAttachment,
-    RenderPassDescriptor, StoreOp,
-};
+use bevy::render::render_resource::{AddressMode, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferBinding, BufferBindingType, BufferInitDescriptor, BufferSize, CachedRenderPipelineId, FilterMode, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, SamplerBindingType, ShaderStages, StoreOp, TextureSampleType, TextureViewDimension};
 use bevy::render::renderer::RenderContext;
 use bevy::render::Render;
 use bevy::{
@@ -13,15 +10,11 @@ use bevy::{
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_graph::{
-            NodeRunError, RenderGraphContext,
-        },
+        render_graph::{NodeRunError, RenderGraphContext},
         render_resource::{
-            BindGroup, BindGroupEntry, BindGroupLayout
-            , BindGroupLayoutEntry, BindingResource, BindingType,
-            ColorTargetState, ColorWrites, FragmentState, MultisampleState, PipelineCache,
-            PrimitiveState, RenderPipelineDescriptor, SamplerBindingType, SamplerDescriptor,
-            ShaderStages, TextureFormat, TextureSampleType, TextureViewDimension,
+            BindGroup, BindGroupLayout, ColorTargetState, ColorWrites, FragmentState,
+            MultisampleState, PipelineCache, PrimitiveState, RenderPipelineDescriptor,
+            SamplerDescriptor, TextureFormat,
         },
         render_resource::{Buffer, BufferUsages, Sampler, ShaderType},
         renderer::RenderDevice,
@@ -52,6 +45,12 @@ pub struct FogSettings {
     /// 迷雾最大强度
     /// Maximum fog intensity
     pub max_intensity: f32,
+    /// 相机周围的透明区域半径
+    /// Clear radius around camera
+    pub clear_radius: f32,
+    /// 边缘过渡效果宽度
+    /// Edge falloff width
+    pub clear_falloff: f32,
 }
 
 impl Default for FogSettings {
@@ -61,6 +60,8 @@ impl Default for FogSettings {
             density: 0.05,
             fog_range: 1000.0,
             max_intensity: 0.8,
+            clear_radius: 0.3,      // 默认相机周围透明区域半径 / Default clear radius
+            clear_falloff: 0.1,      // 默认边缘过渡宽度 / Default edge falloff width
         }
     }
 }
@@ -79,17 +80,15 @@ impl Plugin for FogPlugin {
             return;
         };
 
+        // 将迷雾节点放在 MainTransparentPass 和 EndMainPass 之间
+        // Place fog node between MainTransparentPass and EndMainPass
         render_app
             .add_systems(Render, prepare_fog_settings.in_set(RenderSet::Prepare))
             .add_render_graph_node::<ViewNodeRunner<FogNode>>(Core2d, FogNodeLabel)
-            .add_render_graph_edges(
-                Core2d,
-                (
-                    Node2d::MainTransparentPass,
-                    FogNodeLabel,
-                    Node2d::EndMainPass,
-                ),
-            );
+            .add_render_graph_edges(Core2d, (Node2d::MainTransparentPass, FogNodeLabel, Node2d::EndMainPass));
+
+        println!("已将迷雾节点添加到渲染图中，位于 MainTransparentPass 和 EndMainPass 之间");
+        println!("Added fog node to render graph, between MainTransparentPass and EndMainPass");
     }
 
     fn finish(&self, app: &mut App) {
@@ -120,11 +119,13 @@ impl FromWorld for FogPipeline {
         let render_device = world.resource::<RenderDevice>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
+        // 创建绑定组布局，需要纹理、采样器和迷雾设置
+        // Create bind group layout with texture, sampler and fog settings
         let layout = render_device.create_bind_group_layout(
             "fog_bind_group_layout",
             &[
-                // 屏幕纹理
-                // Screen texture
+                // 输入纹理绑定
+                // Input texture binding
                 BindGroupLayoutEntry {
                     binding: 0,
                     visibility: ShaderStages::FRAGMENT,
@@ -135,46 +136,85 @@ impl FromWorld for FogPipeline {
                     },
                     count: None,
                 },
-                // 纹理采样器
-                // Texture sampler
+                // 采样器绑定
+                // Sampler binding
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 },
-                // 迷雾设置
-                // Fog settings
+                // 迷雾设置统一缓冲区
+                // Fog settings uniform buffer
                 BindGroupLayoutEntry {
                     binding: 2,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
-                        ty: bevy::render::render_resource::BufferBindingType::Uniform,
+                        ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: BufferSize::new(std::mem::size_of::<GpuFogSettings>() as u64),
                     },
                     count: None,
                 },
             ],
         );
 
-        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
+        // 创建线性过滤采样器
+        // Create linear filtering sampler
+        let sampler = render_device.create_sampler(&SamplerDescriptor {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mipmap_filter: FilterMode::Nearest,
+            ..default()
+        });
 
-        let shader = world.resource::<AssetServer>().load("shaders/fog.wgsl");
+        // 这部分代码已移至上方，使用更明确的着色器加载方式
+        // This part of code has been moved above, using a more explicit shader loading method
+
+        // 等待着色器资源加载完成
+        // Wait for shader resource to be loaded
+        let shader_handle = world
+            .resource::<AssetServer>()
+            .load::<Shader>("shaders/debug_red.wgsl");
+
+        // 确保着色器已加载
+        // Ensure shader is loaded
+        println!("正在加载迷雾着色器...");
+        println!("Loading fog shader...");
 
         let pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("fog_pipeline".into()),
             layout: vec![layout.clone()],
             vertex: fullscreen_shader_vertex_state(),
             fragment: Some(FragmentState {
-                shader,
+                shader: shader_handle,
                 shader_defs: vec![],
                 entry_point: "fragment".into(),
-                // 使用与渲染通道相同的格式
-                // Use the same format as the render pass
+                // 使用视图目标的标准格式
+                // Use the standard format of the view target
+                // 使用 Bgra8UnormSrgb 格式，根据先前的测试结果
+                // Use Bgra8UnormSrgb format, based on previous test results
                 targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb, // 显式指定格式而不是使用 bevy_default()
-                    blend: None,
+                    format: TextureFormat::Bgra8UnormSrgb,
+                    // 使用透明混合模式，确保迷雾效果正确混合
+                    // Use alpha blending to ensure fog effect blends correctly
+                    blend: Some(BlendState {
+                        color: BlendComponent {
+                            src_factor: BlendFactor::SrcAlpha,
+                            dst_factor: BlendFactor::OneMinusSrcAlpha,
+                            operation: BlendOperation::Add,
+                        },
+                        alpha: BlendComponent {
+                            src_factor: BlendFactor::SrcAlpha,
+                            dst_factor: BlendFactor::OneMinusSrcAlpha,
+                            operation: BlendOperation::Add,
+                        },
+                    }),
+                    // 使用正常的透明混合模式
+                    // Use normal alpha blending
                     write_mask: ColorWrites::ALL,
                 })],
             }),
@@ -199,13 +239,13 @@ impl FromWorld for FogPipeline {
 #[derive(ShaderType, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct GpuFogSettings {
     color: Vec4,
+    center: Vec2,     // 迷雾中心位置 / fog center position
     density: f32,
-    _padding1: f32,
-    _padding2: f32,
+    range: f32,       // 迷雾范围 / fog range
+    time: f32,        // 时间（用于动画） / time (for animation)
+    clear_radius: f32, // 相机周围的透明半径 / clear radius around camera
+    clear_falloff: f32, // 边缘过渡效果 / edge falloff effect
     _padding3: f32,
-    camera_position: Vec2,
-    fog_range: f32,
-    max_intensity: f32,
 }
 
 /// 准备迷雾设置
@@ -223,6 +263,7 @@ fn prepare_fog_settings(
     mut commands: Commands,
     fog_settings_uniform: Option<ResMut<FogSettingsUniform>>,
     views: Query<(&ExtractedView, &Camera, &GlobalTransform), With<FogCameraMarker>>,
+    time: Res<Time>
 ) {
     // 只处理第一个相机
     // Only process the first camera
@@ -232,15 +273,19 @@ fn prepare_fog_settings(
     };
     let camera_position = transform.translation().truncate();
 
+    // 获取当前时间用于迷雾动画
+    // Get current time for fog animation
+    let elapsed_time = time.elapsed_secs();
+    
     let settings = GpuFogSettings {
         color: fog_settings.color.to_linear().to_vec4().into(),
+        center: camera_position,  // 使用相机位置作为迷雾中心 / Use camera position as fog center
         density: fog_settings.density,
-        _padding1: 0.0,
-        _padding2: 0.0,
+        range: fog_settings.fog_range,
+        time: elapsed_time,
+        clear_radius: fog_settings.clear_radius,  // 相机周围的透明区域半径 / Clear radius around camera
+        clear_falloff: fog_settings.clear_falloff, // 边缘过渡效果宽度 / Edge falloff width
         _padding3: 0.0,
-        camera_position,
-        fog_range: fog_settings.fog_range,
-        max_intensity: fog_settings.max_intensity,
     };
 
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -279,8 +324,14 @@ impl ViewNode for FogNode {
                 world.query_filtered::<Entity, (With<ExtractedView>, With<FogCameraMarker>)>();
             let mut iter = query.iter(world);
             match iter.next() {
-                Some(entity) => entity,
-                None => return,
+                Some(entity) => {
+                    println!("迷雾渲染系统找到了带有FogCameraMarker的相机实体");
+                    entity
+                }
+                None => {
+                    println!("迷雾渲染系统没有找到带有FogCameraMarker的相机实体");
+                    return;
+                }
             }
         };
 
@@ -300,24 +351,35 @@ impl ViewNode for FogNode {
             (Some(pipeline), Some(settings)) => (pipeline, settings),
             _ => return,
         };
-
+        // 创建绑定组，包含纹理、采样器和迷雾设置
+        // Create bind group with texture, sampler and fog settings
+        println!("迷雾渲染系统创建绑定组");
+        println!("Fog render system creating bind group");
         self.bind_group = Some(render_device.create_bind_group(
             "fog_bind_group",
             &fog_pipeline.layout,
             &[
-                // 使用 main_texture 作为输入资源
-                // Use main_texture as input resource
+                // 输入纹理 - 使用主纹理
+                // Input texture - use main texture
                 BindGroupEntry {
                     binding: 0,
                     resource: BindingResource::TextureView(view_target.main_texture_view()),
                 },
+                // 采样器
+                // Sampler
                 BindGroupEntry {
                     binding: 1,
                     resource: BindingResource::Sampler(&fog_pipeline.sampler),
                 },
+                // 迷雾设置统一缓冲区
+                // Fog settings uniform buffer
                 BindGroupEntry {
                     binding: 2,
-                    resource: fog_settings_uniform.buffer.as_entire_binding(),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &fog_settings_uniform.buffer,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
             ],
         ));
@@ -330,26 +392,39 @@ impl ViewNode for FogNode {
         (view_target, ): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        println!("迷雾渲染系统正在运行");
         let fog_pipeline = world.resource::<FogPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
         let bind_group = match &self.bind_group {
             Some(bind_group) => bind_group,
-            None => return Ok(()),
+            None => {
+                println!("迷雾渲染系统没有绑定组");
+                return Ok(());
+            }
         };
 
         let pipeline = match pipeline_cache.get_render_pipeline(fog_pipeline.pipeline_id) {
             Some(pipeline) => pipeline,
-            None => return Ok(()),
+            None => {
+                println!("迷雾渲染系统没有找到渲染管线");
+                return Ok(());
+            }
         };
-        // 使用 out_texture 作为渲染目标，而不是 main_texture
-        // Use out_texture as render target instead of main_texture
+        println!("迷雾渲染系统找到了绑定组和渲染管线");
+        // 使用 main_texture 作为渲染目标，确保效果会显示
+        // Use main_texture as render target to ensure effect will be displayed
+        println!("迷雾渲染系统开始渲染通道");
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_pass"),
+            // 使用 post_process_write 作为渲染目标，这样我们可以将结果写入不同的纹理
+            // Use post_process_write as render target so we can write to a different texture
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: view_target.out_texture(),
+                view: view_target.post_process_write().destination,
                 resolve_target: None,
                 ops: Operations {
+                    // 使用 Load 操作保留原始内容
+                    // Use Load operation to preserve original content
                     load: LoadOp::Load,
                     store: StoreOp::Store,
                 },
@@ -359,9 +434,15 @@ impl ViewNode for FogNode {
             occlusion_query_set: None,
         });
 
+        println!("迷雾渲染系统设置管线: {:?}", pipeline);
         render_pass.set_render_pipeline(pipeline);
+
+        println!("迷雾渲染系统设置绑定组: {:?}", bind_group);
         render_pass.set_bind_group(0, bind_group, &[]);
+
+        println!("迷雾渲染系统开始绘制三角形");
         render_pass.draw(0..3, 0..1);
+        println!("迷雾渲染系统完成绘制");
 
         Ok(())
     }

@@ -57,6 +57,13 @@ var<uniform> settings: FogSettings;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+    // 直接返回一个纯红色，用于测试着色器是否正常工作
+    // Return a pure red color to test if the shader is working properly
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    
+    // 下面是原始的迷雾计算代码
+    // Below is the original fog calculation code
+    /*
     // 获取原始颜色
     // Get the original color
     let original_color = textureSample(screen_texture, texture_sampler, in.uv);
@@ -79,7 +86,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         1.0 - exp(-distance_to_camera * settings.density)
     );
     
-    // 混合原始颜色和迷雾颜色 (默认为黑色)
-    // Blend original color and fog color (default to black)
+    // 混合原始颜色和迷雾颜色
+    // Blend original color and fog color
     return mix(original_color, settings.color, fog_factor);
+    */
 }
