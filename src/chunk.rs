@@ -36,10 +36,7 @@ impl Chunk {
     /// 创建一个新的区块
     /// Create a new chunk
     pub fn new(index: IVec2, size: f32) -> Self {
-        Self {
-            index,
-            size,
-        }
+        Self { index, size }
     }
 
     /// 从世界坐标创建区块
@@ -77,10 +74,10 @@ impl Chunk {
     /// Determine if world coordinates are within this chunk
     pub fn contains(&self, world_pos: Vec2) -> bool {
         let chunk_pos = self.get_world_pos();
-        world_pos.x >= chunk_pos.x && 
-        world_pos.x < chunk_pos.x + self.size && 
-        world_pos.y >= chunk_pos.y && 
-        world_pos.y < chunk_pos.y + self.size
+        world_pos.x >= chunk_pos.x
+            && world_pos.x < chunk_pos.x + self.size
+            && world_pos.y >= chunk_pos.y
+            && world_pos.y < chunk_pos.y + self.size
     }
 }
 
@@ -126,14 +123,14 @@ impl ChunkManager {
     pub fn get_chunks_in_camera_view(&self, camera_position: Vec2) -> Vec<IVec2> {
         let center_chunk_index = self.get_chunk_index(camera_position);
         let mut chunk_indices = Vec::new();
-        
+
         let range = self.view_range as i32;
         for y in -range..=range {
             for x in -range..=range {
                 chunk_indices.push(center_chunk_index + IVec2::new(x, y));
             }
         }
-        
+
         chunk_indices
     }
 }

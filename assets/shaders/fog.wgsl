@@ -26,8 +26,8 @@ fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 // 片段着色器
 // Fragment shader
 struct FogSettings {
-    // 迷雾颜色
-    // Fog color
+    // 迷雾颜色 (默认为黑色)
+    // Fog color (default to black)
     color: vec4<f32>,
     // 迷雾密度
     // Fog density
@@ -54,18 +54,12 @@ var screen_texture: texture_2d<f32>;
 var texture_sampler: sampler;
 @group(0) @binding(2)
 var<uniform> settings: FogSettings;
-@group(0) @binding(3)
-var depth_texture: texture_depth_2d;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // 获取原始颜色
     // Get the original color
     let original_color = textureSample(screen_texture, texture_sampler, in.uv);
-    
-    // 获取深度值
-    // Get the depth value
-    let depth = textureSample(depth_texture, texture_sampler, in.uv);
     
     // 计算世界坐标
     // Calculate world coordinates
@@ -85,7 +79,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         1.0 - exp(-distance_to_camera * settings.density)
     );
     
-    // 混合原始颜色和迷雾颜色
-    // Blend original color and fog color
+    // 混合原始颜色和迷雾颜色 (默认为黑色)
+    // Blend original color and fog color (default to black)
     return mix(original_color, settings.color, fog_factor);
 }

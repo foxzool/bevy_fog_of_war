@@ -4,33 +4,32 @@ use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
 use bevy::render::render_graph::{RenderGraphApp, RenderLabel, ViewNode, ViewNodeRunner};
 use bevy::render::render_resource::{
     BufferInitDescriptor, CachedRenderPipelineId, LoadOp, Operations, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipeline, StoreOp,
+    RenderPassDescriptor, StoreOp,
 };
 use bevy::render::renderer::RenderContext;
 use bevy::render::Render;
 use bevy::{
-    core_pipeline::{core_2d, fullscreen_vertex_shader::fullscreen_shader_vertex_state},
+    core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_graph::{
-            Node, NodeRunError, RenderGraphContext, RenderGraphError, SlotInfo, SlotType,
+            NodeRunError, RenderGraphContext,
         },
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
+            BindGroup, BindGroupEntry, BindGroupLayout
+            , BindGroupLayoutEntry, BindingResource, BindingType,
             ColorTargetState, ColorWrites, FragmentState, MultisampleState, PipelineCache,
             PrimitiveState, RenderPipelineDescriptor, SamplerBindingType, SamplerDescriptor,
             ShaderStages, TextureFormat, TextureSampleType, TextureViewDimension,
         },
-        render_resource::{Buffer, BufferDescriptor, BufferUsages, Sampler, ShaderRef, ShaderType},
+        render_resource::{Buffer, BufferUsages, Sampler, ShaderType},
         renderer::RenderDevice,
         view::{ExtractedView, ViewTarget},
         RenderApp, RenderSet,
     },
 };
 use bytemuck;
-use std::num::NonZeroU32;
 
 /// 迷雾相机标记组件
 /// Fog camera marker component
@@ -58,7 +57,7 @@ pub struct FogSettings {
 impl Default for FogSettings {
     fn default() -> Self {
         Self {
-            color: Color::srgba(0.5, 0.5, 0.5, 1.0),
+            color: Color::srgba(0.0, 0.0, 0.0, 1.0), // 黑色迷雾 / Black fog
             density: 0.05,
             fog_range: 1000.0,
             max_intensity: 0.8,
@@ -85,7 +84,11 @@ impl Plugin for FogPlugin {
             .add_render_graph_node::<ViewNodeRunner<FogNode>>(Core2d, FogNodeLabel)
             .add_render_graph_edges(
                 Core2d,
-                (Node2d::Tonemapping, FogNodeLabel, Node2d::EndMainPass),
+                (
+                    Node2d::MainTransparentPass,
+                    FogNodeLabel,
+                    Node2d::EndMainPass,
+                ),
             );
     }
 
@@ -152,18 +155,6 @@ impl FromWorld for FogPipeline {
                     },
                     count: None,
                 },
-                // 深度纹理
-                // Depth texture
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Depth,
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
             ],
         );
 
@@ -179,8 +170,10 @@ impl FromWorld for FogPipeline {
                 shader,
                 shader_defs: vec![],
                 entry_point: "fragment".into(),
+                // 使用与渲染通道相同的格式
+                // Use the same format as the render pass
                 targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::bevy_default(),
+                    format: TextureFormat::Bgra8UnormSrgb, // 显式指定格式而不是使用 bevy_default()
                     blend: None,
                     write_mask: ColorWrites::ALL,
                 })],
@@ -228,7 +221,7 @@ fn prepare_fog_settings(
     render_device: Res<RenderDevice>,
     fog_settings: Res<FogSettings>,
     mut commands: Commands,
-    mut fog_settings_uniform: Option<ResMut<FogSettingsUniform>>,
+    fog_settings_uniform: Option<ResMut<FogSettingsUniform>>,
     views: Query<(&ExtractedView, &Camera, &GlobalTransform), With<FogCameraMarker>>,
 ) {
     // 只处理第一个相机
@@ -237,9 +230,6 @@ fn prepare_fog_settings(
         Some(v) => v,
         None => return,
     };
-
-    println!("get camera");
-
     let camera_position = transform.translation().truncate();
 
     let settings = GpuFogSettings {
@@ -300,8 +290,6 @@ impl ViewNode for FogNode {
             return;
         };
 
-        println!("get view_target");
-
         let fog_pipeline = world.get_resource::<FogPipeline>();
         let fog_settings_uniform = world.get_resource::<FogSettingsUniform>();
         let render_device = world.resource::<RenderDevice>();
@@ -313,12 +301,12 @@ impl ViewNode for FogNode {
             _ => return,
         };
 
-        println!("get all needed");
-
         self.bind_group = Some(render_device.create_bind_group(
             "fog_bind_group",
             &fog_pipeline.layout,
             &[
+                // 使用 main_texture 作为输入资源
+                // Use main_texture as input resource
                 BindGroupEntry {
                     binding: 0,
                     resource: BindingResource::TextureView(view_target.main_texture_view()),
@@ -331,10 +319,6 @@ impl ViewNode for FogNode {
                     binding: 2,
                     resource: fog_settings_uniform.buffer.as_entire_binding(),
                 },
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::TextureView(view_target.out_texture()),
-                },
             ],
         ));
     }
@@ -343,7 +327,7 @@ impl ViewNode for FogNode {
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target,): QueryItem<Self::ViewQuery>,
+        (view_target, ): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let fog_pipeline = world.resource::<FogPipeline>();
@@ -358,11 +342,12 @@ impl ViewNode for FogNode {
             Some(pipeline) => pipeline,
             None => return Ok(()),
         };
-
+        // 使用 out_texture 作为渲染目标，而不是 main_texture
+        // Use out_texture as render target instead of main_texture
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: view_target.main_texture_view(),
+                view: view_target.out_texture(),
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Load,

@@ -1,7 +1,7 @@
 use crate::chunk::{Chunk, ChunkManager, ChunkNeedsGeneration};
-use bevy::prelude::*;
-use bevy::render::primitives::{Frustum, Aabb};
 use bevy::math::Affine3A;
+use bevy::prelude::*;
+use bevy::render::primitives::{Aabb, Frustum};
 
 /// 在相机视野椎体内检查和生成区块的系统
 /// System for checking and generating chunks within the camera frustum
@@ -36,9 +36,9 @@ pub fn check_and_generate_chunks_in_view(
 
     // 滑后区域参数，用于减少闪烁
     // Hysteresis parameters to reduce flickering
-    const INNER_BUFFER_FACTOR: f32 = 0.0;  // 内部缓冲区因子（用于添加区块）
-    const OUTER_BUFFER_FACTOR: f32 = 0.5;  // 外部缓冲区因子（用于移除区块）
-    
+    const INNER_BUFFER_FACTOR: f32 = 0.0; // 内部缓冲区因子（用于添加区块）
+    const OUTER_BUFFER_FACTOR: f32 = 0.5; // 外部缓冲区因子（用于移除区块）
+
     // 收集现有区块的索引并标记视野外的区块以便移除
     // Collect indices of existing chunks and mark chunks outside the view for removal
     for (entity, chunk, transform) in existing_chunks.iter() {
@@ -46,39 +46,35 @@ pub fn check_and_generate_chunks_in_view(
 
         // 创建区块的AABB包围盒用于视锥体检测
         // Create AABB bounding box for the chunk for frustum culling
-        let chunk_min = Vec3::new(
-            transform.translation.x,
-            transform.translation.y,
-            0.0,
-        );
+        let chunk_min = Vec3::new(transform.translation.x, transform.translation.y, 0.0);
         let chunk_max = Vec3::new(
             transform.translation.x + chunk.size,
             transform.translation.y + chunk.size,
             0.0,
         );
-        
+
         // 如果区块不在基础视野范围内，标记为移除
         // If the chunk is not in the basic view range, mark it for removal
         let in_distance_range = potential_chunks.contains(&chunk.index);
-        
+
         // 创建一个更大的外部边界，用于决定何时移除区块
         // Create a larger outer boundary to decide when to remove chunks
         let outer_buffer = chunk.size * OUTER_BUFFER_FACTOR;
         let outer_min = Vec3::new(
             chunk_min.x - outer_buffer,
             chunk_min.y - outer_buffer,
-            chunk_min.z
+            chunk_min.z,
         );
         let outer_max = Vec3::new(
             chunk_max.x + outer_buffer,
             chunk_max.y + outer_buffer,
-            chunk_max.z
+            chunk_max.z,
         );
-        
+
         // 检查区块是否在外部边界内
         // Check if the chunk is within the outer boundary
         let in_outer_boundary = is_aabb_in_frustum(outer_min, outer_max, frustum);
-        
+
         // 只有当区块完全超出外部边界或不在距离范围内时才移除
         // Only remove the chunk when it is completely outside the outer boundary or not in distance range
         if !in_distance_range || !in_outer_boundary {
@@ -100,7 +96,7 @@ pub fn check_and_generate_chunks_in_view(
             // Calculate world coordinates for the chunk
             let chunk_pos_x = chunk_index.x as f32 * chunk_manager.chunk_size;
             let chunk_pos_y = chunk_index.y as f32 * chunk_manager.chunk_size;
-            
+
             // 创建区块的AABB包围盒用于视锥体检测
             // Create AABB bounding box for the chunk for frustum culling
             let chunk_min = Vec3::new(chunk_pos_x, chunk_pos_y, 0.0);
@@ -109,36 +105,32 @@ pub fn check_and_generate_chunks_in_view(
                 chunk_pos_y + chunk_manager.chunk_size,
                 0.0,
             );
-            
+
             // 创建一个较小的内部边界，用于决定何时添加区块
             // Create a smaller inner boundary to decide when to add chunks
             let inner_buffer = chunk_manager.chunk_size * INNER_BUFFER_FACTOR;
             let inner_min = Vec3::new(
                 chunk_min.x - inner_buffer,
                 chunk_min.y - inner_buffer,
-                chunk_min.z
+                chunk_min.z,
             );
             let inner_max = Vec3::new(
                 chunk_max.x + inner_buffer,
                 chunk_max.y + inner_buffer,
-                chunk_max.z
+                chunk_max.z,
             );
-            
+
             // 检查区块是否在内部边界内
             // Check if the chunk is within the inner boundary
             let in_inner_boundary = is_aabb_in_frustum(inner_min, inner_max, frustum);
-            
+
             // 只有当区块在内部边界内时才创建它
             // Only create the chunk when it is within the inner boundary
             if in_inner_boundary {
                 commands.spawn((
                     Chunk::new(chunk_index, chunk_manager.chunk_size),
                     ChunkNeedsGeneration,
-                    Transform::from_translation(Vec3::new(
-                        chunk_pos_x,
-                        chunk_pos_y,
-                        0.0,
-                    )),
+                    Transform::from_translation(Vec3::new(chunk_pos_x, chunk_pos_y, 0.0)),
                     Visibility::default(),
                 ));
             }
@@ -155,7 +147,7 @@ fn is_aabb_in_frustum(min: Vec3, max: Vec3, frustum: &Frustum) -> bool {
         center: ((min + max) * 0.5).into(),
         half_extents: ((max - min) * 0.5).into(),
     };
-    
+
     // 使用Frustum的intersects_obb方法检查AABB是否与视锥体相交
     // Use Frustum's intersects_obb method to check if AABB intersects with frustum
     let world_from_local = Affine3A::from_translation(Vec3::ZERO);

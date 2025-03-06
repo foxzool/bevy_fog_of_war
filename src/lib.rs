@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
 mod chunk;
-mod systems;
 mod fog;
+mod systems;
 
 pub use chunk::{Chunk, ChunkManager};
-pub use fog::{FogSettings, FogPlugin, FogCameraMarker};
-use systems::{check_and_generate_chunks_in_view, process_chunk_generation, debug_draw_chunk_boundaries};
+pub use fog::{FogCameraMarker, FogPlugin, FogSettings};
+use systems::{
+    check_and_generate_chunks_in_view, debug_draw_chunk_boundaries, process_chunk_generation,
+};
 
 /// 迷雾战争插件配置
 /// Fog of War plugin configuration
@@ -37,16 +39,18 @@ pub struct FogOfWarPlugin;
 
 impl Plugin for FogOfWarPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<FogOfWarConfig>()
+        app.init_resource::<FogOfWarConfig>()
             .init_resource::<ChunkManager>()
             .init_resource::<FogSettings>()
             .add_plugins(FogPlugin)
-            .add_systems(Update, (
-                check_and_generate_chunks_in_view,
-                process_chunk_generation,
-            ))
-            .add_systems(Update, debug_draw_chunk_boundaries.run_if(|config: Res<FogOfWarConfig>| config.debug_draw));
+            .add_systems(
+                Update,
+                (check_and_generate_chunks_in_view, process_chunk_generation),
+            )
+            .add_systems(
+                Update,
+                debug_draw_chunk_boundaries.run_if(|config: Res<FogOfWarConfig>| config.debug_draw),
+            );
     }
 }
 
@@ -55,8 +59,5 @@ impl Plugin for FogOfWarPlugin {
 pub fn setup_fog_of_war(mut commands: Commands, config: ResMut<FogOfWarConfig>) {
     // 创建区块管理器
     // Create chunk manager
-    commands.insert_resource(ChunkManager::new(
-        config.chunk_size,
-        config.view_range,
-    ));
+    commands.insert_resource(ChunkManager::new(config.chunk_size, config.view_range));
 }
