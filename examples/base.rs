@@ -1,5 +1,6 @@
 use bevy::color::palettes::basic;
-use bevy::color::palettes::css::RED;
+use bevy::color::palettes::css::{GOLD, RED};
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_fog_of_war::{
     setup_fog_of_war, FogCameraMarker, FogOfWarConfig, FogOfWarPlugin, FogSettings,
@@ -7,14 +8,17 @@ use bevy_fog_of_war::{
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Fog of War Example".into(),
-                resolution: (1280.0, 720.0).into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Fog of War Example".into(),
+                    resolution: (1280.0, 720.0).into(),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            FrameTimeDiagnosticsPlugin
+        ))
         .insert_resource(FogOfWarConfig {
             chunk_size: 256.0,
             view_range: 5,
@@ -33,13 +37,28 @@ fn main() {
             // Edge falloff width
             clear_falloff: 1.0,
         })
-        .add_systems(Startup, (setup, setup_fog_of_war))
-        .add_systems(Update, (camera_movement, update_fog_settings))
+        .add_systems(Startup, (setup, setup_fog_of_war, setup_ui))
+        .add_systems(Update, (camera_movement, update_fog_settings, update_fps_text, update_fog_settings_text, text_color_animation))
         .run();
 }
 
 #[derive(Component)]
 struct MainCamera;
+
+/// 帧率文本组件标记
+/// FPS text component marker
+#[derive(Component)]
+struct FpsText;
+
+/// 迷雾设置文本组件标记
+/// Fog settings text component marker
+#[derive(Component)]
+struct FogSettingsText;
+
+/// 颜色动画文本组件标记
+/// Color animation text component marker
+#[derive(Component)]
+struct ColorAnimatedText;
 
 fn setup(mut commands: Commands, mut fog_settings: ResMut<FogSettings>) {
     // 配置迷雾设置
@@ -235,6 +254,143 @@ fn update_fog_settings(
         println!(
             "迷雾最大强度 / Max fog intensity: {}",
             fog_settings.max_intensity
+        );
+    }
+}
+
+/// 设置 UI 系统
+/// Setup UI system
+fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+    
+    // 创建 FPS 显示文本
+    // Create FPS display text
+    commands
+        .spawn((
+            // 创建一个带有多个部分的文本
+            // Create a Text with multiple sections
+            Text::new("FPS: "),
+            TextFont {
+
+                font_size: 24.0,
+                ..default()
+            },
+            // 设置节点样式
+            // Set node style
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(10.0),
+                left: Val::Px(10.0),
+                ..default()
+            },
+        ))
+        .with_child((
+            TextSpan::default(),
+            TextFont {
+                font_size: 24.0,
+                ..default()
+            },
+            TextColor(GOLD.into()),
+            FpsText,
+        ));
+    
+    // 创建迷雾设置显示文本
+    // Create fog settings display text
+    commands.spawn((
+        Text::new(""),
+        TextFont {
+            font_size: 16.0,
+            ..default()
+        },
+        TextLayout::new_with_justify(JustifyText::Left),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(40.0),
+            left: Val::Px(10.0),
+            ..default()
+        },
+        FogSettingsText,
+    ));
+    
+    // 创建颜色动画标题文本
+    // Create color animated title text
+    commands.spawn((
+        Text::new("Fog of War System"),
+        TextFont {
+            font_size: 32.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(20.0),
+            right: Val::Px(20.0),
+            ..default()
+        },
+        ColorAnimatedText,
+    ));
+}
+
+/// 更新 FPS 文本系统
+/// Update FPS text system
+fn update_fps_text(
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut TextSpan, With<FpsText>>,
+) {
+    for mut span in &mut query {
+        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(value) = fps.smoothed() {
+                // 更新 FPS 文本值
+                // Update FPS text value
+                **span = format!("{value:.1}");
+            }
+        }
+    }
+}
+
+/// 更新迷雾设置文本系统
+/// Update fog settings text system
+fn update_fog_settings_text(
+    fog_settings: Res<FogSettings>,
+    mut query: Query<&mut Text, With<FogSettingsText>>,
+) {
+    for mut text in &mut query {
+        // 格式化颜色显示
+        // Format color display
+        let color_text = format!(
+            "R: {:.2}, G: {:.2}, B: {:.2}, A: {:.2}",
+            fog_settings.color.to_linear().red,
+            fog_settings.color.to_linear().green,
+            fog_settings.color.to_linear().blue,
+            fog_settings.color.to_linear().alpha
+        );
+        
+        // 更新设置文本
+        // Update settings text
+        **text = format!(
+            " Color: {}\n Density: {:.2}\n Range: {:.2}\n Max: {:.2}\n Clear: {:.2}\n Falloff: {:.2}",
+            color_text,
+            fog_settings.density,
+            fog_settings.fog_range,
+            fog_settings.max_intensity,
+            fog_settings.clear_radius,
+            fog_settings.clear_falloff
+        );
+    }
+}
+
+/// 文本颜色动画系统
+/// Text color animation system
+fn text_color_animation(time: Res<Time>, mut query: Query<&mut TextColor, With<ColorAnimatedText>>) {
+    for mut text_color in &mut query {
+        let seconds = time.elapsed_secs();
+        
+        // 更新颜色动画文本的颜色
+        // Update the color of the animated text
+        text_color.0 = Color::hsl(
+            (seconds * 20.0) % 360.0,  // 色相随时间变化 / Hue changes with time
+            0.7,                       // 饱和度 / Saturation
+            0.7,                       // 亮度 / Lightness
         );
     }
 }
