@@ -18,7 +18,7 @@ fn main() {
         })
         .add_plugins(FogOfWarPlugin)
         .insert_resource(FogSettings {
-            color: Color::rgba(0.1, 0.1, 0.2, 1.0),
+            color: Color::srgba(0.1, 0.1, 0.2, 1.0),
             density: 0.003,
             fog_range: 2000.0,
             max_intensity: 0.9,

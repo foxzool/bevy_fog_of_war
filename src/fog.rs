@@ -71,13 +71,21 @@ impl Plugin for FogPlugin {
         };
 
         render_app
-            .init_resource::<FogPipeline>()
+
             .add_systems(Render, prepare_fog_settings.in_set(RenderSet::Prepare))
             .add_render_graph_node::<ViewNodeRunner<FogNode>>(Core2d, FogNodeLabel)
             .add_render_graph_edges(
                 Core2d,
                 (Node2d::Tonemapping, FogNodeLabel, Node2d::EndMainPass),
             );
+    }
+
+    fn finish(&self, app: &mut App) {
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+
+        render_app.init_resource::<FogPipeline>();
     }
 }
 
@@ -256,7 +264,7 @@ impl FogNode {
 }
 
 impl ViewNode for FogNode {
-    type ViewQuery = ();
+    type ViewQuery = (&'static ViewTarget,);
 
     fn update(&mut self, world: &mut World) {
         // 只处理第一个相机
@@ -272,7 +280,7 @@ impl ViewNode for FogNode {
 
         // 先获取所有需要的资源
         // Get all required resources first
-        let view_target = world.get::<ViewTarget>(view_entity).unwrap().clone();
+        let view_target = world.get::<ViewTarget>(view_entity).unwrap();
         let fog_pipeline = world.resource::<FogPipeline>();
         let fog_settings_uniform = world.resource::<FogSettingsUniform>();
         let render_device = world.resource::<RenderDevice>();
@@ -305,7 +313,7 @@ impl ViewNode for FogNode {
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (): QueryItem<Self::ViewQuery>,
+        (view_target, ): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let fog_pipeline = world.resource::<FogPipeline>();
@@ -339,9 +347,7 @@ impl ViewNode for FogNode {
             }
         };
 
-        // 先获取ViewTarget并克隆
-        // Get ViewTarget first and clone it
-        let view_target = world.get::<ViewTarget>(view_entity).unwrap().clone();
+
 
         let mut render_pass = render_context.begin_tracked_render_pass(
             RenderPassDescriptor {
