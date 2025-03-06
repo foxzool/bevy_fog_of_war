@@ -195,10 +195,10 @@ impl FromWorld for FogPipeline {
                 entry_point: "fragment".into(),
                 // 使用视图目标的标准格式
                 // Use the standard format of the view target
-                // 使用 Bgra8UnormSrgb 格式，根据先前的测试结果
-                // Use Bgra8UnormSrgb format, based on previous test results
+                // 使用 Rgba8UnormSrgb 格式，根据先前的测试结果
+                // Use Rgba8UnormSrgb format, based on previous test results
                 targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
+                    format: TextureFormat::Rgba8UnormSrgb,
                     // 使用透明混合模式，确保迷雾效果正确混合
                     // Use alpha blending to ensure fog effect blends correctly
                     blend: Some(BlendState {
@@ -423,9 +423,9 @@ impl ViewNode for FogNode {
                 view: view_target.post_process_write().destination,
                 resolve_target: None,
                 ops: Operations {
-                    // 使用 Load 操作保留原始内容
-                    // Use Load operation to preserve original content
-                    load: LoadOp::Load,
+                    // 使用 Clear 操作确保渲染结果可见
+                    // Use Clear operation to ensure rendering results are visible
+                    load: LoadOp::Clear(Color::NONE.to_linear().into()),
                     store: StoreOp::Store,
                 },
             })],

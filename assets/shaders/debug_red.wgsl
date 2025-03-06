@@ -182,6 +182,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         base_fog_color.a
     );
     
+    // 在迷雾区域使用正常的混合模式
+    // Use normal blending mode in fog area
+    let fog_result = mix(scene_color, adjusted_fog_color, clamp(fog_intensity, 0.0, 1.0));
+    
     // 在相机周围的透明区域处理
     // Handle the clear area around camera
     if in_clear_area > 0.01 {
@@ -196,10 +200,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
             return mix(fog_result, scene_color, edge_blend);
         }
     }
-    
-    // 在迷雾区域使用正常的混合模式
-    // Use normal blending mode in fog area
-    let fog_result = mix(scene_color, adjusted_fog_color, clamp(fog_intensity, 0.0, 1.0));
     
     // 添加轻微的光晕效果
     // Add subtle bloom effect
