@@ -87,8 +87,6 @@ impl Plugin for FogPlugin {
             .add_render_graph_node::<ViewNodeRunner<FogNode>>(Core2d, FogNodeLabel)
             .add_render_graph_edges(Core2d, (Node2d::MainTransparentPass, FogNodeLabel, Node2d::EndMainPass));
 
-        println!("已将迷雾节点添加到渲染图中，位于 MainTransparentPass 和 EndMainPass 之间");
-        println!("Added fog node to render graph, between MainTransparentPass and EndMainPass");
     }
 
     fn finish(&self, app: &mut App) {
@@ -110,7 +108,6 @@ pub struct FogNodeLabel;
 #[derive(Resource)]
 struct FogPipeline {
     layout: BindGroupLayout,
-    sampler: Sampler,
     pipeline_id: CachedRenderPipelineId,
 }
 
@@ -119,35 +116,15 @@ impl FromWorld for FogPipeline {
         let render_device = world.resource::<RenderDevice>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
-        // 创建绑定组布局，需要纹理、采样器和迷雾设置
-        // Create bind group layout with texture, sampler and fog settings
+        // 创建绑定组布局，只需要迷雾设置
+        // Create bind group layout with fog settings only
         let layout = render_device.create_bind_group_layout(
             "fog_bind_group_layout",
             &[
-                // 输入纹理绑定
-                // Input texture binding
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // 采样器绑定
-                // Sampler binding
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
                 // 迷雾设置统一缓冲区
                 // Fog settings uniform buffer
                 BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 0,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
@@ -159,17 +136,8 @@ impl FromWorld for FogPipeline {
             ],
         );
 
-        // 创建线性过滤采样器
-        // Create linear filtering sampler
-        let sampler = render_device.create_sampler(&SamplerDescriptor {
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest,
-            ..default()
-        });
+        // 不再需要采样器
+        // Sampler no longer needed
 
         // 这部分代码已移至上方，使用更明确的着色器加载方式
         // This part of code has been moved above, using a more explicit shader loading method
@@ -178,13 +146,10 @@ impl FromWorld for FogPipeline {
         // Wait for shader resource to be loaded
         let shader_handle = world
             .resource::<AssetServer>()
-            .load::<Shader>("shaders/debug_red.wgsl");
+            .load::<Shader>("shaders/fog_only.wgsl");
 
         // 确保着色器已加载
         // Ensure shader is loaded
-        println!("正在加载迷雾着色器...");
-        println!("Loading fog shader...");
-
         let pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("fog_pipeline".into()),
             layout: vec![layout.clone()],
@@ -227,7 +192,6 @@ impl FromWorld for FogPipeline {
 
         Self {
             layout,
-            sampler,
             pipeline_id,
         }
     }
@@ -325,11 +289,9 @@ impl ViewNode for FogNode {
             let mut iter = query.iter(world);
             match iter.next() {
                 Some(entity) => {
-                    println!("迷雾渲染系统找到了带有FogCameraMarker的相机实体");
                     entity
                 }
                 None => {
-                    println!("迷雾渲染系统没有找到带有FogCameraMarker的相机实体");
                     return;
                 }
             }
@@ -351,30 +313,16 @@ impl ViewNode for FogNode {
             (Some(pipeline), Some(settings)) => (pipeline, settings),
             _ => return,
         };
-        // 创建绑定组，包含纹理、采样器和迷雾设置
-        // Create bind group with texture, sampler and fog settings
-        println!("迷雾渲染系统创建绑定组");
-        println!("Fog render system creating bind group");
+        // 创建绑定组，只包含迷雾设置
+        // Create bind group with fog settings only
         self.bind_group = Some(render_device.create_bind_group(
             "fog_bind_group",
             &fog_pipeline.layout,
             &[
-                // 输入纹理 - 使用主纹理
-                // Input texture - use main texture
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::TextureView(view_target.main_texture_view()),
-                },
-                // 采样器
-                // Sampler
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Sampler(&fog_pipeline.sampler),
-                },
                 // 迷雾设置统一缓冲区
                 // Fog settings uniform buffer
                 BindGroupEntry {
-                    binding: 2,
+                    binding: 0,
                     resource: BindingResource::Buffer(BufferBinding {
                         buffer: &fog_settings_uniform.buffer,
                         offset: 0,
@@ -392,14 +340,12 @@ impl ViewNode for FogNode {
         (view_target, ): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        println!("迷雾渲染系统正在运行");
         let fog_pipeline = world.resource::<FogPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
         let bind_group = match &self.bind_group {
             Some(bind_group) => bind_group,
             None => {
-                println!("迷雾渲染系统没有绑定组");
                 return Ok(());
             }
         };
@@ -407,14 +353,11 @@ impl ViewNode for FogNode {
         let pipeline = match pipeline_cache.get_render_pipeline(fog_pipeline.pipeline_id) {
             Some(pipeline) => pipeline,
             None => {
-                println!("迷雾渲染系统没有找到渲染管线");
                 return Ok(());
             }
-        };
-        println!("迷雾渲染系统找到了绑定组和渲染管线");
+        };;
         // 使用 main_texture 作为渲染目标，确保效果会显示
         // Use main_texture as render target to ensure effect will be displayed
-        println!("迷雾渲染系统开始渲染通道");
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_pass"),
             // 使用 post_process_write 作为渲染目标，这样我们可以将结果写入不同的纹理
@@ -434,15 +377,14 @@ impl ViewNode for FogNode {
             occlusion_query_set: None,
         });
 
-        println!("迷雾渲染系统设置管线: {:?}", pipeline);
         render_pass.set_render_pipeline(pipeline);
 
-        println!("迷雾渲染系统设置绑定组: {:?}", bind_group);
+
         render_pass.set_bind_group(0, bind_group, &[]);
 
-        println!("迷雾渲染系统开始绘制三角形");
+
         render_pass.draw(0..3, 0..1);
-        println!("迷雾渲染系统完成绘制");
+
 
         Ok(())
     }
