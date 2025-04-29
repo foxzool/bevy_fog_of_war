@@ -65,80 +65,9 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(6) var history_read: texture_storage_2d_array<r8unorm, read>;
 // History exploration area write texture
 @group(0) @binding(7) var history_write: texture_storage_2d_array<r8unorm, write>;
+@group(0) @binding(8) var snap_read: texture_storage_2d_array<r8unorm, write>;
+@group(0) @binding(9) var snap_write: texture_storage_2d_array<r8unorm, write>;
 
-fn rect(pt: vec2<f32>, center: vec2<f32>, size: vec2<f32>) -> f32 {
-    return step(center.x - size.x * 0.5, pt.x) * step(pt.x, center.x + size.x * 0.5)
-         * step(center.y - size.y * 0.5, pt.y) * step(pt.y, center.y + size.y * 0.5);
-}
-
-fn draw_digit_mask(pt: vec2<f32>, center: vec2<f32>, pattern: u32, size: vec2<f32>, thickness: f32) -> f32 {
-    var m: f32 = 0.0;
-    if ((pattern & 0x01u) != 0u) {
-        let seg_center = center + vec2<f32>(0.0, size.y * 0.5 - thickness * 0.5);
-        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
-    }
-    if ((pattern & 0x02u) != 0u) {
-        let seg_center = center + vec2<f32>(size.x * 0.5 - thickness * 0.5, size.y * 0.25);
-        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
-    }
-    if ((pattern & 0x04u) != 0u) {
-        let seg_center = center + vec2<f32>(size.x * 0.5 - thickness * 0.5, -size.y * 0.25);
-        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
-    }
-    if ((pattern & 0x08u) != 0u) {
-        let seg_center = center + vec2<f32>(0.0, -size.y * 0.5 + thickness * 0.5);
-        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
-    }
-    if ((pattern & 0x10u) != 0u) {
-        let seg_center = center + vec2<f32>(-size.x * 0.5 + thickness * 0.5, -size.y * 0.25);
-        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
-    }
-    if ((pattern & 0x20u) != 0u) {
-        let seg_center = center + vec2<f32>(-size.x * 0.5 + thickness * 0.5, size.y * 0.25);
-        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
-    }
-    if ((pattern & 0x40u) != 0u) {
-        let seg_center = center + vec2<f32>(0.0, 0.0);
-        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
-    }
-    return clamp(m, 0.0, 1.0);
-}
-
-fn draw_layer_index_mask(pt: vec2<f32>, chunk: ChunkInfo) -> f32 {
-    let idx = chunk.layer_index;
-    var digits: u32 = 1u;
-    if (idx >= 100u) {
-        digits = 3u;
-    } else if (idx >= 10u) {
-        digits = 2u;
-    }
-    let size_base = min(chunk.size.x, chunk.size.y);
-    let base = f32(size_base) * 0.2;
-    let thickness = base * 0.15;
-    let spacing = base * 1.2;
-    let patterns = array<u32, 10>(0x3Fu, 0x06u, 0x5Bu, 0x4Fu, 0x66u, 0x6Du, 0x7Du, 0x07u, 0x7Fu, 0x6Fu);
-    var m: f32 = 0.0;
-    let offset_start = - (f32(digits - 1u) * spacing * 0.5);
-    for (var i: u32 = 0u; i < digits; i = i + 1u) {
-        var divisor: u32 = 1u;
-        if (digits == 3u) {
-            if (i == 0u) {
-                divisor = 100u;
-            } else if (i == 1u) {
-                divisor = 10u;
-            }
-        } else if (digits == 2u) {
-            if (i == 0u) {
-                divisor = 10u;
-            }
-        }
-        let d = (idx / divisor) % 10u;
-        let pat = patterns[d];
-        let digit_center = (chunk.world_min + chunk.world_max) * 0.5 + vec2<f32>(offset_start + f32(i) * spacing, 0.0);
-        m = m + draw_digit_mask(pt, digit_center, pat, vec2<f32>(base, base), thickness);
-    }
-    return clamp(m, 0.0, 1.0);
-}
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
@@ -154,24 +83,6 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
   
    // Determine visibility based on vision sources
     var current_visibility: f32 = 1.0;
-//    // Cache vision count for loop
-//    let vision_count = arrayLength(&visions.sources);
-//    // Iterate through all vision providers
-//    for (var i = 0u; i < vision_count; i++) {
-//       let vision = visions.sources[i];
-//       let d = world_xy - vision.position;
-//       let dist2 = dot(d, d);
-//       let r2 = vision.radius * vision.radius;
-//       if (dist2 < r2) {
-//           // 使用平滑函数计算当前视野的可见性值
-//           // Calculate the visibility value for the current vision using a smooth function
-//           let visibility = select(0.0, 1.0, dist2 < r2);
-//
-//           // 使用累加混合方法替代max函数，从而避免生成明显的边界线
-//           // Use an accumulative blending method instead of max function to avoid creating visible boundary lines
-//           current_visibility = current_visibility + visibility * (1.0 - current_visibility);
-//       }
-//    }
 
 
 
@@ -249,4 +160,80 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // Return the final determined color and alpha
     // The color is the fog color for visible areas.
     return final_color;
+}
+
+
+
+fn rect(pt: vec2<f32>, center: vec2<f32>, size: vec2<f32>) -> f32 {
+    return step(center.x - size.x * 0.5, pt.x) * step(pt.x, center.x + size.x * 0.5)
+         * step(center.y - size.y * 0.5, pt.y) * step(pt.y, center.y + size.y * 0.5);
+}
+
+fn draw_digit_mask(pt: vec2<f32>, center: vec2<f32>, pattern: u32, size: vec2<f32>, thickness: f32) -> f32 {
+    var m: f32 = 0.0;
+    if ((pattern & 0x01u) != 0u) {
+        let seg_center = center + vec2<f32>(0.0, size.y * 0.5 - thickness * 0.5);
+        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
+    }
+    if ((pattern & 0x02u) != 0u) {
+        let seg_center = center + vec2<f32>(size.x * 0.5 - thickness * 0.5, size.y * 0.25);
+        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
+    }
+    if ((pattern & 0x04u) != 0u) {
+        let seg_center = center + vec2<f32>(size.x * 0.5 - thickness * 0.5, -size.y * 0.25);
+        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
+    }
+    if ((pattern & 0x08u) != 0u) {
+        let seg_center = center + vec2<f32>(0.0, -size.y * 0.5 + thickness * 0.5);
+        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
+    }
+    if ((pattern & 0x10u) != 0u) {
+        let seg_center = center + vec2<f32>(-size.x * 0.5 + thickness * 0.5, -size.y * 0.25);
+        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
+    }
+    if ((pattern & 0x20u) != 0u) {
+        let seg_center = center + vec2<f32>(-size.x * 0.5 + thickness * 0.5, size.y * 0.25);
+        m = m + rect(pt, seg_center, vec2<f32>(thickness, size.y * 0.5));
+    }
+    if ((pattern & 0x40u) != 0u) {
+        let seg_center = center + vec2<f32>(0.0, 0.0);
+        m = m + rect(pt, seg_center, vec2<f32>(size.x, thickness));
+    }
+    return clamp(m, 0.0, 1.0);
+}
+
+fn draw_layer_index_mask(pt: vec2<f32>, chunk: ChunkInfo) -> f32 {
+    let idx = chunk.layer_index;
+    var digits: u32 = 1u;
+    if (idx >= 100u) {
+        digits = 3u;
+    } else if (idx >= 10u) {
+        digits = 2u;
+    }
+    let size_base = min(chunk.size.x, chunk.size.y);
+    let base = f32(size_base) * 0.2;
+    let thickness = base * 0.15;
+    let spacing = base * 1.2;
+    let patterns = array<u32, 10>(0x3Fu, 0x06u, 0x5Bu, 0x4Fu, 0x66u, 0x6Du, 0x7Du, 0x07u, 0x7Fu, 0x6Fu);
+    var m: f32 = 0.0;
+    let offset_start = - (f32(digits - 1u) * spacing * 0.5);
+    for (var i: u32 = 0u; i < digits; i = i + 1u) {
+        var divisor: u32 = 1u;
+        if (digits == 3u) {
+            if (i == 0u) {
+                divisor = 100u;
+            } else if (i == 1u) {
+                divisor = 10u;
+            }
+        } else if (digits == 2u) {
+            if (i == 0u) {
+                divisor = 10u;
+            }
+        }
+        let d = (idx / divisor) % 10u;
+        let pat = patterns[d];
+        let digit_center = (chunk.world_min + chunk.world_max) * 0.5 + vec2<f32>(offset_start + f32(i) * spacing, 0.0);
+        m = m + draw_digit_mask(pt, digit_center, pat, vec2<f32>(base, base), thickness);
+    }
+    return clamp(m, 0.0, 1.0);
 }
