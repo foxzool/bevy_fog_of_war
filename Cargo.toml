@@ -1,63 +1,48 @@
 [package]
 name = "bevy_fog_of_war"
-version = "0.0.1"
-edition = "2021"
-readme = "README.md"
-description = "A fog of war implementation for the Bevy game engine. "
-authors = ["FoxZoOL <zhooul@gmail.com>"]
-keywords = ["bevy", "shade", "plugin"]
-categories = ["game-development"]
+version = "0.1.0"
+edition = "2024"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/foxzool/bevy_fog_of_war"
-documentation = "https://docs.rs/bevy_fog_of_war"
-
-[features]
-default = ["2d", "debug_chunk"]
-2d = []
-3d = []
-debug_chunk = []
+authors = ["ZoOL <zhooul@gmail.com>"]
+description = "A 2D fog of war plugin for Bevy"
 
 [dependencies]
-bevy = { version = "0.15", default-features = false, features = [
-    "animation",
-    "bevy_asset",
-    "bevy_color",
-    "bevy_core_pipeline",
-    "bevy_gilrs",
-    "bevy_gizmos",
-    "bevy_gltf",
-    "bevy_mesh_picking_backend",
-    "bevy_pbr",
-    "bevy_picking",
-    "bevy_render",
-    "bevy_scene",
-    "bevy_sprite",
-    "bevy_sprite_picking_backend",
-    "bevy_state",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_picking_backend",
-    "bevy_window",
-    "bevy_winit",
-    "custom_cursor",
-    "default_font",
-    "hdr",
-    "multi_threaded",
-    "png",
-    "smaa_luts",
-    "sysinfo_plugin",
-    "tonemapping_luts",
-    "webgl2",
-    "x11"
+bevy_app = { version = "0.16" }
+bevy_asset = { version = "0.16" }
+bevy_color = { version = "0.16", features = [
+    "serialize",
+    "wgpu-types",
 ] }
-bevy_pbr = "0.15"
-bevy_render = "0.15"
-bytemuck = "1.21.0"
+bevy_derive = { version = "0.16" }
+bevy_diagnostic = { version = "0.16" }
+bevy_ecs = { version = "0.16" }
+bevy_encase_derive = { version = "0.16" }
+bevy_math = { version = "0.16" }
+bevy_render = { version = "0.16" }
+bevy_reflect = { version = "0.16" }
+bevy_render_macros = { version = "0.16" }
+bevy_time = { version = "0.16" }
+bevy_transform = { version = "0.16" }
+bevy_window = { version = "0.16" }
+bevy_utils = { version = "0.16" }
+bevy_tasks = { version = "0.16" }
+bevy_image = { version = "0.16" }
+bevy_mesh = { version = "0.16" }
+bevy_log = { version = "0.16" }
+bevy_core_pipeline = { version = "0.16.0" }
+bevy_platform = { version = "0.16", default-features = false, features = [
+    "std",
+    "serialize",
+] }
+
+encase = { version = "0.10", features = ["glam"] }
+bytemuck = { version = "1.22.0", features = ["derive"] }
+async-channel = "2.3.1"
 
 [dev-dependencies]
-bevy-inspector-egui = "0.28"
+bevy = { version = "0.16" }
+bevy-inspector-egui = { version = "0.31" }
+
 
 [[example]]
-name = "fog_of_war_2d"
-path = "examples/2d.rs"
-required-features = ["2d"]
+name = "playground"

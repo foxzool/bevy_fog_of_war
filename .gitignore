@@ -1,8 +1,11 @@
-debug/
-target/
-/.idea
-/.vscode
+/target
+crates/*/target
+**/*.rs.bk
 Cargo.lock
 .cargo/config
 .cargo/config.toml
-**/*.rs.bk
+/.idea
+/.vscode
+/benches/target
+/.windsurfrules
+.DS_Store
