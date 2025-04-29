@@ -72,14 +72,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Iterate through all vision providers
     for (var i = 0u; i < arrayLength(&visions.sources); i++) {
        let vision = visions.sources[i];
-       let dist = distance(world_xy, vision.position);
-       if (dist < vision.radius) {
-           // 使用平滑函数计算当前视野的可见性值
-           // Calculate the visibility value for the current vision using a smooth function
-           let visibility = select(0.0, 1.0, dist < vision.radius);
-
-           // 使用累加混合方法替代max函数，从而避免生成明显的边界线
-           // Use an accumulative blending method instead of max function to avoid creating visible boundary lines
+       // Use squared distance for performance, avoid sqrt
+       // 使用平方距离代替开方，提升性能
+       let dist_sq = dot(world_xy - vision.position, world_xy - vision.position);
+       let radius_sq = vision.radius * vision.radius;
+       if (dist_sq < radius_sq) {
+           // Use 1.0 if inside radius, 0.0 otherwise
+           // 若在半径范围内为1.0，否则为0.0
+           let visibility = f32(dist_sq < radius_sq);
            current_visibility = current_visibility + visibility * (1.0 - current_visibility);
        }
     }
@@ -100,11 +100,4 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // 同时写入当前帧可见性到vision_texture_write
     // Also write current frame visibility to vision_texture_write
     textureStore(vision_texture_write, pixel_coord, i32(target_layer_index), vec4<f32>(current_visibility, 0.0, 0.0, 1.0));
-}
-
-// Helper function to calculate squared distance between two 2D points
-// 计算两个 2D 点之间距离平方的辅助函数
-fn distanceSquared(p1: vec2<f32>, p2: vec2<f32>) -> f32 {
-    let diff = p1 - p2;
-    return dot(diff, diff);
 }
