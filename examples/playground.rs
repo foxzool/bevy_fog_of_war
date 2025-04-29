@@ -55,7 +55,6 @@ fn main() {
         .add_systems(
             Update,
             (
-                test_chunk,
                 camera_movement,
                 update_fog_settings,
                 update_fps_text,
@@ -402,28 +401,6 @@ fn update_fps_text(
                 // 更新 FPS 文本值
                 // Update FPS text value
                 **span = format!("{value:.1}");
-            }
-        }
-    }
-}
-
-fn test_chunk(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut q_chunk: Query<(Entity, &ChunkTexture, &mut SyncChunk, &MapChunk)>,
-) {
-    for (entity, chunk_texture, mut sync_texture, chunk) in q_chunk.iter_mut() {
-        if chunk.chunk_coord == ChunkCoord::new(-1, -1) {
-            if keyboard.just_pressed(KeyCode::KeyR) {
-                sync_texture.need_download = true;
-            }
-            if keyboard.just_pressed(KeyCode::KeyT) {
-                sync_texture.need_upload = false;
-            }
-            if keyboard.just_pressed(KeyCode::KeyY) {
-
-                if let Some(layer_index) = chunk.layer_index {
-                    sync_texture.need_upload = true;
-                }
             }
         }
     }

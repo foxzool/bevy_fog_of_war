@@ -5,7 +5,7 @@
     position_ndc_to_world,
 }
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 // Represents a single vision source.// 代表单个视野源。
 struct VisionSource {
