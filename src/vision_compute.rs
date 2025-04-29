@@ -2,7 +2,7 @@ use crate::{
     chunk::{ChunkManager, InCameraView, MapChunk},
     fog::{FogOfWarCamera, GpuChunks},
     prelude::ChunkCoord,
-    render::{ChunkTexture, clear_explored_texture_layer, copy_explored_texture_layer},
+    render::ChunkTexture,
     vision::{GpuVisionParams, VisionParamsResource, update_vision_params},
 };
 use bevy_app::{App, Plugin};

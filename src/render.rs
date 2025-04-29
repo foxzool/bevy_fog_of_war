@@ -17,7 +17,7 @@ use bevy_core_pipeline::{
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
 use bevy_image::{BevyDefault, Image};
-use bevy_log::{error, info};
+use bevy_log::error;
 use bevy_render::{
     RenderApp,
     diagnostic::RecordDiagnostics,
@@ -27,7 +27,7 @@ use bevy_render::{
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
         BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, CommandEncoder,
+        CachedRenderPipelineId, ColorTargetState, ColorWrites,
         DynamicUniformBuffer, Extent3d, FragmentState, FrontFace, LoadOp, MultisampleState,
         Operations, Origin3d, PipelineCache, PolygonMode, PrimitiveState,
         RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages,
@@ -41,7 +41,6 @@ use bevy_render_macros::{ExtractComponent, RenderLabel};
 use bevy_time::Time;
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::default;
-use bytemuck::{Pod, Zeroable};
 
 /// 区块纹理组件，存储区块的迷雾纹理 (Moved from chunk.rs)
 /// Chunk texture component, stores the fog texture for a chunk (Moved from chunk.rs)
@@ -335,95 +334,6 @@ impl ViewNode for FogNode2d {
         render_pass.draw(0..3, 0..1);
         pass_span.end(&mut render_pass);
         Ok(())
-    }
-}
-
-// 清空 explored_texture 的某一层
-pub fn clear_explored_texture_layer(
-    render_device: &RenderDevice,
-    encoder: &mut CommandEncoder,
-    explored_texture: &ExploredTexture,
-    layer_id: u32,
-    width: u32,
-    height: u32,
-) {
-    if let Some(write) = &explored_texture.write {
-        // 构造一块全 0 的数据
-        let zero_data = vec![0u8; (width * height) as usize];
-
-        // 创建临时 buffer
-        let buffer = render_device.create_buffer_with_data(
-            &bevy_render::render_resource::BufferInitDescriptor {
-                label: Some("clear_explored_layer_buffer"),
-                contents: &zero_data,
-                usage: bevy_render::render_resource::BufferUsages::COPY_SRC,
-            },
-        );
-
-        // 拷贝 buffer 到纹理指定 z 层
-        encoder.copy_buffer_to_texture(
-            bevy_render::render_resource::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: bevy_render::render_resource::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(width),
-                    rows_per_image: Some(height),
-                },
-            },
-            TexelCopyTextureInfo {
-                texture: &write.texture,
-                mip_level: 0,
-                origin: Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: layer_id,
-                },
-                aspect: TextureAspect::All,
-            },
-            Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-    }
-}
-
-// 复制 explored_texture 的某一层到另一层
-pub fn copy_explored_texture_layer(
-    encoder: &mut CommandEncoder,
-    explored_texture: &ExploredTexture,
-    from: u32,
-    to: u32,
-    width: u32,
-    height: u32,
-) {
-    if let Some(write) = &explored_texture.write {
-        println!("copy {from} to {to}");
-        // Use passed encoder
-        encoder.copy_texture_to_texture(
-            TexelCopyTextureInfo {
-                texture: &write.texture,
-                mip_level: 0,
-                origin: Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: from,
-                },
-                aspect: TextureAspect::All,
-            },
-            TexelCopyTextureInfo {
-                texture: &write.texture,
-                mip_level: 0,
-                origin: Origin3d { x: 0, y: 0, z: to },
-                aspect: TextureAspect::All,
-            },
-            Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
     }
 }
 
