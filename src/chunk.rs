@@ -1,11 +1,6 @@
-use crate::{
-    chunk_sync::SyncChunk,
-    prelude::{FogOfWarCamera, SyncChunkComplete},
-    render::ChunkTexture,
-};
+use crate::{chunk_sync::SyncChunk, prelude::SyncChunkComplete, render::ChunkTexture};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
-use bevy_diagnostic::FrameCount;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_log::{info, warn};
@@ -19,13 +14,9 @@ use bevy_render::{
     renderer::RenderDevice,
 };
 use bevy_render_macros::{ExtractComponent, ExtractResource};
-use bevy_time::Time;
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::prelude::*;
-use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
-};
+use std::{collections::VecDeque, time::Instant};
 
 /// 区块坐标类型，用于标识区块的二维坐标
 /// Chunk coordinate type, used to identify the 2D coordinates of a chunk
@@ -47,7 +38,6 @@ impl Plugin for ChunkPlugin {
             .register_type::<MapChunk>()
             .register_type::<FogData>()
             .register_type::<InCameraView>()
-            .add_systems(First, (clear_need_layers, clear_by_camera))
             .add_systems(
                 PreUpdate,
                 (increment_chunk_timestamp, manage_chunks_by_viewport).chain(),
@@ -247,23 +237,9 @@ pub struct ChunkManager {
     /// Current frame timestamp
     pub current_timestamp: u64,
 
-    // 以下为原ChunkLayerMap字段
-    /// unique_id -> layer_index
-    pub mapping: HashMap<u64, u32>,
-    /// layer_index -> unique_id
-    pub reverse: HashMap<u32, u64>,
     /// FIFO queue
     pub layer_queue: VecDeque<u32>,
-    pub chunk_lifetime: HashMap<u64, u32>,
     pub max_layer_count: u32,
-    pub chunk_layers: HashMap<ChunkCoord, u32>,
-    pub need_clear_layers: Vec<u32>,
-    pub need_copy_layers: Vec<(u32, u32)>,
-    pub last_layer_indices: HashMap<ChunkCoord, u32>,
-    pub screen_mapping: Vec<Option<u32>>,
-    pub sync_to_world: Vec<(ChunkCoord, u32)>,
-    pub sync_to_clean: Vec<(ChunkCoord, u32)>,
-    pub sync_to_render: Vec<(ChunkCoord, u32)>,
 }
 
 impl Default for ChunkManager {
@@ -273,31 +249,16 @@ impl Default for ChunkManager {
         for i in 0..max_layer_count {
             layer_queue.push_back(i);
         }
-        let mut screen_mapping = Vec::with_capacity(max_layer_count as usize);
-        for _i in 0..max_layer_count {
-            screen_mapping.push(None);
-        }
         Self {
             chunk_size: UVec2::splat(DEFAULT_CHUNK_SIZE),
             tile_size: 1.0, // Default tile size, adjust as needed in your app setup
             loaded_chunks: HashMap::new(),
             current_timestamp: 0,
-            mapping: Default::default(),
-            reverse: Default::default(),
             layer_queue,
             chunk_in_views: 0,
             chunks_per_row: 0,
             chunks_per_cols: 0,
             max_layer_count,
-            chunk_lifetime: Default::default(),
-            chunk_layers: Default::default(),
-            need_clear_layers: vec![],
-            need_copy_layers: vec![],
-            last_layer_indices: Default::default(),
-            screen_mapping,
-            sync_to_world: vec![],
-            sync_to_clean: vec![],
-            sync_to_render: vec![],
         }
     }
 }
@@ -306,36 +267,11 @@ impl ChunkManager {
     pub fn update_layer(&mut self, chunk: &mut MapChunk, new_screen_index: u32) {
         chunk.active_time = Instant::now();
 
-        if let Some(chunk_screen_index) = chunk.screen_index {
-            // 移动过了
-            if chunk_screen_index != new_screen_index {
-                // println!("chunk_screen_index: {}", chunk_screen_index);
-                // self.need_copy_layers.push((chunk_screen_index, new_screen_index));
-                // let screen_layer_index = self.screen_mapping.get_mut(chunk_screen_index as
-                // usize).unwrap(); self.layer_queue.push_back(old);
-
-                // *screen_layer_index = Some(layer_index);
-
-                // if chunk.chunk_coord == ChunkCoord::new(-1, -1)
-                // // || chunk.chunk_coord == ChunkCoord::new(-2, -1)
-                // {
-                //     println!(
-                //         "screen index: {} replace {} => {}",
-                //         screen_index, layer_index , old
-                //     );
-                // }
-            } else {
-            }
-        } else {
+        if chunk.screen_index.is_none() {
             // 是从屏幕外进入屏幕
             if let Some(layer_id) = self.layer_queue.pop_front() {
                 // println!("screen_index: {new_screen_index} new layer_id: {}", layer_id);
                 chunk.layer_index = Some(layer_id);
-
-                // chunk.screen_index = Some(screen_index);
-                // *screen_layer_index = Some(layer_id);
-                self.sync_to_clean.push((chunk.chunk_coord, layer_id));
-                self.sync_to_render.push((chunk.chunk_coord, layer_id));
             } else {
                 warn!("not enough layers to update");
             }
@@ -345,20 +281,8 @@ impl ChunkManager {
     }
 
     pub fn unload_layer(&mut self, chunk: &mut MapChunk) {
-        // if chunk.chunk_coord == ChunkCoord::new(-1, -1) {
-        //     println!(
-        //         "unloading layer sid: {:?} lid: {:?}",
-        //         chunk.screen_index, chunk.layer_index
-        //     );
-        // }
         if let Some(layer_id) = chunk.layer_index {
             self.layer_queue.push_back(layer_id);
-
-            if chunk.screen_index.is_some() {
-                self.sync_to_world.push((chunk.chunk_coord, layer_id));
-                self.sync_to_clean.push((chunk.chunk_coord, layer_id));
-            }
-
             chunk.screen_index = None;
             chunk.layer_index = None;
         }
@@ -693,7 +617,7 @@ fn update_chunk_visibility(
                     }
 
                     if opt_in_view.is_none() {
-                        if let Some(layer_index) = chunk.layer_index {
+                        if chunk.layer_index.is_some() {
                             sync_texture.need_upload = true;
                         }
                         commands.entity(entity).insert(InCameraView::default());
@@ -730,35 +654,6 @@ pub struct InCameraView {
     /// 上次更新时间戳
     /// Last update timestamp
     pub last_update: u64,
-}
-fn clear_need_layers(mut chunk_manager: ResMut<ChunkManager>, frame_count: Res<FrameCount>) {
-    chunk_manager.need_clear_layers.clear();
-    chunk_manager.need_copy_layers.clear();
-    // chunk_manager.sync_to_render.clear();
-    chunk_manager.sync_to_clean.clear();
-    chunk_manager.sync_to_world.clear();
-
-    // if frame_count.0 % 2 == 0 {
-    //     chunk_manager.sync_to_render.clear()
-    // } else {
-    //     chunk_manager.sync_to_world.clear();
-    // }
-}
-
-fn clear_by_camera(
-    q_camera: Query<Entity, (With<FogOfWarCamera>, Changed<GlobalTransform>)>,
-
-    mut chunk_manager: ResMut<ChunkManager>,
-    timer: Res<Time>,
-) {
-    let mut has_uploading_task = false;
-    for _ in q_camera.iter() {
-        has_uploading_task = true;
-    }
-
-    if !has_uploading_task {
-        chunk_manager.sync_to_render.clear();
-    }
 }
 
 pub fn ordered_chunks_in_view(

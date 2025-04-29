@@ -409,37 +409,21 @@ fn update_fps_text(
 
 fn test_chunk(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut chunk_manager: ResMut<ChunkManager>,
     mut q_chunk: Query<(Entity, &ChunkTexture, &mut SyncChunk, &MapChunk)>,
-    mut toggle: Local<bool>,
-    mut commands: Commands,
 ) {
     for (entity, chunk_texture, mut sync_texture, chunk) in q_chunk.iter_mut() {
         if chunk.chunk_coord == ChunkCoord::new(-1, -1) {
-            // sync_texture.need_upload = false;
-            // sync_texture.need_download = false;
-
             if keyboard.just_pressed(KeyCode::KeyR) {
                 sync_texture.need_download = true;
-                chunk_manager
-                    .sync_to_world
-                    .push((chunk.chunk_coord, chunk.layer_index.unwrap()));
             }
             if keyboard.just_pressed(KeyCode::KeyT) {
                 sync_texture.need_upload = false;
-                chunk_manager
-                    .sync_to_clean
-                    .push((chunk.chunk_coord, chunk.layer_index.unwrap()));
             }
             if keyboard.just_pressed(KeyCode::KeyY) {
-                *toggle = !*toggle;
 
                 if let Some(layer_index) = chunk.layer_index {
                     sync_texture.need_upload = true;
                 }
-                chunk_manager
-                    .sync_to_render
-                    .push((chunk.chunk_coord, chunk.layer_index.unwrap()));
             }
         }
     }
