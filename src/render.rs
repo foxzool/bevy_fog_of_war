@@ -149,11 +149,11 @@ impl FromWorld for FogOfWar2dPipeline {
                     ), // 4
                     uniform_buffer::<ChunkMeta>(false),                 // 5
                     texture_storage_2d_array(
-                        TextureFormat::Rgba8Unorm,
+                        TextureFormat::R8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 6
                     texture_storage_2d_array(
-                        TextureFormat::Rgba8Unorm,
+                        TextureFormat::R8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 7
                 ),
