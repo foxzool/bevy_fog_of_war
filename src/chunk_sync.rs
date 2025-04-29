@@ -36,7 +36,7 @@ impl Plugin for GpuSyncTexturePlugin {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<ImageCopiers>()
-                .add_systems(ExtractSchedule, (texture_copy_extract, sync_readbacks))
+                .add_systems(ExtractSchedule, (prepare_download_copier, sync_readbacks))
                 .add_systems(
                     Render,
                     (
@@ -60,8 +60,10 @@ fn upload_chunk_texture(
     let Some(explored_read) = &explored_texture.read else {
         return;
     };
-    let mut encoder = render_device.create_command_encoder(&CommandEncoderDescriptor::default());
+
     for chunk_texture in q_sync_chunks.iter() {
+        let mut encoder =
+            render_device.create_command_encoder(&CommandEncoderDescriptor::default());
         if !chunk_texture.need_upload {
             continue;
         }
@@ -69,7 +71,7 @@ fn upload_chunk_texture(
             "uploading layer: {} {}",
             chunk_texture.coord, chunk_texture.layer_index
         );
-        if chunk_texture.coord == ChunkCoord::new(-1, -1) {}
+
         let src_image = gpu_images.get(&chunk_texture.src).unwrap();
 
         let block_dimensions = src_image.texture_format.block_dimensions();
@@ -104,8 +106,9 @@ fn upload_chunk_texture(
             },
             src_image.size,
         );
+
+        render_queue.submit(std::iter::once(encoder.finish()));
     }
-    render_queue.submit(std::iter::once(encoder.finish()));
 }
 
 fn download_chunk_texture(
@@ -266,10 +269,9 @@ fn sync_readbacks(mut main_world: ResMut<MainWorld>, mut image_copiers: ResMut<I
             true
         }
     });
-
 }
 
-fn texture_copy_extract(
+fn prepare_download_copier(
     handles: Query<(&MainEntity, &SyncChunk)>,
     mut image_copiers: ResMut<ImageCopiers>,
 ) {
