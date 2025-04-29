@@ -169,7 +169,7 @@ fn prepare_explored_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::R8Unorm,
+        format: TextureFormat::Rgba8Unorm,
         usage: TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::COPY_SRC,
         label: None,
         view_formats: &[],
@@ -229,11 +229,11 @@ impl FromWorld for VisionComputePipeline {
                     ), // 3 vision_texture_write
                     uniform_buffer::<ChunkMeta>(false),                 // 4
                     texture_storage_2d_array(
-                        TextureFormat::R8Unorm,
+                        TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 5 history_read
                     texture_storage_2d_array(
-                        TextureFormat::R8Unorm,
+                        TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 6 history_write
                 ),

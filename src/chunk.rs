@@ -488,8 +488,8 @@ fn manage_chunks_by_viewport(
             let mut image = Image::new_fill(
                 size,
                 TextureDimension::D2,
-                &[0],
-                TextureFormat::R8Unorm,
+                &[0; 4],
+                TextureFormat::Rgba8Unorm,
                 RenderAssetUsages::RENDER_WORLD,
             );
 

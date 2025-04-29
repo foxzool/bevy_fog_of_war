@@ -266,7 +266,7 @@ fn sync_readbacks(mut main_world: ResMut<MainWorld>, mut image_copiers: ResMut<I
             true
         }
     });
-    
+
 }
 
 fn texture_copy_extract(
