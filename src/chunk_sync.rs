@@ -1,15 +1,16 @@
-use crate::prelude::{ChunkCoord, MapChunk};
-use crate::vision_compute::ExploredTexture;
+use crate::{
+    prelude::{ChunkCoord, MapChunk},
+    vision_compute::ExploredTexture,
+};
 use async_channel::{Receiver, Sender};
 use bevy_app::{App, Plugin};
 use bevy_asset::{Assets, Handle};
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::prelude::{Commands, resource_exists};
 use bevy_ecs::{
     change_detection::ResMut,
     entity::Entity,
     event::Event,
-    prelude::{Component, Resource},
+    prelude::{Commands, Component, Resource, resource_exists},
     schedule::IntoScheduleConfigs,
     system::{Query, Res},
 };
@@ -17,31 +18,27 @@ use bevy_image::{Image, TextureFormatPixelInfo};
 use bevy_log::warn;
 use bevy_platform::collections::HashMap;
 use bevy_reflect::Reflect;
-use bevy_render::render_resource::{
-    CommandEncoderDescriptor, Origin3d, TexelCopyTextureInfo, TextureAspect,
-};
-use bevy_render::renderer::RenderQueue;
 use bevy_render::{
     ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     extract_component::ExtractComponentPlugin,
     render_asset::RenderAssets,
     render_resource::{
-        Buffer, BufferDescriptor, BufferUsages, CommandEncoder, Extent3d, MapMode,
-        TexelCopyBufferInfo, TexelCopyBufferLayout, Texture, TextureFormat,
+        Buffer, BufferDescriptor, BufferUsages, CommandEncoder, CommandEncoderDescriptor, Extent3d,
+        MapMode, Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo,
+        Texture, TextureAspect, TextureFormat,
     },
-    renderer::{RenderDevice, render_system},
+    renderer::{RenderDevice, RenderQueue, render_system},
     storage::GpuShaderStorageBuffer,
     sync_world::MainEntity,
     texture::GpuImage,
 };
 use bevy_render_macros::ExtractComponent;
-use encase::ShaderType;
-use encase::internal::ReadFrom;
-use encase::private::Reader;
+use encase::{ShaderType, internal::ReadFrom, private::Reader};
 
 /// A plugin that enables reading back gpu buffers and textures to the cpu.
 pub struct GpuSyncTexturePlugin {
-    /// Describes the number of frames a buffer can be unused before it is removed from the pool to avoid unnecessary reallocations.
+    /// Describes the number of frames a buffer can be unused before it is removed from the pool to
+    /// avoid unnecessary reallocations.
     max_unused_frames: usize,
 }
 
@@ -98,9 +95,7 @@ fn upload_chunk_texture(
             "uploading layer: {} {}",
             chunk_texture.coord, chunk_texture.layer_index
         );
-        if chunk_texture.coord == ChunkCoord::new(-1, -1) {
-
-        }
+        if chunk_texture.coord == ChunkCoord::new(-1, -1) {}
         let src_image = gpu_images.get(&chunk_texture.src).unwrap();
 
         let block_dimensions = src_image.texture_format.block_dimensions();
@@ -159,9 +154,7 @@ fn download_chunk_texture(
             "downloading layer: {} {}",
             downloader.coord, downloader.layer_index
         );
-        if downloader.coord == ChunkCoord::new(-1, -1) {
-
-        }
+        if downloader.coord == ChunkCoord::new(-1, -1) {}
 
         let src_image = gpu_images.get(&downloader.src_image).unwrap();
 
@@ -204,8 +197,9 @@ fn download_chunk_texture(
 
 /// A component that registers the wrapped handle for gpu SyncChunk, either a texture or a buffer.
 ///
-/// Data is read asynchronously and will be triggered on the entity via the [`SyncChunkComplete`] event
-/// when complete. If this component is not removed, the SyncChunk will be attempted every frame
+/// Data is read asynchronously and will be triggered on the entity via the [`SyncChunkComplete`]
+/// event when complete. If this component is not removed, the SyncChunk will be attempted every
+/// frame
 #[derive(Component, ExtractComponent, Clone, Debug)]
 pub struct SyncChunk {
     pub need_download: bool,
@@ -468,7 +462,8 @@ pub(crate) const fn align_byte_size(value: u32) -> u32 {
     RenderDevice::align_copy_bytes_per_row(value as usize) as u32
 }
 
-/// Get the size of a image when the size of each row has been rounded up to [`COPY_BYTES_PER_ROW_ALIGNMENT`].
+/// Get the size of a image when the size of each row has been rounded up to
+/// [`COPY_BYTES_PER_ROW_ALIGNMENT`].
 pub(crate) const fn get_aligned_size(extent: Extent3d, pixel_size: u32) -> u32 {
     extent.height * align_byte_size(extent.width * pixel_size) * extent.depth_or_array_layers
 }

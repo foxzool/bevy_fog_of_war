@@ -1,9 +1,11 @@
-use crate::chunk::{InCameraView, MapChunk};
-use crate::fog::{FogMaterial, GpuChunks};
-use crate::gpu_sync_chunk::ExploredTextureLoader;
-use crate::vision::{GpuVisionParams, VisionParamsResource};
-use crate::vision_compute::{
-    ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel, VisionTexture,
+use crate::{
+    chunk::{InCameraView, MapChunk},
+    fog::{FogMaterial, GpuChunks},
+    vision::{GpuVisionParams, VisionParamsResource},
+    vision_compute::{
+        ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel,
+        VisionTexture,
+    },
 };
 use bevy_app::prelude::*;
 use bevy_asset::{AssetServer, Handle};
@@ -16,24 +18,21 @@ use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
 use bevy_image::{BevyDefault, Image};
 use bevy_log::{error, info};
-use bevy_render::diagnostic::RecordDiagnostics;
-use bevy_render::mesh::PrimitiveTopology;
-use bevy_render::render_resource::DynamicUniformBuffer;
 use bevy_render::{
     RenderApp,
+    diagnostic::RecordDiagnostics,
     extract_component::ExtractComponentPlugin,
+    mesh::PrimitiveTopology,
     prelude::*,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
-    render_resource::binding_types::{
-        storage_buffer_read_only, texture_storage_2d_array, uniform_buffer,
-    },
     render_resource::{
         BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, CommandEncoder, Extent3d,
-        FragmentState, FrontFace, LoadOp, MultisampleState, Operations, Origin3d, PipelineCache,
-        PolygonMode, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-        RenderPipelineDescriptor, ShaderStages, StorageTextureAccess, StoreOp,
-        TexelCopyTextureInfo, TextureAspect, TextureFormat,
+        CachedRenderPipelineId, ColorTargetState, ColorWrites, CommandEncoder,
+        DynamicUniformBuffer, Extent3d, FragmentState, FrontFace, LoadOp, MultisampleState,
+        Operations, Origin3d, PipelineCache, PolygonMode, PrimitiveState,
+        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages,
+        StorageTextureAccess, StoreOp, TexelCopyTextureInfo, TextureAspect, TextureFormat,
+        binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice, RenderQueue},
     view::{ExtractedView, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
@@ -329,7 +328,8 @@ impl ViewNode for FogNode2d {
         render_pass.set_bind_group(
             0,
             &view_bind_group,
-            &[view_uniform_offset.offset, view_fog_offset.offset], // Dynamic offsets for view and fog settings
+            &[view_uniform_offset.offset, view_fog_offset.offset], /* Dynamic offsets for view
+                                                                    * and fog settings */
         );
 
         render_pass.draw(0..3, 0..1);

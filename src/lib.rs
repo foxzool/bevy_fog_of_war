@@ -1,8 +1,7 @@
-use crate::chunk_sync::GpuSyncTexturePlugin;
-use crate::gpu_sync_chunk::GpuSyncChunkPlugin;
 use crate::{
-    chunk::ChunkPlugin, fog::FogMaterial, prelude::FogOfWarCamera, render::ChunkRenderPlugin,
-    vision::VisionProvider, vision_compute::VisionComputePlugin,
+    chunk::ChunkPlugin, chunk_sync::GpuSyncTexturePlugin, fog::FogMaterial,
+    prelude::FogOfWarCamera, render::ChunkRenderPlugin, vision::VisionProvider,
+    vision_compute::VisionComputePlugin,
 };
 use bevy_app::{App, Plugin};
 use bevy_render::extract_component::ExtractComponentPlugin;
@@ -10,7 +9,6 @@ use bevy_render::extract_component::ExtractComponentPlugin;
 mod chunk;
 mod chunk_sync;
 mod fog;
-mod gpu_sync_chunk;
 pub mod prelude;
 mod render;
 mod vision;
@@ -24,7 +22,6 @@ impl Plugin for ZingFogPlugins {
             .add_plugins(ExtractComponentPlugin::<FogMaterial>::default())
             .add_plugins(ExtractComponentPlugin::<VisionProvider>::default())
             .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
-            // .add_plugins(GpuSyncChunkPlugin::default())
             .add_plugins(GpuSyncTexturePlugin::default())
             .add_plugins(ChunkPlugin)
             .add_plugins(VisionComputePlugin)

@@ -1,7 +1,8 @@
-use crate::chunk_sync::SyncChunk;
-use crate::gpu_sync_chunk::ImageCopier;
-use crate::prelude::{FogOfWarCamera, SyncChunkComplete};
-use crate::render::ChunkTexture;
+use crate::{
+    chunk_sync::SyncChunk,
+    prelude::{FogOfWarCamera, SyncChunkComplete},
+    render::ChunkTexture,
+};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
 use bevy_diagnostic::FrameCount;
@@ -11,12 +12,11 @@ use bevy_log::{info, warn};
 use bevy_math::prelude::*;
 use bevy_platform::collections::{HashMap, HashSet};
 use bevy_reflect::Reflect;
-use bevy_render::render_resource::Texture;
-use bevy_render::renderer::RenderDevice;
 use bevy_render::{
     extract_resource::ExtractResourcePlugin,
     prelude::*,
     render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+    renderer::RenderDevice,
 };
 use bevy_render_macros::{ExtractComponent, ExtractResource};
 use bevy_time::Time;
@@ -311,8 +311,8 @@ impl ChunkManager {
             if chunk_screen_index != new_screen_index {
                 // println!("chunk_screen_index: {}", chunk_screen_index);
                 // self.need_copy_layers.push((chunk_screen_index, new_screen_index));
-                // let screen_layer_index = self.screen_mapping.get_mut(chunk_screen_index as usize).unwrap();
-                // self.layer_queue.push_back(old);
+                // let screen_layer_index = self.screen_mapping.get_mut(chunk_screen_index as
+                // usize).unwrap(); self.layer_queue.push_back(old);
 
                 // *screen_layer_index = Some(layer_index);
 

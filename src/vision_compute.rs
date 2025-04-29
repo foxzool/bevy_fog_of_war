@@ -14,19 +14,16 @@ use bevy_encase_derive::ShaderType;
 use bevy_log::{info, warn};
 use bevy_math::{IVec2, UVec2, Vec2};
 use bevy_platform::collections::HashSet;
-use bevy_render::render_graph::{RenderGraphApp, ViewNodeRunner};
-use bevy_render::render_resource::{
-    BufferInitDescriptor, ComputePassDescriptor, TexelCopyBufferLayout, TextureDescriptor,
-};
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     camera::ExtractedCamera,
     render_asset::RenderAssets,
-    render_graph::{NodeRunError, RenderGraphContext, ViewNode},
+    render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
-        BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferUsages,
-        CachedComputePipelineId, ComputePipelineDescriptor, Extent3d, Origin3d, PipelineCache,
-        ShaderStages, StorageTextureAccess, TextureAspect, TextureDimension, TextureFormat,
+        BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
+        BufferUsages, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
+        Extent3d, Origin3d, PipelineCache, ShaderStages, StorageTextureAccess,
+        TexelCopyBufferLayout, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
         TextureUsages, UniformBuffer,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
@@ -77,7 +74,8 @@ impl Plugin for VisionComputePlugin {
                 Render,
                 (
                     prepare_vision_compute_bind_group.in_set(RenderSet::Prepare),
-                    // download_explored_texture.after(RenderSet::Render), // export_explored_texture.in_set(RenderSet::Cleanup),
+                    // download_explored_texture.after(RenderSet::Render), //
+                    // export_explored_texture.in_set(RenderSet::Cleanup),
                 ),
             )
             .add_render_graph_node::<ViewNodeRunner<VisionComputeNode>>(
@@ -418,7 +416,8 @@ impl ViewNode for VisionComputeNode {
             chunk_manager.chunk_in_views as u32,
         );
 
-        // info!("Dispatched vision compute shader with workgroups: ({}, {}, {})", dispatch_x, dispatch_y, chunk_manager.chunk_in_views);
+        // info!("Dispatched vision compute shader with workgroups: ({}, {}, {})", dispatch_x,
+        // dispatch_y, chunk_manager.chunk_in_views);
 
         Ok(())
     }
@@ -435,7 +434,8 @@ pub struct ChunkInfo {
     pub world_max: Vec2, // 世界空间边界最大点 / world space maximum point
     pub size: UVec2,     // 区块尺寸 / chunk size
     pub layer_index: u32,
-    // Add padding to match WGSL std430 alignment requirements (struct size should be multiple of 8)
+    // Add padding to match WGSL std430 alignment requirements (struct size should be multiple of
+    // 8)
     pub _padding: u32, // Add 4 bytes padding
 }
 
