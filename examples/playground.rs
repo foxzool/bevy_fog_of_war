@@ -6,8 +6,8 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
-use bevy_diagnostic::LogDiagnosticsPlugin;
-use bevy_inspector_egui::bevy_egui::EguiPlugin;
+use bevy_diagnostic::{FrameCount, LogDiagnosticsPlugin};
+// use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_fog_of_war::prelude::*;
 
@@ -46,9 +46,9 @@ fn main() {
             // bevy_render::diagnostic::RenderDiagnosticsPlugin,
         ))
         .init_gizmo_group::<MyRoundGizmos>()
-        .add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: true,
-        })
+        // .add_plugins(EguiPlugin {
+        //     enable_multipass_for_primary_context: true,
+        // })
         // .add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new())
         .add_plugins(BevyFogOfWarPlugins)
         .add_systems(Startup, (setup, setup_ui))
@@ -56,6 +56,7 @@ fn main() {
             Update,
             (
                 camera_movement,
+                update_count_text,
                 update_fog_settings,
                 update_fps_text,
                 movable_vision_control,
@@ -88,12 +89,18 @@ struct FogSettingsText;
 #[derive(Component)]
 struct ColorAnimatedText;
 
+/// 计数文本组件标记
+/// Count text component marker
+#[derive(Component)]
+struct CountText;
+
 /// 可移动视野提供者标记
 /// Movable vision provider marker
 #[derive(Component)]
 struct MovableVision;
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");
     // 生成相机
     // Spawn camera
     commands.spawn((
@@ -104,18 +111,16 @@ fn setup(mut commands: Commands) {
         FogOfWarCamera,
     ));
 
-    // 生成一个红色方块来测试基本渲染功能，并添加视野提供者组件
-    // Spawn a red square to test basic rendering functionality and add vision provider component
     commands.spawn((
-        Sprite {
-            color: RED.into(),
-            custom_size: Some(Vec2::new(100.0, 100.0)),
-            ..default()
+        Text2d("Count".to_string()),
+        TextFont {
+            font: font_handle.clone().into(),
+            font_size: 20.0,
+            ..Default::default()
         },
-        Transform::from_translation(Vec3::new(800.0, 0.0, 0.0)),
-        VisionProvider {
-            range: 50.0, // 增大视野范围 / Increased vision range
-        },
+        TextColor(RED.into()),
+        Transform::from_translation(Vec3::new(200.0, -50.0, 0.0)),
+        CountText,
     ));
 
     // 生成额外的视野提供者
@@ -139,7 +144,7 @@ fn setup(mut commands: Commands) {
             ..default()
         },
         Transform::from_translation(Vec3::new(-200.0, -200.0, 0.0)),
-        VisionProvider { range: 70.0 },
+        VisionProvider { range: 100.0 },
         MovableVision,
         ZIndex(10),
     ));
@@ -403,6 +408,12 @@ fn update_fps_text(
                 **span = format!("{value:.1}");
             }
         }
+    }
+}
+
+fn update_count_text(mut query: Query<&mut Text2d, With<CountText>>, frame_count: Res<FrameCount>) {
+    for mut text in &mut query {
+        text.0 = format!("Count: {}", frame_count.0);
     }
 }
 
