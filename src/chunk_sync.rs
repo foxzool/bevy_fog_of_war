@@ -1,34 +1,26 @@
-use crate::{
-    prelude::{ChunkCoord, MapChunk},
-    vision_compute::ExploredTexture,
-};
+use crate::{prelude::ChunkCoord, vision_compute::ExploredTexture};
 use async_channel::{Receiver, Sender};
 use bevy_app::{App, Plugin};
-use bevy_asset::{Assets, Handle};
-use bevy_derive::{Deref, DerefMut};
+use bevy_asset::Handle;
 use bevy_ecs::{
     change_detection::ResMut,
     entity::Entity,
     event::Event,
-    prelude::{Commands, Component, Resource, resource_exists},
+    prelude::{Component, Resource},
     schedule::IntoScheduleConfigs,
     system::{Query, Res},
 };
-use bevy_image::{Image, TextureFormatPixelInfo};
+use bevy_image::Image;
 use bevy_log::warn;
-use bevy_platform::collections::HashMap;
-use bevy_reflect::Reflect;
 use bevy_render::{
     ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     extract_component::ExtractComponentPlugin,
     render_asset::RenderAssets,
     render_resource::{
-        Buffer, BufferDescriptor, BufferUsages, CommandEncoder, CommandEncoderDescriptor, Extent3d,
-        MapMode, Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo,
-        Texture, TextureAspect, TextureFormat,
+        Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
+        Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
     },
     renderer::{RenderDevice, RenderQueue, render_system},
-    storage::GpuShaderStorageBuffer,
     sync_world::MainEntity,
     texture::GpuImage,
 };
@@ -43,8 +35,6 @@ impl Plugin for GpuSyncTexturePlugin {
 
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
-                .init_resource::<GpuSyncChunkBufferPool>()
-                .init_resource::<GpuSyncChunks>()
                 .init_resource::<ImageCopiers>()
                 .add_systems(ExtractSchedule, (texture_copy_extract, sync_readbacks))
                 .add_systems(
@@ -67,9 +57,7 @@ fn upload_chunk_texture(
     explored_texture: Res<ExploredTexture>,
     q_sync_chunks: Query<&SyncChunk>,
 ) {
-    let (Some(explored_read), Some(explored_write)) =
-        (&explored_texture.read, &explored_texture.write)
-    else {
+    let Some(explored_read) = &explored_texture.read else {
         return;
     };
     let mut encoder = render_device.create_command_encoder(&CommandEncoderDescriptor::default());
@@ -124,13 +112,10 @@ fn download_chunk_texture(
     render_device: ResMut<RenderDevice>,
     render_queue: Res<RenderQueue>,
     gpu_images: Res<RenderAssets<GpuImage>>,
-    sync_chunks: Res<GpuSyncChunks>,
     explored_texture: Res<ExploredTexture>,
     image_copiers: Res<ImageCopiers>,
 ) {
-    let (Some(explored_read), Some(explored_write)) =
-        (&explored_texture.read, &explored_texture.write)
-    else {
+    let Some(explored_write) = &explored_texture.read else {
         return;
     };
     let mut command_encoder =
@@ -266,109 +251,7 @@ struct ImageCopier {
     pub tx: Sender<(Entity, Buffer, Vec<u8>)>,
 }
 
-
-struct GpuSyncChunkBuffer {
-    buffer: Buffer,
-    taken: bool,
-    frames_unused: usize,
-}
-
-#[derive(Resource, Default)]
-struct GpuSyncChunkBufferPool {
-    buffers: HashMap<u64, Vec<GpuSyncChunkBuffer>>,
-}
-
-impl GpuSyncChunkBufferPool {
-    fn get(&mut self, render_device: &RenderDevice, size: u64) -> Buffer {
-        let buffers = self.buffers.entry(size).or_default();
-
-        // find an untaken buffer for this size
-        if let Some(buf) = buffers.iter_mut().find(|x| !x.taken) {
-            buf.taken = true;
-            buf.frames_unused = 0;
-            return buf.buffer.clone();
-        }
-
-        let buffer = render_device.create_buffer(&BufferDescriptor {
-            label: Some("SyncChunk Buffer"),
-            size,
-            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        buffers.push(GpuSyncChunkBuffer {
-            buffer: buffer.clone(),
-            taken: true,
-            frames_unused: 0,
-        });
-        buffer
-    }
-
-    // Returns the buffer to the pool so it can be used in a future frame
-    fn return_buffer(&mut self, buffer: &Buffer) {
-        let size = buffer.size();
-        let buffers = self
-            .buffers
-            .get_mut(&size)
-            .expect("Returned buffer of untracked size");
-        if let Some(buf) = buffers.iter_mut().find(|x| x.buffer.id() == buffer.id()) {
-            buf.taken = false;
-        } else {
-            warn!("Returned buffer that was not allocated");
-        }
-    }
-
-    fn update(&mut self, max_unused_frames: usize) {
-        for (_, buffers) in &mut self.buffers {
-            // Tick all the buffers
-            for buf in &mut *buffers {
-                if !buf.taken {
-                    buf.frames_unused += 1;
-                }
-            }
-
-            // Remove buffers that haven't been used for MAX_UNUSED_FRAMES
-            buffers.retain(|x| x.frames_unused < max_unused_frames);
-        }
-
-        // Remove empty buffer sizes
-        self.buffers.retain(|_, buffers| !buffers.is_empty());
-    }
-}
-
-#[allow(dead_code)]
-enum SyncChunkSource {
-    Texture {
-        texture: Texture,
-        layout: TexelCopyBufferLayout,
-        size: Extent3d,
-    },
-    Buffer {
-        src_start: u64,
-        dst_start: u64,
-        buffer: Buffer,
-    },
-}
-
-#[derive(Resource, Default)]
-struct GpuSyncChunks {
-    requested_download: Vec<GpuSyncChunkDownload>,
-    mapped_download: Vec<GpuSyncChunkDownload>,
-}
-
-struct GpuSyncChunkDownload {
-    pub entity: Entity,
-    pub layer_index: u32,
-    pub src: SyncChunkSource,
-    pub buffer: Buffer,
-    pub rx: Receiver<(Entity, Buffer, Vec<u8>)>,
-    pub tx: Sender<(Entity, Buffer, Vec<u8>)>,
-}
-
-fn sync_readbacks(
-    mut main_world: ResMut<MainWorld>,
-    mut buffer_pool: ResMut<GpuSyncChunkBufferPool>,
-    mut image_copiers: ResMut<ImageCopiers>,
-) {
+fn sync_readbacks(mut main_world: ResMut<MainWorld>, mut image_copiers: ResMut<ImageCopiers>) {
     image_copiers.mapped.retain(|readback| {
         if let Ok((entity, buffer, result)) = readback.rx.try_recv() {
             main_world.trigger_targets(
@@ -378,23 +261,16 @@ fn sync_readbacks(
                 },
                 entity,
             );
-            // buffer_pool.return_buffer(&buffer);
             false
         } else {
             true
         }
     });
-
-    // buffer_pool.update(max_unused_frames.0);
+    
 }
 
 fn texture_copy_extract(
-    render_device: Res<RenderDevice>,
-    mut readbacks: ResMut<GpuSyncChunks>,
-    mut buffer_pool: ResMut<GpuSyncChunkBufferPool>,
-    gpu_images: Res<RenderAssets<GpuImage>>,
     handles: Query<(&MainEntity, &SyncChunk)>,
-    mut commands: Commands,
     mut image_copiers: ResMut<ImageCopiers>,
 ) {
     for (main_entity, sync_chunk) in handles.iter() {
@@ -435,44 +311,5 @@ fn map_buffers(mut image_copiers: ResMut<ImageCopiers>) {
             }
         });
         image_copiers.mapped.push(image_copier.clone());
-    }
-}
-
-// Utils
-
-/// Round up a given value to be a multiple of [`COPY_BYTES_PER_ROW_ALIGNMENT`].
-pub(crate) const fn align_byte_size(value: u32) -> u32 {
-    RenderDevice::align_copy_bytes_per_row(value as usize) as u32
-}
-
-/// Get the size of a image when the size of each row has been rounded up to
-/// [`COPY_BYTES_PER_ROW_ALIGNMENT`].
-pub(crate) const fn get_aligned_size(extent: Extent3d, pixel_size: u32) -> u32 {
-    extent.height * align_byte_size(extent.width * pixel_size) * extent.depth_or_array_layers
-}
-
-/// Get a [`TexelCopyBufferLayout`] aligned such that the image can be copied into a buffer.
-pub(crate) fn layout_data(extent: Extent3d, format: TextureFormat) -> TexelCopyBufferLayout {
-    TexelCopyBufferLayout {
-        bytes_per_row: if extent.height > 1 || extent.depth_or_array_layers > 1 {
-            // 1 = 1 row
-            Some(get_aligned_size(
-                Extent3d {
-                    width: extent.width,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
-                format.pixel_size() as u32,
-            ))
-        } else {
-            None
-        },
-        rows_per_image: if extent.depth_or_array_layers > 1 {
-            let (_, block_dimension_y) = format.block_dimensions();
-            Some(extent.height / block_dimension_y)
-        } else {
-            None
-        },
-        offset: 0,
     }
 }

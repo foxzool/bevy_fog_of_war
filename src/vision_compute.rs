@@ -13,11 +13,8 @@ use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
 use bevy_log::{info, warn};
 use bevy_math::{IVec2, UVec2, Vec2};
-use bevy_platform::collections::HashSet;
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
-    camera::ExtractedCamera,
-    render_asset::RenderAssets,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
         BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
