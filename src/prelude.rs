@@ -1,5 +1,5 @@
 pub use crate::{
-    ZingFogPlugins,
+    BevyFogOfWarPlugins,
     chunk::{
         ChunkCoord, ChunkManager, ChunkPlugin, DEFAULT_CHUNK_SIZE, FogData, InCameraView, MapChunk,
         SpatialIndex, VisibilityState,

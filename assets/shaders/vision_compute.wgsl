@@ -81,6 +81,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
            // 若在半径范围内为1.0，否则为0.0
            let visibility = f32(dist_sq < radius_sq);
            current_visibility = current_visibility + visibility * (1.0 - current_visibility);
+           if (current_visibility > 0.999) {
+              break;
+          }
        }
     }
 

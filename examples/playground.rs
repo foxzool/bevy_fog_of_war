@@ -50,7 +50,7 @@ fn main() {
             enable_multipass_for_primary_context: true,
         })
         // .add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new())
-        .add_plugins(ZingFogPlugins)
+        .add_plugins(BevyFogOfWarPlugins)
         .add_systems(Startup, (setup, setup_ui))
         .add_systems(
             Update,

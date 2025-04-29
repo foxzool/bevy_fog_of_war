@@ -14,15 +14,15 @@ mod render;
 mod vision;
 mod vision_compute;
 
-pub struct ZingFogPlugins;
+pub struct BevyFogOfWarPlugins;
 
-impl Plugin for ZingFogPlugins {
+impl Plugin for BevyFogOfWarPlugins {
     fn build(&self, app: &mut App) {
         app.register_type::<FogMaterial>()
             .add_plugins(ExtractComponentPlugin::<FogMaterial>::default())
             .add_plugins(ExtractComponentPlugin::<VisionProvider>::default())
             .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
-            .add_plugins(GpuSyncTexturePlugin::default())
+            .add_plugins(GpuSyncTexturePlugin)
             .add_plugins(ChunkPlugin)
             .add_plugins(VisionComputePlugin)
             .add_plugins(ChunkRenderPlugin);

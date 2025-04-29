@@ -36,20 +36,7 @@ use bevy_render_macros::ExtractComponent;
 use encase::{ShaderType, internal::ReadFrom, private::Reader};
 
 /// A plugin that enables reading back gpu buffers and textures to the cpu.
-pub struct GpuSyncTexturePlugin {
-    /// Describes the number of frames a buffer can be unused before it is removed from the pool to
-    /// avoid unnecessary reallocations.
-    max_unused_frames: usize,
-}
-
-impl Default for GpuSyncTexturePlugin {
-    fn default() -> Self {
-        Self {
-            max_unused_frames: 10,
-        }
-    }
-}
-
+pub struct GpuSyncTexturePlugin;
 impl Plugin for GpuSyncTexturePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractComponentPlugin::<SyncChunk>::default());
@@ -59,7 +46,6 @@ impl Plugin for GpuSyncTexturePlugin {
                 .init_resource::<GpuSyncChunkBufferPool>()
                 .init_resource::<GpuSyncChunks>()
                 .init_resource::<ImageCopiers>()
-                .insert_resource(GpuSyncChunkMaxUnusedFrames(self.max_unused_frames))
                 .add_systems(ExtractSchedule, (texture_copy_extract, sync_readbacks))
                 .add_systems(
                     Render,
@@ -280,8 +266,6 @@ struct ImageCopier {
     pub tx: Sender<(Entity, Buffer, Vec<u8>)>,
 }
 
-#[derive(Resource)]
-struct GpuSyncChunkMaxUnusedFrames(usize);
 
 struct GpuSyncChunkBuffer {
     buffer: Buffer,
@@ -384,7 +368,6 @@ fn sync_readbacks(
     mut main_world: ResMut<MainWorld>,
     mut buffer_pool: ResMut<GpuSyncChunkBufferPool>,
     mut image_copiers: ResMut<ImageCopiers>,
-    max_unused_frames: Res<GpuSyncChunkMaxUnusedFrames>,
 ) {
     image_copiers.mapped.retain(|readback| {
         if let Ok((entity, buffer, result)) = readback.rx.try_recv() {

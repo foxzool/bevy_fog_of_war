@@ -61,9 +61,7 @@ impl Plugin for VisionComputePlugin {
             .add_systems(
                 ExtractSchedule,
                 (
-                    // download_explored_texture, // 1. 先保存当前chunk内容到历史
-                    // upload_explored_texture,   // 2. 再恢复历史内容到chunk
-                    prepare_explored_texture, // 3. 再做清理/准备
+                    prepare_explored_texture,
                     prepare_vision_texture.run_if(not(resource_exists::<VisionTexture>)),
                     update_vision_params,
                     prepare_chunk_info,
@@ -72,11 +70,7 @@ impl Plugin for VisionComputePlugin {
             )
             .add_systems(
                 Render,
-                (
-                    prepare_vision_compute_bind_group.in_set(RenderSet::Prepare),
-                    // download_explored_texture.after(RenderSet::Render), //
-                    // export_explored_texture.in_set(RenderSet::Cleanup),
-                ),
+                (prepare_vision_compute_bind_group.in_set(RenderSet::Prepare),),
             )
             .add_render_graph_node::<ViewNodeRunner<VisionComputeNode>>(
                 Core2d,
