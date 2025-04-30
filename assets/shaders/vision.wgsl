@@ -77,28 +77,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
        let vision = visions.sources[i];
        // Use squared distance for performance, avoid sqrt initially
        // 使用平方距离代替开方，提升性能
-       let dist_sq = dot(world_xy - vision.position, world_xy - vision.position);
-       let radius_sq = vision.radius * vision.radius;
+       // 计算像素到圆心的距离
+       // Calculate distance from pixel to circle center
+       let pixel_to_center = world_xy - vision.position;
+       let dist = length(pixel_to_center);
+       let radius = vision.radius;
        
-       var visibility: f32 = 0.0; // Visibility for this source
+       // 计算像素大小用于抗锯齿
+       // Calculate pixel size for anti-aliasing
+       let pixel_size = length((chunk.world_max - chunk.world_min) / vec2<f32>(chunk.size));
        
-       if (dist_sq < radius_sq) {
-           // 计算平滑的边缘过渡
-           // Calculate smooth edge transition
-           let dist = sqrt(dist_sq);
-           let edge_width = vision.radius * 0.2; // 边缘宽度为半径的 10%
-           
-           if (dist < vision.radius - edge_width) {
-               // 完全可见区域
-               // Fully visible area
-               visibility = 1.0;
-           } else {
-               // 边缘过渡区域
-               // Edge transition area
-               let t = (vision.radius - dist) / edge_width;
-               visibility = smoothstep(0.0, 1.0, t);
-           }
-       }
+       // 使用单个像素大小的抗锯齿
+       // Anti-alias using single pixel size
+       let aa_range = pixel_size * 0.5;
+       
+       // 计算可见度
+       // Calculate visibility
+       var visibility = 1.0 - smoothstep(radius - aa_range, radius + aa_range, dist);
        // else: visibility remains 0.0 (outside radius) / 否则：可见性保持为 0.0（在半径之外）
 
        // Combine with overall visibility using the original blending method
