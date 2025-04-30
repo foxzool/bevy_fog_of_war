@@ -219,7 +219,7 @@ impl FromWorld for VisionComputePipeline {
         let pipeline_cache = world.resource::<PipelineCache>();
         let shader = world
             .resource::<AssetServer>()
-            .load("shaders/vision_compute.wgsl");
+            .load("shaders/vision.wgsl");
 
         // Layout: view uniform, vision params, chunk info, texture write
         let bind_group_layout = render_device.create_bind_group_layout(
