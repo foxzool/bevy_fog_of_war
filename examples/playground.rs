@@ -61,6 +61,7 @@ fn main() {
                 update_fps_text,
                 movable_vision_control,
                 debug_draw_chunks,
+                horizontal_movement_system
             ),
         )
         .run();
@@ -98,6 +99,13 @@ struct CountText;
 /// Movable vision provider marker
 #[derive(Component)]
 struct MovableVision;
+
+/// 水平来回移动的 Sprite 标记
+/// Marker for the horizontally moving sprite
+#[derive(Component)]
+struct HorizontalMover {
+    direction: f32, // 1.0 for right, -1.0 for left
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");
@@ -147,6 +155,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         VisionProvider { range: 100.0 },
         MovableVision,
         ZIndex(10),
+    ));
+
+    // 生成水平来回移动的 Sprite
+    // Spawn horizontally moving sprite
+    commands.spawn((
+        Sprite {
+            color: Color::srgb(0.9, 0.1, 0.9), // 紫色 / Purple color
+            custom_size: Some(Vec2::new(50.0, 50.0)),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(-400.0, -100.0, 0.0)), // 初始位置 / Initial position
+        HorizontalMover { direction: 1.0 }, // 初始向右移动 / Initially move right
     ));
 
     // 颜色渐变条作为参考，并添加视野提供者组件到部分方块
@@ -591,6 +611,33 @@ fn debug_draw_chunks(
                     Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
                 ));
             }
+        }
+    }
+}
+
+// 新增：水平移动系统
+// New: Horizontal movement system
+fn horizontal_movement_system(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut HorizontalMover)>,
+) {
+    let speed = 150.0; // 移动速度 / Movement speed
+    let left_bound = -450.0; // 左边界 / Left boundary
+    let right_bound = 450.0; // 右边界 / Right boundary
+
+    for (mut transform, mut mover) in query.iter_mut() {
+        // 根据方向和速度更新位置
+        // Update position based on direction and speed
+        transform.translation.x += mover.direction * speed * time.delta_secs();
+
+        // 检查是否到达边界，如果到达则反转方向
+        // Check if boundaries are reached, reverse direction if so
+        if transform.translation.x >= right_bound {
+            transform.translation.x = right_bound; // 防止超出边界 / Prevent exceeding boundary
+            mover.direction = -1.0; // 向左移动 / Move left
+        } else if transform.translation.x <= left_bound {
+            transform.translation.x = left_bound; // 防止超出边界 / Prevent exceeding boundary
+            mover.direction = 1.0; // 向右移动 / Move right
         }
     }
 }
