@@ -13,6 +13,7 @@ pub mod prelude;
 mod render;
 mod vision;
 mod vision_compute;
+mod snapshot;
 
 pub struct BevyFogOfWarPlugins;
 

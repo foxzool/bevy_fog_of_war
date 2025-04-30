@@ -63,14 +63,10 @@ impl Plugin for ChunkRenderPlugin {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<FogOfWarMeta>()
-                .init_resource::<SnapTexture>()
                 .add_plugins(ExtractComponentPlugin::<ChunkTexture>::default())
                 .add_plugins(ExtractComponentPlugin::<InCameraView>::default())
                 .add_plugins(ExtractComponentPlugin::<MapChunk>::default())
-                .add_systems(
-                    ExtractSchedule,
-                    (prepare_fog_settings, prepare_snap_texture),
-                );
+                .add_systems(ExtractSchedule, prepare_fog_settings);
 
             render_app
                 .add_render_graph_node::<ViewNodeRunner<FogNode2d>>(Core2d, FogNode2dLabel)
@@ -161,14 +157,6 @@ impl FromWorld for FogOfWar2dPipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 7
-                    texture_storage_2d_array(
-                        TextureFormat::Rgba8Unorm,
-                        StorageTextureAccess::ReadOnly,
-                    ), // 8
-                    texture_storage_2d_array(
-                        TextureFormat::Rgba8Unorm,
-                        StorageTextureAccess::WriteOnly,
-                    ), // 9
                 ),
             ),
         );
@@ -249,7 +237,7 @@ impl ViewNode for FogNode2d {
         let vision_params_resource = world.resource::<VisionParamsResource>();
         let chunk_meta_buffer = world.resource::<ChunkMetaBuffer>();
         let explored_texture = world.resource::<ExploredTexture>();
-        let snap_texture = world.resource::<SnapTexture>();
+
         let vision_texture = world.resource::<VisionTexture>();
 
         let chunk_info_resource = world.get_resource::<GpuChunks>(); // Get chunk info resource
@@ -295,10 +283,6 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        let (Some(snap_read), Some(snap_write)) = (&snap_texture.read, &snap_texture.write) else {
-            return Ok(());
-        };
-
         let Some(chunk_meta_binding) = chunk_meta_buffer
             .buffer
             .as_ref()
@@ -322,8 +306,6 @@ impl ViewNode for FogNode2d {
                 chunk_meta_binding,           // 5
                 &explored_read.default_view,  // 6
                 &explored_write.default_view, // 7
-                &snap_read.default_view,      // 8
-                &snap_write.default_view,     // 9
             )),
         );
 
@@ -369,56 +351,4 @@ pub struct GpuFogMaterial {
 #[derive(Default, Resource)]
 pub struct FogOfWarMeta {
     pub gpu_fog_settings: DynamicUniformBuffer<GpuFogMaterial>,
-}
-
-#[derive(Resource, Default)]
-pub struct SnapTexture {
-    pub write: Option<CachedTexture>,
-    pub read: Option<CachedTexture>,
-}
-
-fn prepare_snap_texture(
-    mut texture_cache: ResMut<TextureCache>,
-    render_device: Res<RenderDevice>,
-    frame_count: Extract<Res<FrameCount>>,
-    chunk_manager: Extract<Res<ChunkManager>>,
-    mut commands: Commands,
-) {
-    let width = chunk_manager.chunk_size.x * chunk_manager.tile_size as u32;
-    let height = chunk_manager.chunk_size.y * chunk_manager.tile_size as u32;
-    let size = Extent3d {
-        width,
-        height,
-        depth_or_array_layers: chunk_manager.max_layer_count,
-    };
-
-    let mut texture_descriptor = TextureDescriptor {
-        size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8Unorm,
-        usage: TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::COPY_SRC,
-        label: None,
-        view_formats: &[],
-    };
-    texture_descriptor.label = Some("snap_1_texture");
-    let history_1_texture = texture_cache.get(&render_device, texture_descriptor.clone());
-
-    texture_descriptor.label = Some("snap_2_texture");
-    let history_2_texture = texture_cache.get(&render_device, texture_descriptor.clone());
-
-    let texture = if frame_count.0 % 2 == 0 {
-        SnapTexture {
-            write: Some(history_1_texture),
-            read: Some(history_2_texture),
-        }
-    } else {
-        SnapTexture {
-            write: Some(history_2_texture),
-            read: Some(history_1_texture),
-        }
-    };
-
-    commands.insert_resource(texture);
 }

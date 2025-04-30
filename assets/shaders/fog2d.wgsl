@@ -65,8 +65,6 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(6) var history_read: texture_storage_2d_array<r8unorm, read>;
 // History exploration area write texture
 @group(0) @binding(7) var history_write: texture_storage_2d_array<r8unorm, write>;
-@group(0) @binding(8) var snap_read: texture_storage_2d_array<r8unorm, write>;
-@group(0) @binding(9) var snap_write: texture_storage_2d_array<r8unorm, write>;
 
 
 @fragment
