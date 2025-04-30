@@ -28,9 +28,9 @@ pub const DEFAULT_CHUNK_SIZE: u32 = 256;
 
 /// 区块管理系统插件
 /// Chunk management system plugin
-pub struct ChunkPlugin;
+pub struct ChunkManagerPlugin;
 
-impl Plugin for ChunkPlugin {
+impl Plugin for ChunkManagerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChunkManager>()
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())

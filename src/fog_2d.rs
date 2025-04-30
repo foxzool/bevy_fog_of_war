@@ -1,14 +1,14 @@
 use crate::snapshot::SnapshotTexture;
+use crate::vision_compute::{GpuVisionParams, VisionParamsResource};
 use crate::{
     chunk::{InCameraView, MapChunk},
-    vision::{GpuVisionParams, VisionParamsResource},
     vision_compute::{
         ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel,
         VisionTexture,
     },
 };
 use bevy_app::prelude::*;
-use bevy_asset::{AssetServer, Handle};
+use bevy_asset::AssetServer;
 use bevy_color::{Color, LinearRgba};
 use bevy_core_pipeline::{
     core_2d::graph::{Core2d, Node2d},
@@ -16,7 +16,7 @@ use bevy_core_pipeline::{
 };
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
-use bevy_image::{BevyDefault, Image};
+use bevy_image::BevyDefault;
 use bevy_log::error;
 use bevy_reflect::Reflect;
 use bevy_render::render_resource::Buffer;
@@ -29,10 +29,10 @@ use bevy_render::{
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
         BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, DynamicUniformBuffer,
-        FragmentState, FrontFace, LoadOp, MultisampleState, Operations, PipelineCache,
-        PolygonMode, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-        RenderPipelineDescriptor, ShaderStages, StorageTextureAccess, StoreOp, TextureFormat,
+        CachedRenderPipelineId, ColorTargetState, ColorWrites, DynamicUniformBuffer, FragmentState,
+        FrontFace, LoadOp, MultisampleState, Operations, PipelineCache, PolygonMode,
+        PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
+        ShaderStages, StorageTextureAccess, StoreOp, TextureFormat,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice, RenderQueue},
@@ -45,12 +45,11 @@ use bevy_utils::default;
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_2d.wgsl";
 
-
 /// 渲染插件，用于处理区块纹理提取
 /// Render plugin for handling chunk texture extraction
-pub struct ChunkRenderPlugin;
+pub struct Fog2DRenderPlugin;
 
-impl Plugin for ChunkRenderPlugin {
+impl Plugin for Fog2DRenderPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<FogMaterial>()
             .add_plugins(ExtractComponentPlugin::<FogMaterial>::default());

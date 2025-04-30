@@ -1,10 +1,10 @@
 pub use crate::{
-    BevyFogOfWarPlugins,
+    FogOfWarPlugin,
     chunk::{
-        ChunkCoord, ChunkManager, ChunkPlugin, DEFAULT_CHUNK_SIZE, FogOfWarCamera, InCameraView,
-        MapChunk, VisibilityState,
+        ChunkCoord, ChunkManager, ChunkManagerPlugin, DEFAULT_CHUNK_SIZE, FogOfWarCamera,
+        InCameraView, MapChunk, VisibilityState,
     },
     chunk_sync::{SyncChunk, SyncChunkComplete},
     fog_2d::FogMaterial,
-    vision::VisionProvider,
+    vision_compute::VisionProvider,
 };
