@@ -10,7 +10,7 @@ mod chunk_sync;
 mod fog_2d;
 pub mod prelude;
 mod snapshot;
-mod vision_compute;
+mod vision;
 
 pub struct FogOfWarPlugin;
 
@@ -18,7 +18,7 @@ impl Plugin for FogOfWarPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
             .add_plugins(ChunkManagerPlugin)
-            .add_plugins(vision_compute::VisionComputePlugin)
+            .add_plugins(vision::VisionComputePlugin)
             .add_plugins(Fog2DRenderPlugin)
             .add_plugins(snapshot::SnapshotPlugin)
             .add_plugins(GpuSyncTexturePlugin);

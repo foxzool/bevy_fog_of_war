@@ -1,6 +1,6 @@
 use crate::chunk::ChunkManager;
 use crate::fog_2d::{FogNode2dLabel, GpuChunks};
-use crate::vision_compute::{ChunkInfo, VisionTexture};
+use crate::vision::{ChunkInfo, VisionTexture};
 use bevy_app::{App, Plugin};
 use bevy_asset::DirectAssetAccessExt;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -58,7 +58,7 @@ impl Plugin for SnapshotPlugin {
                     FogNode2dLabel,
                     SnapshotNodeLabel,
                     Node2d::EndMainPass,
-                ), 
+                ),
             );
     }
 

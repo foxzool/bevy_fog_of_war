@@ -1,8 +1,8 @@
 use crate::snapshot::SnapshotTexture;
-use crate::vision_compute::{GpuVisionParams, VisionParamsResource};
+use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
     chunk::{InCameraView, MapChunk},
-    vision_compute::{
+    vision::{
         ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel,
         VisionTexture,
     },

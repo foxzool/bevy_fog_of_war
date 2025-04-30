@@ -1,4 +1,4 @@
-use crate::{prelude::ChunkCoord, vision_compute::ExploredTexture};
+use crate::{prelude::ChunkCoord, vision::ExploredTexture};
 use async_channel::{Receiver, Sender};
 use bevy_app::{App, Plugin};
 use bevy_asset::Handle;
