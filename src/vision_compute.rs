@@ -1,7 +1,6 @@
+use crate::fog_2d::GpuChunks;
 use crate::{
     chunk::{ChunkManager, InCameraView, MapChunk},
-    fog_2d::ChunkTexture,
-    prelude::ChunkCoord,
     vision::{GpuVisionParams, VisionParamsResource, update_vision_params},
 };
 use bevy_app::{App, Plugin};
@@ -10,7 +9,7 @@ use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy_diagnostic::FrameCount;
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
-use bevy_log::{info, warn};
+use bevy_log::warn;
 use bevy_math::{IVec2, UVec2, Vec2};
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
@@ -18,7 +17,7 @@ use bevy_render::{
     render_resource::{
         BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
         BufferUsages, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
-        Extent3d, Origin3d, PipelineCache, ShaderStages, StorageTextureAccess,
+        Extent3d, PipelineCache, ShaderStages, StorageTextureAccess,
         TexelCopyBufferLayout, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
         TextureUsages, UniformBuffer,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
@@ -29,8 +28,6 @@ use bevy_render::{
 };
 use bevy_render_macros::RenderLabel;
 use bytemuck::{Pod, Zeroable};
-use crate::fog_2d::GpuChunks;
-// --- Constants & Labels ---
 
 /// Render graph node label for the vision compute pass.
 /// 视野计算通道的渲染图节点标签。
@@ -67,7 +64,7 @@ impl Plugin for VisionComputePlugin {
             )
             .add_systems(
                 Render,
-                prepare_vision_compute_bind_group.in_set(RenderSet::PrepareBindGroups),
+                prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
             );
 
         render_app
@@ -278,9 +275,7 @@ pub struct ChunkMetaBuffer {
 /// Resource to hold the bind group for the compute shader.
 /// 用于保存计算着色器绑定组的资源。
 #[derive(Resource)]
-pub struct VisionComputeBindGroup {
-    pub data: BindGroup,
-}
+struct VisionComputeBindGroup(BindGroup);
 
 // --- Systems ---
 
@@ -288,7 +283,7 @@ pub struct VisionComputeBindGroup {
 /// Runs in the Render app.
 /// 准备计算着色器绑定组的系统。
 /// 在 Render 应用中运行。
-fn prepare_vision_compute_bind_group(
+fn prepare_bind_group(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     pipeline: Res<VisionComputePipeline>,
@@ -347,10 +342,7 @@ fn prepare_vision_compute_bind_group(
         )),
     );
 
-    commands.insert_resource(VisionComputeBindGroup {
-        // view: view_bind_group,
-        data: bind_group,
-    });
+    commands.insert_resource(VisionComputeBindGroup(bind_group));
 }
 
 // --- Render Graph Node ---
@@ -393,8 +385,7 @@ impl ViewNode for VisionComputeNode {
                 });
 
         compute_pass.set_pipeline(compute_pipeline);
-        compute_pass.set_bind_group(0, &bind_group.data, &[view_uniform_offset.offset]);
-        // compute_pass.set_bind_group(1, &bind_group.datadata, &[]);
+        compute_pass.set_bind_group(0, &bind_group.0, &[view_uniform_offset.offset]);
 
         let workgroup_size = 16;
         // Compute dispatch size based on chunk width/height and number of layers
@@ -408,9 +399,6 @@ impl ViewNode for VisionComputeNode {
             dispatch_y,
             chunk_manager.chunk_in_views as u32,
         );
-
-        // info!("Dispatched vision compute shader with workgroups: ({}, {}, {})", dispatch_x,
-        // dispatch_y, chunk_manager.chunk_in_views);
 
         Ok(())
     }
