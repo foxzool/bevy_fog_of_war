@@ -1,12 +1,13 @@
-use crate::{sync_texture::SyncChunk, prelude::SyncChunkComplete};
+use crate::{prelude::SyncChunkComplete, sync_texture::SyncChunk};
 use bevy_app::prelude::*;
-use bevy_asset::{Assets, Handle, RenderAssetUsages};
+use bevy_asset::{Assets, RenderAssetUsages};
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_log::{info, warn};
 use bevy_math::prelude::*;
 use bevy_platform::collections::{HashMap, HashSet};
 use bevy_reflect::Reflect;
+use bevy_render::extract_component::ExtractComponentPlugin;
 use bevy_render::{
     extract_resource::ExtractResourcePlugin,
     prelude::*,
@@ -16,8 +17,7 @@ use bevy_render::{
 use bevy_render_macros::{ExtractComponent, ExtractResource};
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::prelude::*;
-use std::{collections::VecDeque, time::Instant};
-use bevy_render::extract_component::ExtractComponentPlugin;
+use std::collections::VecDeque;
 
 /// 区块坐标类型，用于标识区块的二维坐标
 /// Chunk coordinate type, used to identify the 2D coordinates of a chunk
@@ -65,10 +65,6 @@ pub struct MapChunk {
     /// 区块的世界空间边界（以像素/单位为单位）
     /// World space boundaries of the chunk (in pixels/units)
     pub world_bounds: Rect,
-
-    pub texture: Handle<Image>,
-
-    pub active_time: Instant,
 }
 
 impl MapChunk {
@@ -79,12 +75,7 @@ impl MapChunk {
     }
     /// 创建一个新的地图区块
     /// Create a new map chunk
-    pub fn new(
-        chunk_coord: ChunkCoord,
-        size: UVec2,
-        tile_size: f32,
-        texture: Handle<Image>,
-    ) -> Self {
+    pub fn new(chunk_coord: ChunkCoord, size: UVec2, tile_size: f32) -> Self {
         let min = Vec2::new(
             chunk_coord.x as f32 * size.x as f32 * tile_size,
             chunk_coord.y as f32 * size.y as f32 * tile_size,
@@ -98,8 +89,6 @@ impl MapChunk {
             screen_index: None,
             loaded: true,
             world_bounds: Rect { min, max },
-            texture,
-            active_time: Instant::now(),
         }
     }
 
@@ -203,8 +192,6 @@ impl Default for ChunkManager {
 
 impl ChunkManager {
     pub fn update_layer(&mut self, chunk: &mut MapChunk, new_screen_index: u32) {
-        chunk.active_time = Instant::now();
-
         if chunk.screen_index.is_none() {
             // 是从屏幕外进入屏幕
             if let Some(layer_id) = self.layer_queue.pop_front() {
@@ -353,7 +340,7 @@ fn manage_chunks_by_viewport(
             let mut image = Image::new_fill(
                 size,
                 TextureDimension::D2,
-                &[0;4],
+                &[0; 4],
                 TextureFormat::Rgba8Unorm,
                 RenderAssetUsages::RENDER_WORLD,
             );
@@ -366,7 +353,7 @@ fn manage_chunks_by_viewport(
             // Create chunk entity
             let entity = commands
                 .spawn((
-                    MapChunk::new(chunk_coord, chunk_size, tile_size, image1.clone()),
+                    MapChunk::new(chunk_coord, chunk_size, tile_size),
                     SyncChunk::new(chunk_coord, image1.clone(), size, &render_device),
                     // ImageCopier::new(chunk_coord, image1.clone(), size, &render_device),
                     InCameraView::default(),

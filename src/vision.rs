@@ -1,5 +1,6 @@
 use crate::chunk::{ChunkManager, InCameraView, MapChunk};
 use crate::fog_2d::GpuChunks;
+use crate::prelude::FogOfWarCamera;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetServer;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -15,6 +16,7 @@ use bevy_render::render_resource::binding_types::{sampler, texture_2d};
 use bevy_render::render_resource::{
     Buffer, Sampler, SamplerBindingType, SamplerDescriptor, TextureSampleType,
 };
+use bevy_render::view::ViewTarget;
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
@@ -29,11 +31,9 @@ use bevy_render::{
     texture::{CachedTexture, TextureCache},
     view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 };
-use bevy_render::view::ViewTarget;
 use bevy_render_macros::{ExtractComponent, RenderLabel};
 use bevy_transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
-use crate::prelude::FogOfWarCamera;
 
 /// Render graph node label for the vision compute pass.
 /// 视野计算通道的渲染图节点标签。
@@ -102,7 +102,6 @@ impl Plugin for VisionComputePlugin {
 
 #[derive(Resource, Default)]
 pub struct VisionTexture {
-    pub read: Option<CachedTexture>,
     pub write: Option<CachedTexture>,
 }
 
@@ -111,7 +110,6 @@ fn prepare_vision_texture(
     mut texture_cache: ResMut<TextureCache>,
     render_device: Res<RenderDevice>,
     chunk_manager: Extract<Res<ChunkManager>>,
-    frame_count: Extract<Res<FrameCount>>,
 ) {
     let size = Extent3d {
         width: chunk_manager.chunk_size.x,
@@ -131,19 +129,8 @@ fn prepare_vision_texture(
     texture_descriptor.label = Some("vision_history_1_texture");
     let history_1_texture = texture_cache.get(&render_device, texture_descriptor.clone());
 
-    texture_descriptor.label = Some("vision_history_2_texture");
-    let history_2_texture = texture_cache.get(&render_device, texture_descriptor.clone());
-
-    let texture = if frame_count.0 % 2 == 0 {
-        VisionTexture {
-            write: Some(history_1_texture),
-            read: Some(history_2_texture),
-        }
-    } else {
-        VisionTexture {
-            write: Some(history_2_texture),
-            read: Some(history_1_texture),
-        }
+    let texture = VisionTexture {
+        write: Some(history_1_texture),
     };
 
     commands.insert_resource(texture);
@@ -217,9 +204,7 @@ impl FromWorld for VisionComputePipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
         let pipeline_cache = world.resource::<PipelineCache>();
-        let shader = world
-            .resource::<AssetServer>()
-            .load("shaders/vision.wgsl");
+        let shader = world.resource::<AssetServer>().load("shaders/vision.wgsl");
 
         // Layout: view uniform, vision params, chunk info, texture write
         let bind_group_layout = render_device.create_bind_group_layout(
@@ -312,7 +297,6 @@ fn prepare_bind_group(
     view_targets: Query<&ViewTarget, With<FogOfWarCamera>>,
     explored_texture: Res<ExploredTexture>,
 ) {
-
     let Some(view_target) = view_targets.iter().next() else {
         return;
     };
@@ -477,7 +461,7 @@ pub fn prepare_chunk_info(
                 world_min: chunk.world_bounds.min,
                 world_max: chunk.world_bounds.max,
                 size: chunk.size,
-                layer_index: index as u32,
+                layer_index: index,
                 _padding: 0, // Initialize padding
             };
 
