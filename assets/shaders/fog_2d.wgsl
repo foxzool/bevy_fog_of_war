@@ -128,21 +128,21 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
             // --- Determine final color based on visibility and history ---
             if (current_visibility > 0.0) {
-                // Currently visible: Blend between clear and the appropriate obscured color.
-                // Represents the fully revealed area (fog is transparent)
-                let clear_color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-
-                // Determine the color towards which we fade when visibility decreases (the obscured state)
-                var obscured_color = fog_material.color; // Default to fog color
-                if (history_value > 0.0) {
-                    // If there's history for this pixel, fade towards the historical gray view instead of fog
-                    obscured_color = history_display_color;
-                }
-
-                // Blend based on visibility: mix(color_at_0_visibility, color_at_1_visibility, visibility_factor)
-                // Restore smooth blending using current_visibility for falloff within the visible area.
-                // 恢复使用 current_visibility 进行平滑混合，以实现可见区域内的衰减效果。
-                final_color = mix(obscured_color, clear_color, current_visibility);
+                // Currently visible: Show scene color and blend with fog at edges
+                // 当前可见：显示场景颜色，在边缘处与迷雾混合
+                
+                // 在可视区域直接使用场景颜色和迷雾颜色混合
+                // In visible area, directly blend between scene color and fog color
+                let scene_color = history_snapshot_color;
+                let fog_color = fog_material.color;
+                
+                // 使用可见度值进行混合
+                // Blend using visibility value
+                let blend_factor = smoothstep(0.0, 1.0, current_visibility);
+                final_color = vec4<f32>(
+                    mix(fog_color.rgb, scene_color.rgb, blend_factor),
+                    1.0  // 保持完全不透明 / Keep fully opaque
+                );
 
                 // Optional DEBUG overlay (apply after blending if needed)
                 if (DEBUG) {

@@ -79,14 +79,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
        // 使用平方距离代替开方，提升性能
        let dist_sq = dot(world_xy - vision.position, world_xy - vision.position);
        let radius_sq = vision.radius * vision.radius;
-
+       
        var visibility: f32 = 0.0; // Visibility for this source
-
+       
        if (dist_sq < radius_sq) {
-           // Inside the vision radius, fully visible
-           // 在视野范围内，完全可见
-           visibility = 1.0;
+           // 计算平滑的边缘过渡
+           // Calculate smooth edge transition
+           let dist = sqrt(dist_sq);
+           let edge_width = vision.radius * 0.2; // 边缘宽度为半径的 10%
            
+           if (dist < vision.radius - edge_width) {
+               // 完全可见区域
+               // Fully visible area
+               visibility = 1.0;
+           } else {
+               // 边缘过渡区域
+               // Edge transition area
+               let t = (vision.radius - dist) / edge_width;
+               visibility = smoothstep(0.0, 1.0, t);
+           }
        }
        // else: visibility remains 0.0 (outside radius) / 否则：可见性保持为 0.0（在半径之外）
 
