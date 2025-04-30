@@ -65,6 +65,7 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(6) var history_read: texture_storage_2d_array<r8unorm, read>;
 // History exploration area write texture
 @group(0) @binding(7) var history_write: texture_storage_2d_array<r8unorm, write>;
+@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;
 
 
 @fragment
@@ -127,21 +128,32 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
             let visibility = current_visibility;
 
-            var alpha = 1.0 ;
+            // Render logic for fog and history
+            // 迷雾与历史快照的渲染逻辑
+            if (current_visibility > 0.0) {
+                // 当前可见，渲染正常内容
+                // Currently visible, render normal content
+                var color_rgb = fog_material.color.xyz;
+                if (DEBUG) {
+                    let index_mask = draw_layer_index_mask(world_xy, chunk);
+                    color_rgb = mix(color_rgb, vec3<f32>(1.0, 1.0, 1.0), index_mask);
+                }
+                final_color = vec4<f32>(color_rgb, 1.0 - current_visibility);
+            } else if (history_value > 0.0) {
+                // 不可见但有历史，渲染历史快照作为底色，叠加半透明灰色
+                // Not visible but has history, render snapshot as base, overlay with semi-transparent gray
+                let history_color = textureLoad(snapshot_read, clamped_coords, i32(target_layer_index));
 
-            if (visibility > 0.0) {
-              alpha =  1 - visibility;
-            } else if (new_history > 0.0) {
-              alpha =  0.5;
-            }
 
-            var color_rgb = fog_material.color.xyz;
-            // DEBUG: overlay layer index on fog color
-            if (DEBUG) {
-                let index_mask = draw_layer_index_mask(world_xy, chunk);
-                color_rgb = mix(color_rgb, vec3<f32>(1.0, 1.0, 1.0), index_mask);
+                // 设置最终颜色，最终 alpha 为 1.0 (区域完全不透明)
+                // Set final color, final alpha is 1.0 (area is fully opaque)
+                final_color = history_color;
+
+            } else {
+                // 完全迷雾
+                // Full fog
+                final_color = fog_material.color;
             }
-            final_color = vec4<f32>(color_rgb, alpha);
 
             found_chunk = true;
             break; // Found the correct chunk, exit loop

@@ -9,20 +9,27 @@ use bevy_diagnostic::FrameCount;
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryItem;
 use bevy_ecs::system::lifetimeless::Read;
-use bevy_render::render_resource::binding_types::{storage_buffer_read_only, uniform_buffer};
-use bevy_render::render_resource::{BindGroup, BindGroupEntries, ComputePassDescriptor};
-use bevy_render::view::{ViewUniform, ViewUniformOffset, ViewUniforms};
+// 新增：导入 ViewTarget
+// New: Import ViewTarget
+use bevy_render::render_resource::binding_types::{
+    sampler, storage_buffer_read_only, texture_2d, uniform_buffer,
+};
+use bevy_render::render_resource::{
+    BindGroup, BindGroupEntries, BindGroupLayoutEntry, ComputePassDescriptor, SamplerBindingType,
+    TextureSampleType, TextureViewDimension,
+};
+use bevy_render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms}; // 确保 ViewTarget 已导入
 use bevy_render::{
-    render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner}, render_resource::{
-        binding_types::texture_storage_2d_array, BindGroupLayout, BindGroupLayoutEntries,
-        CachedComputePipelineId, ComputePipelineDescriptor, Extent3d, PipelineCache, Sampler,
-        SamplerDescriptor, ShaderStages, StorageTextureAccess, TextureDescriptor, TextureDimension,
-        TextureFormat, TextureUsages,
-    }, renderer::{RenderContext, RenderDevice}, texture::{CachedTexture, TextureCache}, Extract,
-    ExtractSchedule,
-    Render,
-    RenderApp,
-    RenderSet,
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
+    render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
+    render_resource::{
+        BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId,
+        ComputePipelineDescriptor, Extent3d, PipelineCache, Sampler, SamplerDescriptor,
+        ShaderStages, StorageTextureAccess, TextureDescriptor, TextureDimension, TextureFormat,
+        TextureUsages, binding_types::texture_storage_2d_array,
+    },
+    renderer::{RenderContext, RenderDevice},
+    texture::{CachedTexture, TextureCache},
 };
 use bevy_render_macros::RenderLabel;
 
@@ -46,9 +53,16 @@ impl Plugin for SnapshotPlugin {
 
         render_app
             .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(Core2d, SnapshotNodeLabel)
+            // 修改 Render Graph 边：确保在主 Pass 之后运行，以便采样其结果
+            // Modify Render Graph edge: Ensure it runs after the main pass to sample its result
             .add_render_graph_edges(
                 Core2d,
-                (FogNode2dLabel, SnapshotNodeLabel, Node2d::EndMainPass),
+                (
+                    Node2d::MainTransparentPass,
+                    FogNode2dLabel,
+                    SnapshotNodeLabel,
+                    Node2d::EndMainPass,
+                ), // 改为依赖 MainPass
             );
     }
 
@@ -61,9 +75,9 @@ impl Plugin for SnapshotPlugin {
 }
 
 #[derive(Resource, Default)]
-struct SnapshotTexture {
-    write: Option<CachedTexture>,
-    read: Option<CachedTexture>,
+pub struct SnapshotTexture {
+    pub write: Option<CachedTexture>,
+    pub read: Option<CachedTexture>,
 }
 
 fn prepare_snapshot_texture(
@@ -154,7 +168,8 @@ impl ViewNode for SnapshotNode {
         let chunk_manager = world.resource::<ChunkManager>();
         let dispatch_x = (chunk_manager.chunk_size.x + workgroup_size - 1) / workgroup_size;
         let dispatch_y = (chunk_manager.chunk_size.y + workgroup_size - 1) / workgroup_size;
-        let chunk_manager = world.resource::<ChunkManager>();
+        let chunk_manager = world.resource::<ChunkManager>(); // 第二次获取，可以移除
+        // The second acquisition can be removed
 
         pass.dispatch_workgroups(dispatch_x, dispatch_y, chunk_manager.chunk_in_views as u32);
 
@@ -175,20 +190,32 @@ impl FromWorld for SnapshotPipeline {
         let layout = render_device.create_bind_group_layout(
             "snapshot_bind_group_layout",
             &BindGroupLayoutEntries::sequential(
-                // The layout entries will only be visible in the fragment stage
                 ShaderStages::COMPUTE,
                 (
+                    // @binding(0) ViewUniform
                     uniform_buffer::<ViewUniform>(true),
-                    storage_buffer_read_only::<ChunkInfo>(false),
+                    // @binding(1) ChunkInfo Buffer
+                    storage_buffer_read_only::<ChunkInfo>(false), // 确保 ChunkInfo 定义与 Shader 一致
+                    // @binding(2) Snapshot Write Texture
                     texture_storage_2d_array(
                         TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::WriteOnly,
-                    ), // 3
+                    ),
+                    // @binding(3) Source Texture (e.g., from ViewTarget)
+                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    // @binding(4) Source Sampler
+                    sampler(SamplerBindingType::Filtering),
                 ),
             ),
         );
 
-        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
+        // 创建一个默认采样器
+        // Create a default sampler
+        let sampler = render_device.create_sampler(&SamplerDescriptor {
+            label: Some("snapshot_source_sampler"),
+            ..Default::default() // 使用默认设置，例如线性过滤
+                                 // Use default settings, e.g., linear filtering
+        });
 
         // Get the shader handle
         let shader = world.load_asset(SHADER_ASSET_PATH);
@@ -205,7 +232,8 @@ impl FromWorld for SnapshotPipeline {
 
         Self {
             layout,
-            sampler,
+            sampler, // 存储采样器以备后用
+            // Store the sampler for later use
             pipeline_id,
         }
     }
@@ -217,8 +245,19 @@ fn prepare_bind_group(
     render_device: Res<RenderDevice>,
     chunk_info: Res<GpuChunks>,
     snapshot_texture: Res<SnapshotTexture>,
+    // 新增：查询 ViewTarget 以获取源纹理
+    // New: Query ViewTarget to get the source texture
+    view_targets: Query<&ViewTarget>,
     mut commands: Commands,
 ) {
+    // 假设我们总是处理第一个（或唯一一个）ViewTarget
+    // Assume we always process the first (or only) ViewTarget
+    let Some(view_target) = view_targets.iter().next() else {
+        // 没有找到 ViewTarget，无法进行快照
+        // No ViewTarget found, cannot perform snapshot
+        return;
+    };
+
     let Some(chunk_info_buffer_binding) = chunk_info.buffer.as_ref().map(|b| b.as_entire_binding())
     else {
         return;
@@ -231,13 +270,20 @@ fn prepare_bind_group(
         return;
     };
 
+    // 获取源纹理视图
+    // Get the source texture view
+    let source_texture_view = view_target.main_texture_view();
+
     let bind_group = render_device.create_bind_group(
-        "vision_compute_bind_group",
+        "snapshot_bind_group", // 修改名称以更好地区分
+        // Change name for better distinction
         &pipeline.layout,
         &BindGroupEntries::sequential((
-            view_uniforms_binding,
-            chunk_info_buffer_binding,
-            &snapshot_write.default_view,
+            view_uniforms_binding,        // @binding(0)
+            chunk_info_buffer_binding,    // @binding(1)
+            &snapshot_write.default_view, // @binding(2)
+            source_texture_view,          // @binding(3)
+            &pipeline.sampler,            // @binding(4)
         )),
     );
 
