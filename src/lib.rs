@@ -3,7 +3,7 @@ use bevy_app::{App, Plugin};
 mod chunk;
 mod fog_2d;
 pub mod prelude;
-mod snapshot;
+// mod snapshot;
 mod sync_texture;
 mod vision;
 
@@ -14,7 +14,7 @@ impl Plugin for FogOfWarPlugin {
         app.add_plugins(chunk::ChunkManagerPlugin)
             .add_plugins(vision::VisionComputePlugin)
             .add_plugins(fog_2d::Fog2DRenderPlugin)
-            .add_plugins(snapshot::SnapshotPlugin)
+            // .add_plugins(snapshot::SnapshotPlugin)
             .add_plugins(sync_texture::GpuSyncTexturePlugin);
     }
 }

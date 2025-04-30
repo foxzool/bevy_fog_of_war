@@ -65,7 +65,7 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(6) var history_read: texture_storage_2d_array<r8unorm, read>;
 // History exploration area write texture
 @group(0) @binding(7) var history_write: texture_storage_2d_array<r8unorm, write>;
-@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;
+//@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;
 
 
 @fragment
@@ -105,7 +105,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
             // Load visibility and history values
             let current_visibility = textureLoad(vision_texture_write, clamped_coords, i32(target_layer_index)).x;
-            let history_value = textureLoad(history_read, clamped_coords, i32(target_layer_index)).x;
+            let history_snapshot_color = textureLoad(history_read, clamped_coords, i32(target_layer_index));
+            let history_value = history_snapshot_color.z;
 
             // --- History Update Logic (if needed, keep or remove as necessary) ---
             // let new_history = max(history_value, current_visibility);
@@ -114,7 +115,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             // --- Calculate potential historical display color (used if history_value > 0.0) ---
             var history_display_color = vec4<f32>(0.0); // Default transparent black if no history needed here
             if (history_value > 0.0) {
-                let history_snapshot_color = textureLoad(snapshot_read, clamped_coords, i32(target_layer_index));
+
                 // Define gray color (RGB)
                 let gray_rgb = vec3<f32>(0.5, 0.5, 0.5);
                 // Define alpha for the gray overlay

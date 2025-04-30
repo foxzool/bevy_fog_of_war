@@ -1,4 +1,3 @@
-use crate::snapshot::SnapshotTexture;
 use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
     chunk::{InCameraView, MapChunk},
@@ -149,10 +148,10 @@ impl FromWorld for FogOfWar2dPipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 7
-                    texture_storage_2d_array(
-                        TextureFormat::Rgba8Unorm,
-                        StorageTextureAccess::ReadOnly,
-                    ), // 8
+                    // texture_storage_2d_array(
+                    //     TextureFormat::Rgba8Unorm,
+                    //     StorageTextureAccess::ReadOnly,
+                    // ), // 8
                 ),
             ),
         );
@@ -233,7 +232,7 @@ impl ViewNode for FogNode2d {
         let vision_params_resource = world.resource::<VisionParamsResource>();
         let chunk_meta_buffer = world.resource::<ChunkMetaBuffer>();
         let explored_texture = world.resource::<ExploredTexture>();
-        let snapshot_texture = world.resource::<SnapshotTexture>();
+        // let snapshot_texture = world.resource::<SnapshotTexture>();
 
         let vision_texture = world.resource::<VisionTexture>();
 
@@ -280,9 +279,9 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        let Some(snapshot_read) = &snapshot_texture.read else {
-            return Ok(());
-        };
+        // let Some(snapshot_read) = &snapshot_texture.read else {
+        //     return Ok(());
+        // };
 
         let Some(chunk_meta_binding) = chunk_meta_buffer
             .buffer
@@ -307,7 +306,7 @@ impl ViewNode for FogNode2d {
                 chunk_meta_binding,           // 5
                 &explored_read.default_view,  // 6
                 &explored_write.default_view, // 7
-                &snapshot_read.default_view,  // 8
+                // &snapshot_read.default_view,  // 8
             )),
         );
 
