@@ -34,7 +34,7 @@ const SHADER_ASSET_PATH: &str = "shaders/snapshot.wgsl";
 pub struct SnapshotPlugin;
 
 impl Plugin for SnapshotPlugin {
-    fn build(&self, app: &mut bevy_app::App) {
+    fn build(&self, app: &mut App) {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -123,7 +123,7 @@ fn prepare_snapshot_texture(
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-struct SnapshotNodeLabel;
+pub struct SnapshotNodeLabel;
 
 #[derive(Default)]
 struct SnapshotNode;

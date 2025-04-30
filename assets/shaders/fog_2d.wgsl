@@ -139,6 +139,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 }
 
                 // Blend based on visibility: mix(color_at_0_visibility, color_at_1_visibility, visibility_factor)
+                // Restore smooth blending using current_visibility for falloff within the visible area.
+                // 恢复使用 current_visibility 进行平滑混合，以实现可见区域内的衰减效果。
                 final_color = mix(obscured_color, clear_color, current_visibility);
 
                 // Optional DEBUG overlay (apply after blending if needed)

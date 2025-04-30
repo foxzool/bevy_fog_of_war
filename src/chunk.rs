@@ -1,4 +1,4 @@
-use crate::{sync::SyncChunk, prelude::SyncChunkComplete};
+use crate::{sync_texture::SyncChunk, prelude::SyncChunkComplete};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
 use bevy_ecs::prelude::*;
