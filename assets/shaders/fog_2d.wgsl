@@ -62,9 +62,7 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(4) var vision_texture_write: texture_storage_2d_array<r8unorm, read>;
 @group(0) @binding(5) var<uniform> chunk_meta: MetaUniform;
 // History exploration area read texture
-@group(0) @binding(6) var history_read: texture_storage_2d_array<r8unorm, read>;
-// History exploration area write texture
-@group(0) @binding(7) var history_write: texture_storage_2d_array<r8unorm, write>;
+@group(0) @binding(6) var history_read: texture_storage_2d_array<rgba8unorm, read>;
 //@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;
 
 

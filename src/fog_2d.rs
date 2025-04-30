@@ -141,13 +141,13 @@ impl FromWorld for FogOfWar2dPipeline {
                     ), // 4
                     uniform_buffer::<ChunkMeta>(false),                 // 5
                     texture_storage_2d_array(
-                        TextureFormat::R8Unorm,
+                        TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 6
-                    texture_storage_2d_array(
-                        TextureFormat::R8Unorm,
-                        StorageTextureAccess::WriteOnly,
-                    ), // 7
+                    // texture_storage_2d_array(
+                    //     TextureFormat::Rgba8Unorm,
+                    //     StorageTextureAccess::WriteOnly,
+                    // ), // 7
                     // texture_storage_2d_array(
                     //     TextureFormat::Rgba8Unorm,
                     //     StorageTextureAccess::ReadOnly,
@@ -269,7 +269,7 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        let (Some(explored_read), Some(explored_write)) =
+        let (Some(explored_read), Some(_explored_write)) =
             (&explored_texture.read, &explored_texture.write)
         else {
             return Ok(());
@@ -305,7 +305,7 @@ impl ViewNode for FogNode2d {
                 &vision_read.default_view,    // 4
                 chunk_meta_binding,           // 5
                 &explored_read.default_view,  // 6
-                &explored_write.default_view, // 7
+                // &explored_write.default_view, // 7
                 // &snapshot_read.default_view,  // 8
             )),
         );
