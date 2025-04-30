@@ -79,14 +79,9 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let ndc_pos = vec3<f32>(ndc, 0.0);
     let world_pos = position_ndc_to_world(ndc_pos);
     let world_xy = world_pos.xy; // Use only xy for 2D comparison
-  
-   // Determine visibility based on vision sources
-    var current_visibility: f32 = 1.0;
-
-
 
     // Default fog color if outside all chunks (should ideally not happen)
-    var final_color = fog_material.color; 
+    var final_color = fog_material.color;
     var found_chunk = false;
 
     // Cache chunk count for loop
@@ -107,61 +102,60 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             // Assuming the vision texture size for this layer matches the chunk size
             let tex_coords_raw = vec2<i32>(floor(rel_pos_norm * vec2<f32>(chunk.size)));
             let clamped_coords = clamp(tex_coords_raw, vec2<i32>(0), vec2<i32>(chunk.size) - vec2<i32>(1));
-            current_visibility  = textureLoad(vision_texture_write, clamped_coords, i32(target_layer_index)).x;
 
-            // 读取历史探索区域值（0~1）
-            // Read the value of the historical exploration area (0~1)
+            // Load visibility and history values
+            let current_visibility = textureLoad(vision_texture_write, clamped_coords, i32(target_layer_index)).x;
             let history_value = textureLoad(history_read, clamped_coords, i32(target_layer_index)).x;
-//            let history_value = 0.0;
 
-            // 新的历史区域值 = max(历史, 当前可见性)
-            // New history value = max(history, current visibility)
-            let new_history = max(history_value, current_visibility);
+            // --- History Update Logic (if needed, keep or remove as necessary) ---
+            // let new_history = max(history_value, current_visibility);
+            // textureStore(history_write, clamped_coords, i32(target_layer_index), vec4<f32>(new_history, 0.0, 0.0, 1.0));
 
-            // 写入新的历史区域纹理
-            // Write the new history value to the history_write texture
-//            textureStore(history_write, clamped_coords, i32(target_layer_index), vec4<f32>(new_history, 0.0, 0.0, 1.0));
-
-            // 同时写入当前帧可见性到vision_texture_write
-            // Also write current frame visibility to vision_texture_write
-//            textureStore(vision_texture_write, clamped_coords, i32(target_layer_index), vec4<f32>(current_visibility, 0.0, 0.0, 1.0));
-
-            let visibility = current_visibility;
-
-            // Render logic for fog and history
-            // 迷雾与历史快照的渲染逻辑
-            if (current_visibility > 0.0) {
-                // 当前可见，渲染正常内容
-                // Currently visible, render normal content
-                var color_rgb = fog_material.color.xyz;
-                if (DEBUG) {
-                    let index_mask = draw_layer_index_mask(world_xy, chunk);
-                    color_rgb = mix(color_rgb, vec3<f32>(1.0, 1.0, 1.0), index_mask);
-                }
-                final_color = vec4<f32>(color_rgb, 1.0 - current_visibility);
-            } else if (history_value > 0.0) {
-               // 不可见但有历史，渲染历史快照作为底色，叠加半透明灰色
-                // Not visible but has history, render snapshot as base, overlay with semi-transparent gray
-                let history_color = textureLoad(snapshot_read, clamped_coords, i32(target_layer_index));
-                // 定义灰色 (RGB)
+            // --- Calculate potential historical display color (used if history_value > 0.0) ---
+            var history_display_color = vec4<f32>(0.0); // Default transparent black if no history needed here
+            if (history_value > 0.0) {
+                let history_snapshot_color = textureLoad(snapshot_read, clamped_coords, i32(target_layer_index));
                 // Define gray color (RGB)
                 let gray_rgb = vec3<f32>(0.5, 0.5, 0.5);
-                // 定义灰色叠加层的透明度 (尝试更低的值，例如 0.05)
-                // Define alpha for the gray overlay (try a lower value, e.g., 0.05)
-                let gray_overlay_alpha = 0.05; // <--- 调整这个值以控制灰色的薄厚程度 Adjust this value to control the thickness of the gray overlay
-
-                // 执行 alpha 混合：灰色叠加在历史快照上
+                // Define alpha for the gray overlay
+                let gray_overlay_alpha = 0.05; // Adjust this value to control the thickness of the gray overlay
                 // Perform alpha blending: gray overlay onto history snapshot
-                // Result = SourceColor * SourceAlpha + BackgroundColor * (1 - SourceAlpha)
-                let final_rgb = gray_rgb * gray_overlay_alpha + history_color.rgb * (1.0 - gray_overlay_alpha);
+                let history_rgb = gray_rgb * gray_overlay_alpha + history_snapshot_color.rgb * (1.0 - gray_overlay_alpha);
+                // Set historical display color (fully opaque)
+                history_display_color = vec4<f32>(history_rgb, 1.0);
+            }
 
-                // 设置最终颜色，最终 alpha 为 1.0 (区域完全不透明)
-                // Set final color, final alpha is 1.0 (area is fully opaque)
-                final_color = vec4<f32>(final_rgb, 1.0);
+            // --- Determine final color based on visibility and history ---
+            if (current_visibility > 0.0) {
+                // Currently visible: Blend between clear and the appropriate obscured color.
+                // Represents the fully revealed area (fog is transparent)
+                let clear_color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
 
+                // Determine the color towards which we fade when visibility decreases (the obscured state)
+                var obscured_color = fog_material.color; // Default to fog color
+                if (history_value > 0.0) {
+                    // If there's history for this pixel, fade towards the historical gray view instead of fog
+                    obscured_color = history_display_color;
+                }
+
+                // Blend based on visibility: mix(color_at_0_visibility, color_at_1_visibility, visibility_factor)
+                final_color = mix(obscured_color, clear_color, current_visibility);
+
+                // Optional DEBUG overlay (apply after blending if needed)
+                if (DEBUG) {
+                    let index_mask = draw_layer_index_mask(world_xy, chunk);
+                    // Mix the debug mask (white) onto the calculated color's RGB components
+                    let mixed_rgb = mix(final_color.rgb, vec3<f32>(1.0, 1.0, 1.0), index_mask);
+                    // Construct a new vec4 with the mixed RGB and original alpha
+                    final_color = vec4<f32>(mixed_rgb, final_color.a);
+                    // If debug mask should make it opaque: final_color.a = mix(final_color.a, 1.0, index_mask);
+                }
+
+            } else if (history_value > 0.0) {
+                // Not visible, but has history: Show the pre-calculated historical gray color
+                final_color = history_display_color;
             } else {
-                // 完全迷雾
-                // Full fog
+                // Not visible, no history: Full fog
                 final_color = fog_material.color;
             }
 
@@ -174,11 +168,10 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // handle it gracefully. Returning a bright color like magenta can help debugging.
     if (!found_chunk) {
         // Pixel outside known chunks; fallback to default fog color
-        return final_color;
+        return final_color; // final_color is already fog_material.color by default
     }
 
     // Return the final determined color and alpha
-    // The color is the fog color for visible areas.
     return final_color;
 }
 

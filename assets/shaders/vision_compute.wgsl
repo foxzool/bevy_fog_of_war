@@ -72,19 +72,60 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Iterate through all vision providers
     for (var i = 0u; i < arrayLength(&visions.sources); i++) {
        let vision = visions.sources[i];
-       // Use squared distance for performance, avoid sqrt
+       // Use squared distance for performance, avoid sqrt initially
        // 使用平方距离代替开方，提升性能
        let dist_sq = dot(world_xy - vision.position, world_xy - vision.position);
        let radius_sq = vision.radius * vision.radius;
+
+       var visibility: f32 = 0.0; // Visibility for this source
+
        if (dist_sq < radius_sq) {
-           // Use 1.0 if inside radius, 0.0 otherwise
-           // 若在半径范围内为1.0，否则为0.0
-           let visibility = f32(dist_sq < radius_sq);
-           current_visibility = current_visibility + visibility * (1.0 - current_visibility);
-           if (current_visibility > 0.999) {
-              break;
-          }
+           // Clamp falloff factor between 0.0 and 1.0
+           // 将衰减因子限制在 0.0 和 1.0 之间
+           let falloff_factor = clamp(vision.falloff, 0.0, 1.0);
+
+           // Calculate the radius where falloff starts (full visibility radius)
+           // 计算衰减开始的半径（完全可见半径）
+           let falloff_start_radius = vision.radius * (1.0 - falloff_factor);
+
+           // Avoid issues if falloff_start_radius is negative (though unlikely with clamp)
+           // 避免 falloff_start_radius 为负数（虽然 clamp 后不太可能）
+           if (falloff_start_radius <= 0.0) {
+               // If falloff covers the entire radius or more, calculate falloff from center
+               // 如果衰减覆盖整个半径或更多，则从中心开始计算衰减
+               let dist = sqrt(dist_sq);
+               // Use smoothstep for smooth transition from 1.0 (center) to 0.0 (edge)
+               // 使用 smoothstep 实现从 1.0（中心）到 0.0（边缘）的平滑过渡
+               visibility = smoothstep(vision.radius, 0.0, dist);
+           } else {
+               let falloff_start_radius_sq = falloff_start_radius * falloff_start_radius;
+               if (dist_sq <= falloff_start_radius_sq) {
+                   // Inside the full visibility radius
+                   // 在完全可见半径内
+                   visibility = 1.0;
+               } else {
+                   // Inside the falloff zone, calculate smooth transition
+                   // 在衰减区域内，计算平滑过渡
+                   let dist = sqrt(dist_sq);
+                   // smoothstep(edge0, edge1, x) interpolates from 0 to 1 as x goes from edge0 to edge1.
+                   // We want 1.0 at falloff_start_radius and 0.0 at vision.radius.
+                   // smoothstep(edge0, edge1, x) 当 x 从 edge0 到 edge1 时，插值从 0 到 1。
+                   // 我们希望在 falloff_start_radius 处为 1.0，在 vision.radius 处为 0.0。
+                   visibility = smoothstep(vision.radius, falloff_start_radius, dist);
+               }
+           }
        }
+       // else: visibility remains 0.0 (outside radius) / 否则：可见性保持为 0.0（在半径之外）
+
+       // Combine with overall visibility using the original blending method
+       // 使用原始混合方法与总体可见性结合
+       current_visibility = current_visibility + visibility * (1.0 - current_visibility);
+
+       // Optimization: break early if max visibility reached
+       // 优化：如果达到最大可见性，则提前中断
+       if (current_visibility > 0.999) {
+          break;
+      }
     }
 
 

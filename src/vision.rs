@@ -30,7 +30,7 @@ pub struct VisionProvider {
 pub struct GpuVisionSource {
     pub position: Vec2, // 8 bytes
     pub radius: f32,    // 4 bytes
-    pub _padding: u32,  // 4 bytes padding, total 16 bytes to match WGSL
+    pub _padding: f32,  // 4 bytes padding, total 16 bytes to match WGSL
 }
 
 // 视野参数在 GPU 中的表示
@@ -64,7 +64,7 @@ pub fn update_vision_params(
     let mut sources = [GpuVisionSource {
         position: Vec2::ZERO,
         radius: 0.0,
-        _padding: 0,
+        _padding: 0.0,
     }; 16];
     let mut count = 0;
     for (transform, provider, vis) in query.iter().take(16) {
@@ -72,7 +72,7 @@ pub fn update_vision_params(
             sources[count] = GpuVisionSource {
                 position: transform.translation().truncate(),
                 radius: provider.range,
-                _padding: 0,
+                _padding: 0.2,
             };
             count += 1;
         }
