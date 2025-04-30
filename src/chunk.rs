@@ -1,4 +1,4 @@
-use crate::{chunk_sync::SyncChunk, prelude::SyncChunkComplete, fog_2d::ChunkTexture};
+use crate::{chunk_sync::SyncChunk, prelude::SyncChunkComplete};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
 use bevy_ecs::prelude::*;
@@ -34,14 +34,9 @@ impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChunkManager>()
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
-            .init_resource::<SpatialIndex>()
             .register_type::<MapChunk>()
-            .register_type::<FogData>()
             .register_type::<InCameraView>()
-            .add_systems(
-                PreUpdate,
-                (increment_chunk_timestamp, manage_chunks_by_viewport).chain(),
-            )
+            .add_systems(PreUpdate, (manage_chunks_by_viewport).chain())
             .add_systems(PreUpdate, update_chunk_visibility);
     }
 }
@@ -151,65 +146,6 @@ pub enum VisibilityState {
 impl Default for VisibilityState {
     fn default() -> Self {
         Self::Unexplored
-    }
-}
-
-/// 迷雾数据组件，存储区块的迷雾信息
-/// Fog data component, stores fog information for a chunk
-#[derive(Component, Reflect, Debug, Clone)]
-pub struct FogData {
-    /// 可见性网格，存储每个格子的可见性状态
-    /// Visibility grid, stores the visibility state of each cell
-    pub visibility_grid: Vec<VisibilityState>,
-
-    /// 上次更新时间戳，用于增量更新
-    /// Last update timestamp, used for incremental updates
-    pub last_updated: u64,
-
-    /// 是否需要更新纹理
-    /// Whether the texture needs to be updated
-    pub needs_texture_update: bool,
-}
-
-impl FogData {
-    /// 创建一个新的迷雾数据组件
-    /// Create a new fog data component
-    pub fn new(chunk_size: UVec2) -> Self {
-        let total_cells = (chunk_size.x * chunk_size.y) as usize;
-        Self {
-            visibility_grid: vec![VisibilityState::Unexplored; total_cells],
-            last_updated: 0,
-            needs_texture_update: true,
-        }
-    }
-
-    /// 获取指定位置的可见性状态
-    /// Get the visibility state at the specified position
-    pub fn get_visibility(&self, x: u32, y: u32, chunk_size: UVec2) -> VisibilityState {
-        let index = (y * chunk_size.x + x) as usize;
-        if index < self.visibility_grid.len() {
-            self.visibility_grid[index]
-        } else {
-            VisibilityState::Unexplored
-        }
-    }
-
-    /// 设置指定位置的可见性状态
-    /// Set the visibility state at the specified position
-    pub fn set_visibility(&mut self, x: u32, y: u32, chunk_size: UVec2, state: VisibilityState) {
-        let index = (y * chunk_size.x + x) as usize;
-        if index < self.visibility_grid.len() {
-            if self.visibility_grid[index] != state {
-                self.visibility_grid[index] = state;
-                self.needs_texture_update = true;
-            }
-        }
-    }
-
-    /// 更新时间戳
-    /// Update the timestamp
-    pub fn update_timestamp(&mut self, timestamp: u64) {
-        self.last_updated = timestamp;
     }
 }
 
@@ -342,82 +278,11 @@ impl ChunkManager {
     }
 }
 
-/// 空间索引资源，用于加速空间查询
-/// Spatial index resource, used to accelerate spatial queries
-#[derive(Resource, Debug, Default)]
-pub struct SpatialIndex {
-    /// 区块到实体的映射
-    /// Map from chunk coordinates to entity
-    pub chunk_to_entity: HashMap<ChunkCoord, Entity>,
-
-    /// 活动区块集合
-    /// Set of active chunks
-    pub active_chunks: HashSet<ChunkCoord>,
-}
-
-impl SpatialIndex {
-    /// 添加一个区块到索引
-    /// Add a chunk to the index
-    pub fn add_chunk(&mut self, coord: ChunkCoord, entity: Entity) {
-        self.chunk_to_entity.insert(coord, entity);
-        self.active_chunks.insert(coord);
-    }
-
-    /// 从索引中移除一个区块
-    /// Remove a chunk from the index
-    pub fn remove_chunk(&mut self, coord: ChunkCoord) {
-        self.chunk_to_entity.remove(&coord);
-        self.active_chunks.remove(&coord);
-    }
-
-    /// 检查区块是否在索引中
-    /// Check if a chunk is active in the index
-    pub fn is_chunk_active(&self, coord: &ChunkCoord) -> bool {
-        self.active_chunks.contains(coord)
-    }
-
-    /// 查询一个圆形区域内的所有区块
-    /// Query all chunks within a circular area
-    pub fn query_circle(&self, center: ChunkCoord, radius: i32) -> Vec<ChunkCoord> {
-        let radius_squared = (radius * radius) as f32;
-        self.active_chunks
-            .iter()
-            .filter(|&&coord| {
-                let dx = coord.x - center.x;
-                let dy = coord.y - center.y;
-                let distance_squared = (dx * dx + dy * dy) as f32;
-                distance_squared <= radius_squared
-            })
-            .copied()
-            .collect()
-    }
-
-    /// 获取一个区块对应的实体
-    /// Get the entity corresponding to a chunk
-    pub fn get_entity(&self, coord: ChunkCoord) -> Option<Entity> {
-        self.chunk_to_entity.get(&coord).copied()
-    }
-
-    /// 清空索引
-    /// Clear the index
-    pub fn clear(&mut self) {
-        self.chunk_to_entity.clear();
-        self.active_chunks.clear();
-    }
-}
-
-/// 增加区块时间戳系统
-/// Increment chunk timestamp system
-fn increment_chunk_timestamp(mut chunk_manager: ResMut<ChunkManager>) {
-    chunk_manager.increment_timestamp();
-}
-
 /// 基于屏幕视口的区块管理系统，负责动态加载区块
 /// Viewport-based chunk management system, responsible for dynamically loading chunks
 fn manage_chunks_by_viewport(
     mut commands: Commands,
     mut chunk_manager: ResMut<ChunkManager>,
-    mut spatial_index: ResMut<SpatialIndex>,
     camera_query: Query<(&Camera, &GlobalTransform, &Projection)>,
     mut images: ResMut<Assets<Image>>,
     render_device: Res<RenderDevice>,
@@ -473,9 +338,7 @@ fn manage_chunks_by_viewport(
     // 加载新区块，但不重复创建已经存在的区块
     // Load new chunks, but don't recreate existing ones
     for chunk_coord in chunks_to_load {
-        if !chunk_manager.is_chunk_loaded(&chunk_coord)
-            && !spatial_index.is_chunk_active(&chunk_coord)
-        {
+        if !chunk_manager.is_chunk_loaded(&chunk_coord) {
             let chunk_size = chunk_manager.chunk_size;
             let tile_size = chunk_manager.tile_size;
 
@@ -502,10 +365,6 @@ fn manage_chunks_by_viewport(
             let entity = commands
                 .spawn((
                     MapChunk::new(chunk_coord, chunk_size, tile_size, image1.clone()),
-                    FogData::new(chunk_size),
-                    ChunkTexture {
-                        explored: image1.clone(),
-                    },
                     SyncChunk::new(chunk_coord, image1.clone(), size, &render_device),
                     // ImageCopier::new(chunk_coord, image1.clone(), size, &render_device),
                     InCameraView::default(),
@@ -521,7 +380,6 @@ fn manage_chunks_by_viewport(
             // 更新管理器和索引
             // Update manager and index
             chunk_manager.add_chunk(chunk_coord, entity);
-            spatial_index.add_chunk(chunk_coord, entity);
         }
     }
 }
@@ -554,13 +412,7 @@ fn on_texture_download(
 fn update_chunk_visibility(
     mut chunk_manager: ResMut<ChunkManager>,
     cameras: Query<(&Camera, &GlobalTransform, &Projection), Changed<GlobalTransform>>,
-    mut chunks: Query<(
-        Entity,
-        &mut MapChunk,
-        &ChunkTexture,
-        &mut SyncChunk,
-        Option<&InCameraView>,
-    )>,
+    mut chunks: Query<(Entity, &mut MapChunk, &mut SyncChunk, Option<&InCameraView>)>,
     mut commands: Commands,
 ) {
     // 遍历所有相机，更新区块的可见性状态
@@ -597,9 +449,7 @@ fn update_chunk_visibility(
 
             let mut count = 0;
 
-            for (entity, mut chunk, chunk_texture, mut sync_texture, opt_in_view) in
-                chunks.iter_mut()
-            {
+            for (entity, mut chunk, mut sync_texture, opt_in_view) in chunks.iter_mut() {
                 let mut in_view = false;
                 'f: for (screen_index, order_chunk) in ordered_coords.iter().enumerate() {
                     if *order_chunk == chunk.chunk_coord {
@@ -687,4 +537,3 @@ pub fn ordered_chunks_in_view(
 
 #[derive(Component, ExtractComponent, Clone)]
 pub struct FogOfWarCamera;
-

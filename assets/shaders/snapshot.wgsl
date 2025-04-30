@@ -49,9 +49,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // 计算此像素在 Chunk 纹理区域内的局部 UV (0.0 到 1.0)
     // Calculate the local UV of this pixel within the chunk's texture area (0.0 to 1.0)
-    // 使用 chunk.size - 1 来确保 UV 映射到像素中心或边界
-    // Use chunk.size - 1 to ensure UV maps correctly to pixel centers or boundaries
-    let local_uv_in_chunk_texture = vec2<f32>(pixel_coord) / vec2<f32>(chunk.size - vec2<u32>(1u));
+    // 调整计算方式以更精确地对准像素中心
+    // Adjust calculation to target pixel centers more precisely
+    let local_uv_in_chunk_texture = (vec2<f32>(pixel_coord) + 0.5) / vec2<f32>(chunk.size);
 
     // 根据局部 UV 计算对应的世界坐标
     // Calculate the corresponding world coordinate based on the local UV

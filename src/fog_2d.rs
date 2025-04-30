@@ -57,7 +57,6 @@ impl Plugin for ChunkRenderPlugin {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<FogOfWarMeta>()
-                .add_plugins(ExtractComponentPlugin::<ChunkTexture>::default())
                 .add_plugins(ExtractComponentPlugin::<InCameraView>::default())
                 .add_plugins(ExtractComponentPlugin::<MapChunk>::default())
                 .add_systems(ExtractSchedule, prepare_fog_settings);
@@ -75,14 +74,6 @@ impl Plugin for ChunkRenderPlugin {
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<FogOfWar2dPipeline>();
     }
-}
-
-/// 区块纹理组件，存储区块的迷雾纹理 (Moved from chunk.rs)
-/// Chunk texture component, stores the fog texture for a chunk (Moved from chunk.rs)
-#[derive(Component, ExtractComponent, Debug, Clone, Default)]
-pub struct ChunkTexture {
-    /// Texture handle for the fog data
-    pub explored: Handle<Image>,
 }
 
 pub fn prepare_fog_settings(
