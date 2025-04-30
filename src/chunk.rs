@@ -1,4 +1,4 @@
-use crate::{chunk_sync::SyncChunk, prelude::SyncChunkComplete};
+use crate::{sync::SyncChunk, prelude::SyncChunkComplete};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
 use bevy_ecs::prelude::*;
@@ -17,6 +17,7 @@ use bevy_render_macros::{ExtractComponent, ExtractResource};
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::prelude::*;
 use std::{collections::VecDeque, time::Instant};
+use bevy_render::extract_component::ExtractComponentPlugin;
 
 /// 区块坐标类型，用于标识区块的二维坐标
 /// Chunk coordinate type, used to identify the 2D coordinates of a chunk
@@ -33,6 +34,7 @@ pub struct ChunkManagerPlugin;
 impl Plugin for ChunkManagerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChunkManager>()
+            .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
             .register_type::<MapChunk>()
             .register_type::<InCameraView>()

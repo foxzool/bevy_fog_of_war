@@ -269,7 +269,7 @@ fn prepare_bind_group(
         return;
     };
 
-    let Some(vision_read) = &vision_texture.write else {
+    let Some(vision_read) = &vision_texture.read else {
         return;
     };
 
