@@ -11,9 +11,9 @@ mod chunk_sync;
 mod fog;
 pub mod prelude;
 mod render;
+mod snapshot;
 mod vision;
 mod vision_compute;
-mod snapshot;
 
 pub struct BevyFogOfWarPlugins;
 
@@ -26,6 +26,7 @@ impl Plugin for BevyFogOfWarPlugins {
             .add_plugins(GpuSyncTexturePlugin)
             .add_plugins(ChunkPlugin)
             .add_plugins(VisionComputePlugin)
-            .add_plugins(ChunkRenderPlugin);
+            .add_plugins(ChunkRenderPlugin)
+            .add_plugins(snapshot::SnapshotPlugin);
     }
 }

@@ -67,8 +67,10 @@ impl Plugin for VisionComputePlugin {
             )
             .add_systems(
                 Render,
-                (prepare_vision_compute_bind_group.in_set(RenderSet::Prepare),),
-            )
+                prepare_vision_compute_bind_group.in_set(RenderSet::PrepareBindGroups),
+            );
+
+        render_app
             .add_render_graph_node::<ViewNodeRunner<VisionComputeNode>>(
                 Core2d,
                 VisionComputeNodeLabel,
