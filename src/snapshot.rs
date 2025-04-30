@@ -8,19 +8,15 @@ use bevy_diagnostic::FrameCount;
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryItem;
 use bevy_ecs::system::lifetimeless::Read;
-// 新增：导入 ViewTarget
-// New: Import ViewTarget
-use bevy_render::render_resource::binding_types::{
-    sampler, storage_buffer_read_only, texture_2d, uniform_buffer,
-};
-use bevy_render::render_resource::{
-    BindGroup, BindGroupEntries, BindGroupLayoutEntry, ComputePassDescriptor, SamplerBindingType,
-    TextureSampleType, TextureViewDimension,
-};
-use bevy_render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms}; // 确保 ViewTarget 已导入
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
+    render_resource::binding_types::{
+        sampler, storage_buffer_read_only, texture_2d, uniform_buffer,
+    },
+    render_resource::{
+        BindGroup, BindGroupEntries, ComputePassDescriptor, SamplerBindingType, TextureSampleType,
+    },
     render_resource::{
         BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId,
         ComputePipelineDescriptor, Extent3d, PipelineCache, Sampler, SamplerDescriptor,
@@ -29,6 +25,7 @@ use bevy_render::{
     },
     renderer::{RenderContext, RenderDevice},
     texture::{CachedTexture, TextureCache},
+    view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
 };
 use bevy_render_macros::RenderLabel;
 

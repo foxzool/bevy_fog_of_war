@@ -684,3 +684,7 @@ pub fn ordered_chunks_in_view(
     }
     result
 }
+
+#[derive(Component, ExtractComponent, Clone)]
+pub struct FogOfWarCamera;
+

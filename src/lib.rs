@@ -7,7 +7,6 @@ use bevy_render::extract_component::ExtractComponentPlugin;
 
 mod chunk;
 mod chunk_sync;
-mod fog;
 mod fog_2d;
 pub mod prelude;
 mod snapshot;
