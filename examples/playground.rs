@@ -143,6 +143,16 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         VisionProvider { range: 40.0 },
     ));
 
+    commands.spawn((
+        Sprite {
+            color: Color::srgb(0.2, 0.8, 0.8),
+            custom_size: Some(Vec2::new(60.0, 60.0)),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(-200.0, -0.0, 0.0)),
+        ZIndex(10),
+    ));
+    
     // 生成可移动的视野提供者
     // Spawn movable vision provider
     commands.spawn((

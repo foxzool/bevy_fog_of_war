@@ -155,8 +155,17 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 }
 
             } else if (history_value > 0.0) {
-                // Not visible, but has history: Show the pre-calculated historical gray color
-                final_color = history_display_color;
+                // Not visible, but has history: Show the historical color with fog overlay
+                // 不可见但有历史：显示历史颜色并叠加半透明迷雾
+                let fog_overlay = fog_material.color;
+                let fog_alpha = 0.5;  // 迷雾透明度 50%
+                
+                // 使用 alpha 混合公式：result = source * alpha + destination * (1 - alpha)
+                // Use alpha blending formula: result = source * alpha + destination * (1 - alpha)
+                final_color = vec4<f32>(
+                    fog_overlay.rgb * fog_alpha + history_display_color.rgb * (1.0 - fog_alpha),
+                    1.0  // 保持完全不透明 / Keep fully opaque
+                );
             } else {
                 // Not visible, no history: Full fog
                 final_color = fog_material.color;
