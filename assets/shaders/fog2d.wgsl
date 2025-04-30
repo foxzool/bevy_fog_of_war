@@ -140,14 +140,24 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 }
                 final_color = vec4<f32>(color_rgb, 1.0 - current_visibility);
             } else if (history_value > 0.0) {
-                // 不可见但有历史，渲染历史快照作为底色，叠加半透明灰色
+               // 不可见但有历史，渲染历史快照作为底色，叠加半透明灰色
                 // Not visible but has history, render snapshot as base, overlay with semi-transparent gray
                 let history_color = textureLoad(snapshot_read, clamped_coords, i32(target_layer_index));
+                // 定义灰色 (RGB)
+                // Define gray color (RGB)
+                let gray_rgb = vec3<f32>(0.5, 0.5, 0.5);
+                // 定义灰色叠加层的透明度 (尝试更低的值，例如 0.05)
+                // Define alpha for the gray overlay (try a lower value, e.g., 0.05)
+                let gray_overlay_alpha = 0.05; // <--- 调整这个值以控制灰色的薄厚程度 Adjust this value to control the thickness of the gray overlay
 
+                // 执行 alpha 混合：灰色叠加在历史快照上
+                // Perform alpha blending: gray overlay onto history snapshot
+                // Result = SourceColor * SourceAlpha + BackgroundColor * (1 - SourceAlpha)
+                let final_rgb = gray_rgb * gray_overlay_alpha + history_color.rgb * (1.0 - gray_overlay_alpha);
 
                 // 设置最终颜色，最终 alpha 为 1.0 (区域完全不透明)
                 // Set final color, final alpha is 1.0 (area is fully opaque)
-                final_color = history_color;
+                final_color = vec4<f32>(final_rgb, 1.0);
 
             } else {
                 // 完全迷雾
