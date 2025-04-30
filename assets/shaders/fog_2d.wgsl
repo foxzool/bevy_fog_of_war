@@ -104,24 +104,26 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             // Load visibility and history values
             let current_visibility = textureLoad(vision_texture_write, clamped_coords, i32(target_layer_index)).x;
             let history_snapshot_color = textureLoad(history_read, clamped_coords, i32(target_layer_index));
-            let history_value = history_snapshot_color.z;
+            let history_value = history_snapshot_color.a;
 
             // --- History Update Logic (if needed, keep or remove as necessary) ---
             // let new_history = max(history_value, current_visibility);
             // textureStore(history_write, clamped_coords, i32(target_layer_index), vec4<f32>(new_history, 0.0, 0.0, 1.0));
 
             // --- Calculate potential historical display color (used if history_value > 0.0) ---
-            var history_display_color = vec4<f32>(0.0); // Default transparent black if no history needed here
+            var history_display_color = history_snapshot_color; // Default transparent black if no history needed here
             if (history_value > 0.0) {
+                // 使用历史区域的颜色
+                // Use the color from history texture
+                history_display_color = vec4<f32>(history_snapshot_color.rgb, 1.0);
 
-                // Define gray color (RGB)
-                let gray_rgb = vec3<f32>(0.5, 0.5, 0.5);
-                // Define alpha for the gray overlay
-                let gray_overlay_alpha = 0.05; // Adjust this value to control the thickness of the gray overlay
-                // Perform alpha blending: gray overlay onto history snapshot
-                let history_rgb = gray_rgb * gray_overlay_alpha + history_snapshot_color.rgb * (1.0 - gray_overlay_alpha);
-                // Set historical display color (fully opaque)
-                history_display_color = vec4<f32>(history_rgb, 1.0);
+                // 如果历史纹理没有颜色（全透明），则使用灰色
+                // If history texture has no color (fully transparent), use gray
+                if (all(history_display_color.rgb == vec3<f32>(0.0))) {
+                    // Define gray color (RGB)
+                    let gray_rgb = vec3<f32>(0.5, 0.5, 0.5);
+                    history_display_color = vec4<f32>(gray_rgb, 1.0);
+                }
             }
 
             // --- Determine final color based on visibility and history ---
