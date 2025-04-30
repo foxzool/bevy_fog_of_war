@@ -1,4 +1,5 @@
 #import bevy_render::view::View
+#import bevy_pbr::view_transformations::{position_world_to_ndc, ndc_to_uv}
 
 // Represents a single vision source.// 代表单个视野源。
 struct VisionSource {
@@ -44,6 +45,8 @@ struct MetaUniform {
 @group(0) @binding(5) var history_read: texture_storage_2d_array<rgba8unorm, read>;
 // History exploration area write texture
 @group(0) @binding(6) var history_write: texture_storage_2d_array<rgba8unorm, write>;
+@group(0) @binding(7) var source_texture: texture_2d<f32>;
+@group(0) @binding(8) var source_sampler: sampler;
 
 
 
@@ -133,13 +136,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Read the value of the historical exploration area (0~1)
     let history_value = textureLoad(history_read, pixel_coord, i32(target_layer_index)).x;
 
+    // Convert world position to NDC
+    // 将世界坐标转换为 NDC
+    let ndc_vec4 = position_world_to_ndc(vec3(world_xy, 0.0));
+
+    // Initialize color to transparent black
+    // 初始化颜色为透明黑色
+    var sampled_color = vec4<f32>(0.0);
+
+    // Check if within NDC range [-1, 1] (i.e., whether it's on screen)
+    // 检查是否在 NDC 范围 [-1, 1] 内（即是否在屏幕内）
+    if (abs(ndc_vec4.x) <= 1.0 && abs(ndc_vec4.y) <= 1.0) {
+        // Convert NDC to UV coordinates
+        // 将 NDC 转换为 UV 坐标
+        let source_uv = ndc_to_uv(ndc_vec4.xy);
+        sampled_color = textureSampleLevel(source_texture, source_sampler, source_uv, 0.0);
+    }
+
     // 新的历史区域值 = max(历史, 当前可见性)
     // New history value = max(history, current visibility)
     let new_history = max(history_value, current_visibility);
 
-    // 写入新的历史区域纹理
-    // Write the new history value to the history_write texture
-    textureStore(history_write, pixel_coord, i32(target_layer_index), vec4<f32>(new_history, 0.0, 0.0, 1.0));
+    // 写入新的历史区域纹理，如果当前区域可见则写入采样的颜色，否则保持历史记录
+    // Write to history texture: if area is visible write sampled color, otherwise keep history
+    let final_color = select(vec4<f32>(new_history), sampled_color, current_visibility > 0.0);
+    textureStore(history_write, pixel_coord, i32(target_layer_index), final_color);
 
     // 同时写入当前帧可见性到vision_texture_write
     // Also write current frame visibility to vision_texture_write
