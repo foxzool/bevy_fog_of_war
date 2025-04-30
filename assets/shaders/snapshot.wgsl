@@ -24,6 +24,7 @@ var<storage, read> chunks: ChunkArray;
 @group(0) @binding(2) var snapshot_write: texture_storage_2d_array<rgba8unorm, write>;
 @group(0) @binding(3) var source_texture: texture_2d<f32>;
 @group(0) @binding(4) var source_sampler: sampler;
+@group(0) @binding(5) var vision_texture_read: texture_storage_2d_array<r8unorm, read>;
 
 
 

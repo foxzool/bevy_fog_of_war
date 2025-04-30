@@ -43,13 +43,8 @@ use bevy_time::Time;
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::default;
 
-/// 区块纹理组件，存储区块的迷雾纹理 (Moved from chunk.rs)
-/// Chunk texture component, stores the fog texture for a chunk (Moved from chunk.rs)
-#[derive(Component, ExtractComponent, Debug, Clone, Default)]
-pub struct ChunkTexture {
-    /// Texture handle for the fog data
-    pub explored: Handle<Image>,
-}
+const SHADER_ASSET_PATH: &str = "shaders/fog_2d.wgsl";
+
 
 /// 渲染插件，用于处理区块纹理提取
 /// Render plugin for handling chunk texture extraction
@@ -80,6 +75,14 @@ impl Plugin for ChunkRenderPlugin {
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<FogOfWar2dPipeline>();
     }
+}
+
+/// 区块纹理组件，存储区块的迷雾纹理 (Moved from chunk.rs)
+/// Chunk texture component, stores the fog texture for a chunk (Moved from chunk.rs)
+#[derive(Component, ExtractComponent, Debug, Clone, Default)]
+pub struct ChunkTexture {
+    /// Texture handle for the fog data
+    pub explored: Handle<Image>,
 }
 
 pub fn prepare_fog_settings(
@@ -129,7 +132,7 @@ pub struct FogOfWar2dPipeline {
 
 impl FromWorld for FogOfWar2dPipeline {
     fn from_world(world: &mut World) -> Self {
-        let shader = world.resource::<AssetServer>().load("shaders/fog2d.wgsl");
+        let shader = world.resource::<AssetServer>().load(SHADER_ASSET_PATH);
 
         let render_device = world.resource_mut::<RenderDevice>();
 

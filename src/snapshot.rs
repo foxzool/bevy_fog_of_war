@@ -1,6 +1,6 @@
 use crate::chunk::ChunkManager;
 use crate::fog_2d::{FogNode2dLabel, GpuChunks};
-use crate::vision_compute::ChunkInfo;
+use crate::vision_compute::{ChunkInfo, VisionTexture};
 use bevy_app::{App, Plugin};
 use bevy_asset::DirectAssetAccessExt;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -58,7 +58,7 @@ impl Plugin for SnapshotPlugin {
                     FogNode2dLabel,
                     SnapshotNodeLabel,
                     Node2d::EndMainPass,
-                ), // 改为依赖 MainPass
+                ), 
             );
     }
 
@@ -201,6 +201,10 @@ impl FromWorld for SnapshotPipeline {
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     // @binding(4) Source Sampler
                     sampler(SamplerBindingType::Filtering),
+                    texture_storage_2d_array(
+                        TextureFormat::R8Unorm,
+                        StorageTextureAccess::ReadOnly,
+                    ),
                 ),
             ),
         );
@@ -241,8 +245,7 @@ fn prepare_bind_group(
     render_device: Res<RenderDevice>,
     chunk_info: Res<GpuChunks>,
     snapshot_texture: Res<SnapshotTexture>,
-    // 新增：查询 ViewTarget 以获取源纹理
-    // New: Query ViewTarget to get the source texture
+    vision_texture: Res<VisionTexture>,
     view_targets: Query<&ViewTarget>,
     mut commands: Commands,
 ) {
@@ -266,6 +269,10 @@ fn prepare_bind_group(
         return;
     };
 
+    let Some(vision_read) = &vision_texture.write else {
+        return;
+    };
+
     // 获取源纹理视图
     // Get the source texture view
     let source_texture_view = view_target.main_texture_view();
@@ -280,6 +287,7 @@ fn prepare_bind_group(
             &snapshot_write.default_view, // @binding(2)
             source_texture_view,          // @binding(3)
             &pipeline.sampler,            // @binding(4)
+            &vision_read.default_view,    // @binding(5)
         )),
     );
 

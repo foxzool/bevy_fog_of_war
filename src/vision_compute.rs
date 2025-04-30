@@ -17,13 +17,12 @@ use bevy_render::{
     render_resource::{
         BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
         BufferUsages, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
-        Extent3d, PipelineCache, ShaderStages, StorageTextureAccess,
-        TexelCopyBufferLayout, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
-        TextureUsages, UniformBuffer,
+        Extent3d, PipelineCache, ShaderStages, StorageTextureAccess, TextureDescriptor,
+        TextureDimension, TextureFormat, TextureUsages, UniformBuffer,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice, RenderQueue},
-    texture::{CachedTexture, GpuImage, TextureCache},
+    texture::{CachedTexture, TextureCache},
     view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 };
 use bevy_render_macros::RenderLabel;
