@@ -1,6 +1,5 @@
 use crate::chunk::ChunkManager;
-use crate::fog::GpuChunks;
-use crate::render::FogNode2dLabel;
+use crate::fog_2d::{FogNode2dLabel, GpuChunks};
 use crate::vision_compute::ChunkInfo;
 use bevy_app::{App, Plugin};
 use bevy_asset::DirectAssetAccessExt;

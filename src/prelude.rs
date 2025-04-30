@@ -5,7 +5,7 @@ pub use crate::{
         SpatialIndex, VisibilityState,
     },
     chunk_sync::{SyncChunk, SyncChunkComplete},
-    fog::{FogMaterial, FogOfWarCamera},
-    render::ChunkTexture,
+    fog::FogOfWarCamera,
+    fog_2d::{ChunkTexture, FogMaterial},
     vision::VisionProvider,
 };

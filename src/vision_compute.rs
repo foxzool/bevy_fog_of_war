@@ -1,8 +1,7 @@
 use crate::{
     chunk::{ChunkManager, InCameraView, MapChunk},
-    fog::{FogOfWarCamera, GpuChunks},
+    fog_2d::ChunkTexture,
     prelude::ChunkCoord,
-    render::ChunkTexture,
     vision::{GpuVisionParams, VisionParamsResource, update_vision_params},
 };
 use bevy_app::{App, Plugin};
@@ -30,6 +29,7 @@ use bevy_render::{
 };
 use bevy_render_macros::RenderLabel;
 use bytemuck::{Pod, Zeroable};
+use crate::fog_2d::GpuChunks;
 // --- Constants & Labels ---
 
 /// Render graph node label for the vision compute pass.

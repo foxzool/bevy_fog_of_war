@@ -1,8 +1,6 @@
-use crate::prelude::ChunkManager;
 use crate::snapshot::SnapshotTexture;
 use crate::{
     chunk::{InCameraView, MapChunk},
-    fog::{FogMaterial, GpuChunks},
     vision::{GpuVisionParams, VisionParamsResource},
     vision_compute::{
         ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel,
@@ -11,7 +9,7 @@ use crate::{
 };
 use bevy_app::prelude::*;
 use bevy_asset::{AssetServer, Handle};
-use bevy_color::LinearRgba;
+use bevy_color::{Color, LinearRgba};
 use bevy_core_pipeline::{
     core_2d::graph::{Core2d, Node2d},
     fullscreen_vertex_shader::fullscreen_shader_vertex_state,
@@ -20,6 +18,8 @@ use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
 use bevy_image::{BevyDefault, Image};
 use bevy_log::error;
+use bevy_reflect::Reflect;
+use bevy_render::render_resource::Buffer;
 use bevy_render::{
     RenderApp,
     diagnostic::RecordDiagnostics,
@@ -58,6 +58,8 @@ pub struct ChunkRenderPlugin;
 
 impl Plugin for ChunkRenderPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<FogMaterial>()
+            .add_plugins(ExtractComponentPlugin::<FogMaterial>::default());
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<FogOfWarMeta>()
@@ -359,4 +361,29 @@ pub struct GpuFogMaterial {
 #[derive(Default, Resource)]
 pub struct FogOfWarMeta {
     pub gpu_fog_settings: DynamicUniformBuffer<GpuFogMaterial>,
+}
+
+/// 迷雾设置
+/// Fog settings
+#[derive(Component, Clone, Reflect, ExtractComponent)]
+pub struct FogMaterial {
+    /// 迷雾颜色
+    /// Fog color
+    pub color: Color,
+}
+
+impl Default for FogMaterial {
+    fn default() -> Self {
+        Self {
+            color: Color::srgba(0.0, 0.0, 0.0, 1.0), // 黑色迷雾 / Black fog
+        }
+    }
+}
+
+/// Resource to hold chunk information for GPU
+/// 用于保存传递给GPU的chunk信息的资源
+#[derive(Resource, Default)]
+pub struct GpuChunks {
+    pub buffer: Option<Buffer>,
+    // pub offset:  u32
 }
