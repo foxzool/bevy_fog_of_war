@@ -573,7 +573,7 @@ pub fn update_vision_params(
             sources[count] = GpuVisionSource {
                 position: transform.translation().truncate(),
                 radius: provider.range,
-                _padding: 0.0,
+                _padding: provider.range * 0.20,
             };
             count += 1;
         }
