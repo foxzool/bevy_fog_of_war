@@ -1,7 +1,5 @@
+use crate::chunk::{ChunkManager, InCameraView, MapChunk};
 use crate::fog_2d::GpuChunks;
-use crate::{
-    chunk::{ChunkManager, InCameraView, MapChunk},
-};
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetServer;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -11,6 +9,12 @@ use bevy_encase_derive::ShaderType;
 use bevy_log::warn;
 use bevy_math::{IVec2, UVec2, Vec2};
 use bevy_reflect::Reflect;
+use bevy_render::extract_component::ExtractComponentPlugin;
+use bevy_render::prelude::ViewVisibility;
+use bevy_render::render_resource::binding_types::{sampler, texture_2d};
+use bevy_render::render_resource::{
+    Buffer, Sampler, SamplerBindingType, SamplerDescriptor, TextureSampleType,
+};
 use bevy_render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
@@ -25,12 +29,11 @@ use bevy_render::{
     texture::{CachedTexture, TextureCache},
     view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 };
-use bevy_render::extract_component::ExtractComponentPlugin;
-use bevy_render::prelude::ViewVisibility;
-use bevy_render::render_resource::Buffer;
+use bevy_render::view::ViewTarget;
 use bevy_render_macros::{ExtractComponent, RenderLabel};
 use bevy_transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
+use crate::prelude::FogOfWarCamera;
 
 /// Render graph node label for the vision compute pass.
 /// 视野计算通道的渲染图节点标签。
@@ -205,6 +208,7 @@ fn prepare_explored_texture(
 #[derive(Resource)]
 pub struct VisionComputePipeline {
     pub pipeline: CachedComputePipelineId,
+    pub sampler: Sampler,
     // pub view_group_layout: BindGroupLayout,
     pub bind_group_layout: BindGroupLayout,
 }
@@ -239,6 +243,10 @@ impl FromWorld for VisionComputePipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 6 history_write
+                    // @binding(3) Source Texture (e.g., from ViewTarget)
+                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    // @binding(4) Source Sampler
+                    sampler(SamplerBindingType::Filtering),
                 ),
             ),
         );
@@ -254,9 +262,14 @@ impl FromWorld for VisionComputePipeline {
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
         });
+        let sampler = render_device.create_sampler(&SamplerDescriptor {
+            label: Some("vision_source_sampler"),
+            ..Default::default()
+        });
 
         VisionComputePipeline {
             pipeline,
+            sampler,
             bind_group_layout,
         }
     }
@@ -296,8 +309,14 @@ fn prepare_bind_group(
     view_uniforms: Res<ViewUniforms>,
     vision_texture: Res<VisionTexture>,
     chunk_meta_buffer: Res<ChunkMetaBuffer>,
+    view_targets: Query<&ViewTarget, With<FogOfWarCamera>>,
     explored_texture: Res<ExploredTexture>,
 ) {
+
+    let Some(view_target) = view_targets.iter().next() else {
+        return;
+    };
+
     let Some(vision_buffer_binding) = vision_params.buffer.as_ref().map(|b| b.as_entire_binding())
     else {
         warn!("VisionParamsResource buffer is missing, skipping compute bind group creation.");
@@ -332,6 +351,8 @@ fn prepare_bind_group(
         return;
     };
 
+    let source_texture_view = view_target.main_texture_view();
+
     let bind_group = render_device.create_bind_group(
         "vision_compute_bind_group",
         &pipeline.bind_group_layout,
@@ -343,6 +364,8 @@ fn prepare_bind_group(
             chunk_meta_binding,           // 4
             &explored_read.default_view,  // 5
             &explored_write.default_view, // 6
+            source_texture_view,          // 7
+            &pipeline.sampler,            // 8
         )),
     );
 
@@ -506,8 +529,6 @@ pub fn prepare_chunk_info(
         buffer: Some(buffer),
     });
 }
-
-
 
 /// 视野提供者组件
 /// Vision provider component

@@ -3,7 +3,7 @@ use bevy_app::{App, Plugin};
 mod chunk;
 mod fog_2d;
 pub mod prelude;
-// mod snapshot;
+mod snapshot;
 mod sync_texture;
 mod vision;
 
