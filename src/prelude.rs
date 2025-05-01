@@ -6,5 +6,5 @@ pub use crate::{
     },
     sync_texture::{SyncChunk, SyncChunkComplete},
     fog_2d::FogMaterial,
-    vision::VisionProvider,
+    vision::VisionSource,
 };

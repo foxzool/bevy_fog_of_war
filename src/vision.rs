@@ -48,7 +48,7 @@ pub struct VisionComputePlugin;
 
 impl Plugin for VisionComputePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ExtractComponentPlugin::<VisionProvider>::default());
+        app.add_plugins(ExtractComponentPlugin::<VisionSource>::default());
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -514,14 +514,16 @@ pub fn prepare_chunk_info(
     });
 }
 
-/// 视野提供者组件
-/// Vision provider component
+/// 视野源组件
+/// Vision source component
 #[derive(Component, Reflect, ExtractComponent, Clone)]
-#[require(InCameraView)]
-pub struct VisionProvider {
+pub struct VisionSource {
     /// 视野范围（世界单位）
     /// Vision range (world units)
     pub range: f32,
+    /// 是否启用
+    /// Enabled
+    pub enabled: bool,
 }
 
 // 视野源参数在 GPU 中的表示
@@ -560,7 +562,7 @@ pub struct VisionParamsResource {
 pub fn update_vision_params(
     mut vision_params: ResMut<VisionParamsResource>,
     render_device: Res<RenderDevice>,
-    query: Extract<Query<(&GlobalTransform, &VisionProvider, &ViewVisibility)>>,
+    query: Extract<Query<(&GlobalTransform, &VisionSource, &ViewVisibility)>>,
 ) {
     let mut sources = [GpuVisionSource {
         position: Vec2::ZERO,
@@ -568,12 +570,12 @@ pub fn update_vision_params(
         _padding: 0.0,
     }; 16];
     let mut count = 0;
-    for (transform, provider, vis) in query.iter().take(16) {
-        if vis.get() {
+    for (transform, source, vis) in query.iter().take(16) {
+        if vis.get() && source.enabled {
             sources[count] = GpuVisionSource {
                 position: transform.translation().truncate(),
-                radius: provider.range,
-                _padding: provider.range * 0.20,
+                radius: source.range,
+                _padding: source.range * 0.0,
             };
             count += 1;
         }

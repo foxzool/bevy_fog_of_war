@@ -61,7 +61,7 @@ fn main() {
                 update_fps_text,
                 movable_vision_control,
                 debug_draw_chunks,
-                horizontal_movement_system
+                horizontal_movement_system,
             ),
         )
         .run();
@@ -140,7 +140,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Transform::from_translation(Vec3::new(200.0, 200.0, 0.0)),
-        VisionProvider { range: 40.0 },
+        VisionSource {
+            range: 40.0,
+            enabled: false,
+        },
     ));
 
     commands.spawn((
@@ -152,7 +155,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Transform::from_translation(Vec3::new(-200.0, -0.0, 0.0)),
         ZIndex(10),
     ));
-    
+
     // 生成可移动的视野提供者
     // Spawn movable vision provider
     commands.spawn((
@@ -162,7 +165,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Transform::from_translation(Vec3::new(-200.0, -200.0, 0.0)),
-        VisionProvider { range: 100.0 },
+        VisionSource {
+            range: 100.0,
+            enabled: true,
+        },
         MovableVision,
         ZIndex(10),
     ));
@@ -199,8 +205,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         // 为偶数索引的方块添加视野提供者
         // Add vision provider to blocks with even indices
         if i % 2 == 0 {
-            entity_commands.insert(VisionProvider {
+            entity_commands.insert(VisionSource {
                 range: 30.0 + (i as f32 * 15.0), // 不同范围的视野 / Different vision ranges
+                enabled: true,
             });
         }
     }
