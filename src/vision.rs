@@ -1,6 +1,4 @@
-use crate::chunk::{
-    ChunkManager, FogSettingsBuffer, FogSettingsUniform, InCameraView, MapChunk,
-};
+use crate::chunk::{ChunkManager, FogSettingsBuffer, FogSettingsUniform, InCameraView, MapChunk};
 use crate::fog_2d::GpuChunks;
 use crate::prelude::FogOfWarCamera;
 use bevy_app::{App, Plugin};
@@ -26,10 +24,10 @@ use bevy_render::{
         BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
         BufferUsages, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
         Extent3d, PipelineCache, ShaderStages, StorageTextureAccess, TextureDescriptor,
-        TextureDimension, TextureFormat, TextureUsages, UniformBuffer,
+        TextureDimension, TextureFormat, TextureUsages,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
-    renderer::{RenderContext, RenderDevice, RenderQueue},
+    renderer::{RenderContext, RenderDevice},
     texture::{CachedTexture, TextureCache},
     view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 };
@@ -58,7 +56,6 @@ impl Plugin for VisionComputePlugin {
         render_app
             .init_resource::<VisionParamsResource>()
             .init_resource::<GpuChunks>()
-            .init_resource::<ChunkMetaBuffer>()
             // .init_resource::<VisionTexture>()
             .init_resource::<ExploredTexture>()
             .add_systems(
@@ -262,18 +259,6 @@ impl FromWorld for VisionComputePipeline {
     }
 }
 
-#[derive(Clone, Copy, ShaderType, Pod, Zeroable)]
-#[repr(C)]
-pub struct ChunkMeta {
-    pub chunks_per_row: u32,
-    pub chunk_size: u32,
-}
-
-#[derive(Default, Resource)]
-pub struct ChunkMetaBuffer {
-    pub buffer: Option<UniformBuffer<ChunkMeta>>,
-}
-
 // --- Bind Group Resource ---
 
 /// Resource to hold the bind group for the compute shader.
@@ -340,7 +325,7 @@ fn prepare_bind_group(
             vision_buffer_binding,        // 1
             chunk_info_buffer_binding,    // 2
             &vision_write.default_view,   // 3
-            fog_settings_binding,           // 4
+            fog_settings_binding,         // 4
             &explored_read.default_view,  // 5
             &explored_write.default_view, // 6
             source_texture_view,          // 7
@@ -431,8 +416,6 @@ pub struct ChunkInfo {
 pub fn prepare_chunk_info(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    chunk_manager: Extract<Res<ChunkManager>>,
     chunks_query: Extract<Query<&MapChunk, With<InCameraView>>>,
 ) {
     let mut chunks_in_view: Vec<&MapChunk> = chunks_query
@@ -495,18 +478,6 @@ pub fn prepare_chunk_info(
     // 插入资源
     // Insert resource
     commands.insert_resource(chunk_info_resource);
-
-    let chunk_meta = ChunkMeta {
-        chunks_per_row: chunk_manager.chunks_per_row as u32,
-        chunk_size: chunk_manager.chunk_size.x,
-    };
-
-    let mut buffer = UniformBuffer::from(chunk_meta);
-
-    buffer.write_buffer(&render_device, &render_queue);
-    commands.insert_resource(ChunkMetaBuffer {
-        buffer: Some(buffer),
-    });
 }
 
 /// 视野源组件

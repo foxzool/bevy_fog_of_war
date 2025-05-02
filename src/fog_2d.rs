@@ -1,10 +1,8 @@
+use crate::chunk::{FogSettingsBuffer, FogSettingsUniform};
 use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
     chunk::{InCameraView, MapChunk},
-    vision::{
-        ChunkInfo, ChunkMeta, ChunkMetaBuffer, ExploredTexture, VisionComputeNodeLabel,
-        VisionTexture,
-    },
+    vision::{ChunkInfo, ExploredTexture, VisionComputeNodeLabel, VisionTexture},
 };
 use bevy_app::prelude::*;
 use bevy_asset::AssetServer;
@@ -139,19 +137,11 @@ impl FromWorld for FogOfWar2dPipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 4
-                    uniform_buffer::<ChunkMeta>(false),                 // 5
+                    uniform_buffer::<FogSettingsUniform>(false),        // 5
                     texture_storage_2d_array(
                         TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 6
-                    // texture_storage_2d_array(
-                    //     TextureFormat::Rgba8Unorm,
-                    //     StorageTextureAccess::WriteOnly,
-                    // ), // 7
-                    // texture_storage_2d_array(
-                    //     TextureFormat::Rgba8Unorm,
-                    //     StorageTextureAccess::ReadOnly,
-                    // ), // 8
                 ),
             ),
         );
@@ -230,7 +220,7 @@ impl ViewNode for FogNode2d {
         let view_uniforms = world.resource::<ViewUniforms>();
         let fog_meta = world.resource::<FogOfWarMeta>();
         let vision_params_resource = world.resource::<VisionParamsResource>();
-        let chunk_meta_buffer = world.resource::<ChunkMetaBuffer>();
+        let fog_settings_buffer = world.resource::<FogSettingsBuffer>();
         let explored_texture = world.resource::<ExploredTexture>();
         // let snapshot_texture = world.resource::<SnapshotTexture>();
 
@@ -279,34 +269,19 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        // let Some(snapshot_read) = &snapshot_texture.read else {
-        //     return Ok(());
-        // };
-
-        let Some(chunk_meta_binding) = chunk_meta_buffer
-            .buffer
-            .as_ref()
-            .map(|b| b.binding())
-            .flatten()
-        else {
-            return Ok(());
-        };
-
         let view = view_target.main_texture_view();
 
         let view_bind_group = render_context.render_device().create_bind_group(
             "fog_combined_bind_group",        // Updated label
             &fog_of_war_pipeline.view_layout, // Use the combined layout
             &BindGroupEntries::sequential((
-                view_uniforms_binding,        // Binding 0
-                settings_binding.clone(),     // Binding 1
-                vision_binding,               // Binding 2
-                chunk_info_buffer_binding,    // Binding 3: Chunk info
-                &vision_read.default_view,    // 4
-                chunk_meta_binding,           // 5
-                &explored_read.default_view,  // 6
-                // &explored_write.default_view, // 7
-                // &snapshot_read.default_view,  // 8
+                view_uniforms_binding,                          // Binding 0
+                settings_binding.clone(),                       // Binding 1
+                vision_binding,                                 // Binding 2
+                chunk_info_buffer_binding,                      // Binding 3: Chunk info
+                &vision_read.default_view,                      // 4
+                fog_settings_buffer.buffer.as_entire_binding(), // 5
+                &explored_read.default_view,                    // 6
             )),
         );
 
