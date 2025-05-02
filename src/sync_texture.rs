@@ -11,7 +11,7 @@ use bevy_ecs::{
     system::{Query, Res},
 };
 use bevy_image::Image;
-use bevy_log::warn;
+use bevy_log::{debug, warn};
 use bevy_render::{
     ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
     extract_component::ExtractComponentPlugin,
@@ -124,11 +124,10 @@ fn download_chunk_texture(
     let mut command_encoder =
         render_device.create_command_encoder(&CommandEncoderDescriptor::default());
     for downloader in image_copiers.requested.iter() {
-        println!(
+        debug!(
             "downloading layer: {} {}",
             downloader.coord, downloader.layer_index
         );
-        if downloader.coord == ChunkCoord::new(-1, -1) {}
 
         let src_image = gpu_images.get(&downloader.src_image).unwrap();
 

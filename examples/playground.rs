@@ -289,56 +289,29 @@ fn camera_movement(
 fn update_fog_settings(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut fog_settings_query: Query<(Entity, Option<&mut FogMaterial>), With<FogMaterialComponent>>,
-    mut commands: Commands,
+    mut fog_settings: ResMut<FogSettings>,
     mut fog_debug_settings: ResMut<FogDebugSettings>,
     mut settings_text_query: Query<&mut Text, With<FogSettingsText>>,
 ) {
-    // 切换迷雾启用状态
-    // Toggle fog enabled state
     if keyboard.just_pressed(KeyCode::KeyF) {
         fog_debug_settings.enabled = !fog_debug_settings.enabled;
     }
 
-    // 根据调试设置添加/移除 FogMaterial 组件
-    // Add/remove FogMaterial component based on debug settings
-    if let Ok((camera_entity, opt_material)) = fog_settings_query.single() {
-        if fog_debug_settings.enabled {
-            // 如果启用了迷雾但相机没有 FogMaterial 组件，则添加它
-            // If fog is enabled but the camera doesn't have FogMaterial, add it
-            if opt_material.is_none() {
-                commands
-                    .entity(camera_entity)
-                    .insert(FogMaterial::default());
-            }
-        } else {
-            // 如果禁用了迷雾但相机有 FogMaterial 组件，则移除它
-            // If fog is disabled but the camera has FogMaterial, remove it
-            commands.entity(camera_entity).remove::<FogMaterial>();
-        }
-    }
-
     // 更新雾颜色透明度
     // Update fog color alpha
-    if let Ok((_entity, Some(mut fog_material))) = fog_settings_query.single_mut() {
-        if keyboard.pressed(KeyCode::PageUp) {
-            let new_alpha = (fog_material.color.alpha() + time.delta_secs() * 0.5).min(1.0);
-            fog_material.color.set_alpha(new_alpha);
-        }
-        if keyboard.pressed(KeyCode::PageDown) {
-            let new_alpha = (fog_material.color.alpha() - time.delta_secs() * 0.5).max(0.0);
-            fog_material.color.set_alpha(new_alpha);
-        }
+    if keyboard.pressed(KeyCode::PageUp) {
+        let new_alpha = (fog_settings.fog_color.alpha() + time.delta_secs() * 0.5).min(1.0);
+        fog_settings.fog_color.set_alpha(new_alpha);
+    }
+    if keyboard.pressed(KeyCode::PageDown) {
+        let new_alpha = (fog_settings.fog_color.alpha() - time.delta_secs() * 0.5).max(0.0);
+        fog_settings.fog_color.set_alpha(new_alpha);
     }
 
     // 更新 UI 文本
     // Update UI text
     if let Ok(mut text) = settings_text_query.single_mut() {
-        let alpha_percentage = if let Ok((_, Some(fog_material))) = fog_settings_query.single() {
-            fog_material.color.alpha() * 100.0
-        } else {
-            0.0 // 如果没有 FogMaterial，则 alpha 为 0
-        };
+        let alpha_percentage = fog_settings.fog_color.alpha() * 100.0;
         let status = if fog_debug_settings.enabled {
             "Enabled"
         } else {

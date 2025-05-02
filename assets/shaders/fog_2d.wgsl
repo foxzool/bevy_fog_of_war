@@ -52,7 +52,7 @@ struct ChunkArray {
 var<uniform> view: View;
 
 @group(0) @binding(1)
-var<uniform> fog_material: FogMaterial;
+var<uniform> fog_settings: FogSettings;
 
 @group(0) @binding(2)
 var<storage, read> visions: VisionArray;
@@ -61,9 +61,8 @@ var<storage, read> visions: VisionArray;
 var<storage, read> chunks: ChunkArray;
 
 @group(0) @binding(4) var vision_texture_write: texture_storage_2d_array<r8unorm, read>;
-@group(0) @binding(5) var<uniform> fog_settings: FogSettings;
 // History exploration area read texture
-@group(0) @binding(6) var history_read: texture_storage_2d_array<rgba8unorm, read>;
+@group(0) @binding(5) var history_read: texture_storage_2d_array<rgba8unorm, read>;
 //@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;
 
 
@@ -80,7 +79,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let world_xy = world_pos.xy; // Use only xy for 2D comparison
 
     // Default fog color if outside all chunks (should ideally not happen)
-    var final_color = fog_material.color;
+    var final_color = fog_settings.fog_color;
     var found_chunk = false;
 
     // Cache chunk count for loop
@@ -121,14 +120,14 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 // 如果历史纹理没有颜色（全透明），则使用灰色
                 // If history texture has no color (fully transparent), use gray
                 if (all(history_display_color.rgb == vec3<f32>(0.0))) {
-                    history_display_color = vec4<f32>(fog_material.color.rgb * 0.5, 1.0);
+                    history_display_color = vec4<f32>(fog_settings.explored_color.rgb, 1.0);
                 }
             }
 
             // --- Determine final color based on visibility and history ---
             if (current_visibility > 0.0) {
 
-                final_color = vec4<f32>(fog_material.color.xyz,  1 - current_visibility);
+                final_color = vec4<f32>(fog_settings.fog_color.xyz,  1 - current_visibility);
                 // Optional DEBUG overlay (apply after blending if needed)
                 if (DEBUG) {
                     let index_mask = draw_layer_index_mask(world_xy, chunk);
@@ -142,7 +141,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             } else if (history_value > 0.0) {
                 // Not visible, but has history: Show the historical color with fog overlay
                 // 不可见但有历史：显示历史颜色并叠加半透明迷雾
-                let fog_overlay = fog_material.color;
+                let fog_overlay = fog_settings.fog_color;
                 let fog_alpha = 0.5;  // 迷雾透明度 50%
                 
                 // 使用 alpha 混合公式：result = source * alpha + destination * (1 - alpha)
@@ -153,7 +152,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 );
             } else {
                 // Not visible, no history: Full fog
-                final_color = fog_material.color;
+                final_color = fog_settings.fog_color;
             }
 
             found_chunk = true;
@@ -165,7 +164,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // handle it gracefully. Returning a bright color like magenta can help debugging.
     if (!found_chunk) {
         // Pixel outside known chunks; fallback to default fog color
-        return final_color; // final_color is already fog_material.color by default
+        return final_color;
     }
 
     // Return the final determined color and alpha

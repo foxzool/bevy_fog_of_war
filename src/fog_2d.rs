@@ -6,38 +6,32 @@ use crate::{
 };
 use bevy_app::prelude::*;
 use bevy_asset::AssetServer;
-use bevy_color::{Color, LinearRgba};
 use bevy_core_pipeline::{
     core_2d::graph::{Core2d, Node2d},
     fullscreen_vertex_shader::fullscreen_shader_vertex_state,
 };
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
-use bevy_encase_derive::ShaderType;
 use bevy_image::BevyDefault;
 use bevy_log::error;
-use bevy_reflect::Reflect;
 use bevy_render::render_resource::Buffer;
 use bevy_render::{
     RenderApp,
     diagnostic::RecordDiagnostics,
     extract_component::ExtractComponentPlugin,
     mesh::PrimitiveTopology,
-    prelude::*,
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
         BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, DynamicUniformBuffer, FragmentState,
-        FrontFace, LoadOp, MultisampleState, Operations, PipelineCache, PolygonMode,
-        PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
-        ShaderStages, StorageTextureAccess, StoreOp, TextureFormat,
+        CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, FrontFace, LoadOp,
+        MultisampleState, Operations, PipelineCache, PolygonMode, PrimitiveState,
+        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages,
+        StorageTextureAccess, StoreOp, TextureFormat,
         binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
-    renderer::{RenderContext, RenderDevice, RenderQueue},
-    view::{ExtractedView, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
+    renderer::{RenderContext, RenderDevice},
+    view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
 };
-use bevy_render_macros::{ExtractComponent, RenderLabel};
-use bevy_time::Time;
-use bevy_transform::prelude::GlobalTransform;
+use bevy_render_macros::RenderLabel;
 use bevy_utils::default;
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_2d.wgsl";
@@ -48,14 +42,10 @@ pub struct Fog2DRenderPlugin;
 
 impl Plugin for Fog2DRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<FogMaterial>()
-            .add_plugins(ExtractComponentPlugin::<FogMaterial>::default());
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
-                .init_resource::<FogOfWarMeta>()
                 .add_plugins(ExtractComponentPlugin::<InCameraView>::default())
-                .add_plugins(ExtractComponentPlugin::<MapChunk>::default())
-                .add_systems(ExtractSchedule, prepare_fog_settings);
+                .add_plugins(ExtractComponentPlugin::<MapChunk>::default());
 
             render_app
                 .add_render_graph_node::<ViewNodeRunner<FogNode2d>>(Core2d, FogNode2dLabel)
@@ -70,40 +60,6 @@ impl Plugin for Fog2DRenderPlugin {
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<FogOfWar2dPipeline>();
     }
-}
-
-pub fn prepare_fog_settings(
-    mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    mut fog_meta: ResMut<FogOfWarMeta>,
-    views: Query<(Entity, &GlobalTransform, &FogMaterial), With<ExtractedView>>,
-    time: Res<Time>,
-) {
-    let views_iter = views.iter();
-    let view_count = views_iter.len();
-    let Some(mut writer) =
-        fog_meta
-            .gpu_fog_settings
-            .get_writer(view_count, &render_device, &render_queue)
-    else {
-        return;
-    };
-    for (entity, _transform, fog_settings) in views_iter {
-        let settings = GpuFogMaterial {
-            color: fog_settings.color.to_linear(),
-            time: time.elapsed_secs(), // 使用当前时间 / Current time
-        };
-
-        commands.entity(entity).insert(ViewFogOfWarUniformOffset {
-            offset: writer.write(&settings),
-        });
-    }
-}
-
-#[derive(Component)]
-pub struct ViewFogOfWarUniformOffset {
-    pub offset: u32,
 }
 
 /// 迷雾节点名称
@@ -130,18 +86,17 @@ impl FromWorld for FogOfWar2dPipeline {
                 ShaderStages::FRAGMENT,
                 (
                     uniform_buffer::<ViewUniform>(true),                // Binding 0
-                    uniform_buffer::<GpuFogMaterial>(true),             // Binding 1
+                    uniform_buffer::<FogSettingsUniform>(false),        // Binding 1
                     storage_buffer_read_only::<GpuVisionParams>(false), // Binding 2
                     storage_buffer_read_only::<ChunkInfo>(false),       // Binding 3: Chunk info
                     texture_storage_2d_array(
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::ReadOnly,
                     ), // 4
-                    uniform_buffer::<FogSettingsUniform>(false),        // 5
                     texture_storage_2d_array(
                         TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::ReadOnly,
-                    ), // 6
+                    ), // 5
                 ),
             ),
         );
@@ -202,23 +157,18 @@ impl FromWorld for FogOfWar2dPipeline {
 pub struct FogNode2d;
 
 impl ViewNode for FogNode2d {
-    type ViewQuery = (
-        Read<ViewTarget>,
-        Read<ViewFogOfWarUniformOffset>,
-        Read<ViewUniformOffset>,
-    );
+    type ViewQuery = (Read<ViewTarget>, Read<ViewUniformOffset>);
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, view_fog_offset, view_uniform_offset): QueryItem<Self::ViewQuery>,
+        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let pipeline_cache = world.resource::<PipelineCache>();
         let fog_of_war_pipeline = world.resource::<FogOfWar2dPipeline>();
         let view_uniforms = world.resource::<ViewUniforms>();
-        let fog_meta = world.resource::<FogOfWarMeta>();
         let vision_params_resource = world.resource::<VisionParamsResource>();
         let fog_settings_buffer = world.resource::<FogSettingsBuffer>();
         let explored_texture = world.resource::<ExploredTexture>();
@@ -233,9 +183,6 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        let Some(settings_binding) = fog_meta.gpu_fog_settings.binding() else {
-            return Ok(());
-        };
         let Some(view_uniforms_binding) = view_uniforms.uniforms.binding() else {
             return Ok(());
         };
@@ -276,12 +223,11 @@ impl ViewNode for FogNode2d {
             &fog_of_war_pipeline.view_layout, // Use the combined layout
             &BindGroupEntries::sequential((
                 view_uniforms_binding,                          // Binding 0
-                settings_binding.clone(),                       // Binding 1
+                fog_settings_buffer.buffer.as_entire_binding(), // Binding 1
                 vision_binding,                                 // Binding 2
                 chunk_info_buffer_binding,                      // Binding 3: Chunk info
                 &vision_read.default_view,                      // 4
-                fog_settings_buffer.buffer.as_entire_binding(), // 5
-                &explored_read.default_view,                    // 6
+                &explored_read.default_view,                    // 5
             )),
         );
 
@@ -306,43 +252,13 @@ impl ViewNode for FogNode2d {
         render_pass.set_bind_group(
             0,
             &view_bind_group,
-            &[view_uniform_offset.offset, view_fog_offset.offset], /* Dynamic offsets for view
-                                                                    * and fog settings */
+            &[view_uniform_offset.offset], /* Dynamic offsets for view
+                                            * and fog settings */
         );
 
         render_pass.draw(0..3, 0..1);
         pass_span.end(&mut render_pass);
         Ok(())
-    }
-}
-
-/// 迷雾设置的GPU表示
-/// GPU representation of fog settings
-#[derive(ShaderType, Clone, Copy, Debug)]
-pub struct GpuFogMaterial {
-    color: LinearRgba,
-    time: f32, // 当前时间 / Current time
-}
-
-#[derive(Default, Resource)]
-pub struct FogOfWarMeta {
-    pub gpu_fog_settings: DynamicUniformBuffer<GpuFogMaterial>,
-}
-
-/// 迷雾设置
-/// Fog settings
-#[derive(Component, Clone, Reflect, ExtractComponent)]
-pub struct FogMaterial {
-    /// 迷雾颜色
-    /// Fog color
-    pub color: Color,
-}
-
-impl Default for FogMaterial {
-    fn default() -> Self {
-        Self {
-            color: Color::srgba(0.0, 0.0, 0.0, 1.0), // 黑色迷雾 / Black fog
-        }
     }
 }
 
