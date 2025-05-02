@@ -52,6 +52,7 @@ impl Plugin for ChunkManagerPlugin {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
+        render_app.init_resource::<GpuChunks>();
 
         render_app.add_systems(
             Render,
@@ -132,6 +133,14 @@ impl MapChunk {
     pub fn contains_world_pos(&self, world_pos: Vec2) -> bool {
         self.world_bounds.contains(world_pos)
     }
+}
+
+/// Resource to hold chunk information for GPU
+/// 用于保存传递给GPU的chunk信息的资源
+#[derive(Resource, Default)]
+pub struct GpuChunks {
+    pub buffer: Option<Buffer>,
+    // pub offset:  u32
 }
 
 /// 可见性状态枚举，表示区块中每个格子的可见性

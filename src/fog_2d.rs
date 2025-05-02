@@ -1,4 +1,4 @@
-use crate::chunk::{FogSettingsBuffer, FogSettingsUniform};
+use crate::chunk::{FogSettingsBuffer, FogSettingsUniform, GpuChunks};
 use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
     chunk::{InCameraView, MapChunk},
@@ -13,7 +13,6 @@ use bevy_core_pipeline::{
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_image::BevyDefault;
 use bevy_log::error;
-use bevy_render::render_resource::Buffer;
 use bevy_render::{
     RenderApp,
     diagnostic::RecordDiagnostics,
@@ -262,10 +261,4 @@ impl ViewNode for FogNode2d {
     }
 }
 
-/// Resource to hold chunk information for GPU
-/// 用于保存传递给GPU的chunk信息的资源
-#[derive(Resource, Default)]
-pub struct GpuChunks {
-    pub buffer: Option<Buffer>,
-    // pub offset:  u32
-}
+

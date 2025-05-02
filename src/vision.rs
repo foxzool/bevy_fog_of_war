@@ -1,5 +1,6 @@
-use crate::chunk::{ChunkManager, FogSettingsBuffer, FogSettingsUniform, InCameraView, MapChunk};
-use crate::fog_2d::GpuChunks;
+use crate::chunk::{
+    ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView, MapChunk,
+};
 use crate::prelude::FogOfWarCamera;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetServer;
@@ -55,7 +56,6 @@ impl Plugin for VisionComputePlugin {
 
         render_app
             .init_resource::<VisionParamsResource>()
-            .init_resource::<GpuChunks>()
             // .init_resource::<VisionTexture>()
             .init_resource::<ExploredTexture>()
             .add_systems(
