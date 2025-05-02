@@ -404,7 +404,6 @@ pub struct ChunkInfo {
     pub coord: IVec2,    // 区块坐标 / chunk coordinates
     pub world_min: Vec2, // 世界空间边界最小点 / world space minimum point
     pub world_max: Vec2, // 世界空间边界最大点 / world space maximum point
-    pub size: UVec2,     // 区块尺寸 / chunk size
     pub layer_index: u32,
     // Add padding to match WGSL std430 alignment requirements (struct size should be multiple of
     // 8)
@@ -436,11 +435,11 @@ pub fn prepare_chunk_info(
         if let Some(index) = chunk.layer_index {
             let gpu_chunk = ChunkInfo {
                 coord: chunk.chunk_coord,
+
                 world_min: chunk.world_bounds.min,
                 world_max: chunk.world_bounds.max,
-                size: chunk.size,
                 layer_index: index,
-                _padding: 0, // Initialize padding
+                _padding: 0,
             };
 
             gpu_chunks.push(gpu_chunk);
@@ -450,11 +449,10 @@ pub fn prepare_chunk_info(
     if gpu_chunks.is_empty() {
         gpu_chunks.push(ChunkInfo {
             coord: IVec2::ZERO,
-            world_min: Vec2::ZERO,
-            world_max: Vec2::ZERO,
-            size: UVec2::ZERO,
             layer_index: 0,
             _padding: 0,
+            world_min: Vec2::ZERO,
+            world_max: Vec2::ZERO,
         });
     }
 
@@ -499,7 +497,7 @@ pub struct VisionSource {
 pub struct GpuVisionSource {
     pub position: Vec2, // 8 bytes
     pub radius: f32,    // 4 bytes
-    pub _padding: f32,  // 4 bytes padding, total 16 bytes to match WGSL
+    pub falloff: f32,   // 4 bytes, total 16 bytes to match WGSL
 }
 
 // 视野参数在 GPU 中的表示
@@ -533,7 +531,7 @@ pub fn update_vision_params(
     let mut sources = [GpuVisionSource {
         position: Vec2::ZERO,
         radius: 0.0,
-        _padding: 0.0,
+        falloff: 0.0,
     }; 16];
     let mut count = 0;
     for (transform, source, vis) in query.iter().take(16) {
@@ -541,7 +539,7 @@ pub fn update_vision_params(
             sources[count] = GpuVisionSource {
                 position: transform.translation().truncate(),
                 radius: source.range,
-                _padding: source.range * 0.0,
+                falloff: source.range * 0.2, // 设置 falloff 为视野范围的 20%
             };
             count += 1;
         }

@@ -26,7 +26,6 @@ struct ChunkInfo {
     coord: vec2<i32>,    // 区块坐标 / chunk coordinates
     world_min: vec2<f32>, // 世界空间边界最小点 / world space minimum boundary point
     world_max: vec2<f32>, // 世界空间边界最大点 / world space maximum boundary point
-    size: vec2<u32>,    // 区块尺寸 / chunk size
     layer_index: u32,   // 层索引 / layer index
 };
 
@@ -81,6 +80,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // Default fog color if outside all chunks (should ideally not happen)
     var final_color = fog_settings.fog_color;
     var found_chunk = false;
+    let chunk_size = fog_settings.chunk_size;
 
     // Cache chunk count for loop
     let chunk_count = arrayLength(&chunks.data);
@@ -98,8 +98,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
             // Map normalized position to integer texture coordinates
             // Assuming the vision texture size for this layer matches the chunk size
-            let tex_coords_raw = vec2<i32>(floor(rel_pos_norm * vec2<f32>(chunk.size)));
-            let clamped_coords = clamp(tex_coords_raw, vec2<i32>(0), vec2<i32>(chunk.size) - vec2<i32>(1));
+            let tex_coords_raw = vec2<i32>(floor(rel_pos_norm * vec2<f32>(chunk_size)));
+            let clamped_coords = clamp(tex_coords_raw, vec2<i32>(0), vec2<i32>(chunk_size) - vec2<i32>(1));
 
             // Load visibility and history values
             let current_visibility = textureLoad(vision_texture_write, clamped_coords, i32(target_layer_index)).x;
@@ -143,7 +143,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 // 不可见但有历史：显示历史颜色并叠加半透明迷雾
                 let fog_overlay = fog_settings.fog_color;
                 let fog_alpha = 0.5;  // 迷雾透明度 50%
-                
+
                 // 使用 alpha 混合公式：result = source * alpha + destination * (1 - alpha)
                 // Use alpha blending formula: result = source * alpha + destination * (1 - alpha)
                 final_color = vec4<f32>(
@@ -219,7 +219,7 @@ fn draw_layer_index_mask(pt: vec2<f32>, chunk: ChunkInfo) -> f32 {
     } else if (idx >= 10u) {
         digits = 2u;
     }
-    let size_base = min(chunk.size.x, chunk.size.y);
+    let size_base = fog_settings.chunk_size.x;
     let base = f32(size_base) * 0.2;
     let thickness = base * 0.15;
     let spacing = base * 1.2;

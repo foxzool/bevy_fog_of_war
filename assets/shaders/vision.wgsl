@@ -20,7 +20,6 @@ struct ChunkInfo {
     coord: vec2<i32>,    // 区块坐标 / chunk coordinates
     world_min: vec2<f32>, // 世界空间边界最小点 / world space minimum boundary point
     world_max: vec2<f32>, // 世界空间边界最大点 / world space maximum boundary point
-    size: vec2<u32>,    // 区块尺寸 / chunk size
     layer_index: u32,   // 层索引 / layer index
 };
 
@@ -68,7 +67,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let chunk_index: u32 = global_id.z;
     let chunk = chunks.data[chunk_index];
     let target_layer_index: u32 = chunk.layer_index;
-    let local_uv = vec2<f32>(pixel_coord) / vec2<f32>(chunk.size);
+    let local_uv = vec2<f32>(pixel_coord) / vec2<f32>(chunk_size);
     let world_xy = chunk.world_min + local_uv * (chunk.world_max - chunk.world_min);
 
     // Determine visibility based on vision sources
