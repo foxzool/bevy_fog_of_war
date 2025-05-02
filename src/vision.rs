@@ -1,4 +1,6 @@
-use crate::chunk::{ChunkManager, InCameraView, MapChunk};
+use crate::chunk::{
+    ChunkManager, FogSettingsBuffer, FogSettingsUniform, InCameraView, MapChunk,
+};
 use crate::fog_2d::GpuChunks;
 use crate::prelude::FogOfWarCamera;
 use bevy_app::{App, Plugin};
@@ -219,7 +221,7 @@ impl FromWorld for VisionComputePipeline {
                         TextureFormat::R8Unorm,
                         StorageTextureAccess::WriteOnly,
                     ), // 3 vision_texture_write
-                    uniform_buffer::<ChunkMeta>(false),                 // 4
+                    uniform_buffer::<FogSettingsUniform>(false),        // 4
                     texture_storage_2d_array(
                         TextureFormat::Rgba8Unorm,
                         StorageTextureAccess::ReadOnly,
@@ -293,7 +295,7 @@ fn prepare_bind_group(
     chunk_info: Res<GpuChunks>,
     view_uniforms: Res<ViewUniforms>,
     vision_texture: Res<VisionTexture>,
-    chunk_meta_buffer: Res<ChunkMetaBuffer>,
+    fog_settings_buffer: Res<FogSettingsBuffer>,
     view_targets: Query<&ViewTarget, With<FogOfWarCamera>>,
     explored_texture: Res<ExploredTexture>,
 ) {
@@ -316,14 +318,7 @@ fn prepare_bind_group(
         return;
     };
 
-    let Some(chunk_meta_binding) = chunk_meta_buffer
-        .buffer
-        .as_ref()
-        .map(|b| b.binding())
-        .flatten()
-    else {
-        return;
-    };
+    let fog_settings_binding = fog_settings_buffer.buffer.as_entire_binding();
 
     let (Some(explored_read), Some(explored_write)) =
         (&explored_texture.read, &explored_texture.write)
@@ -345,7 +340,7 @@ fn prepare_bind_group(
             vision_buffer_binding,        // 1
             chunk_info_buffer_binding,    // 2
             &vision_write.default_view,   // 3
-            chunk_meta_binding,           // 4
+            fog_settings_binding,           // 4
             &explored_read.default_view,  // 5
             &explored_write.default_view, // 6
             source_texture_view,          // 7

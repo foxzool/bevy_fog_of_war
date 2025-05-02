@@ -1,14 +1,19 @@
 use crate::{prelude::SyncChunkComplete, sync_texture::SyncChunk};
 use bevy_app::prelude::*;
 use bevy_asset::{Assets, RenderAssetUsages};
+use bevy_color::palettes::basic;
+use bevy_color::{Color, LinearRgba};
 use bevy_ecs::prelude::*;
+use bevy_encase_derive::ShaderType;
 use bevy_image::Image;
 use bevy_log::{info, warn};
 use bevy_math::prelude::*;
 use bevy_platform::collections::{HashMap, HashSet};
 use bevy_reflect::Reflect;
 use bevy_render::extract_component::ExtractComponentPlugin;
+use bevy_render::render_resource::{Buffer, BufferInitDescriptor, BufferUsages};
 use bevy_render::{
+    Render, RenderApp, RenderSet,
     extract_resource::ExtractResourcePlugin,
     prelude::*,
     render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
@@ -17,6 +22,7 @@ use bevy_render::{
 use bevy_render_macros::{ExtractComponent, ExtractResource};
 use bevy_transform::prelude::GlobalTransform;
 use bevy_utils::prelude::*;
+use bytemuck::{Pod, Zeroable};
 use std::collections::VecDeque;
 
 /// 区块坐标类型，用于标识区块的二维坐标
@@ -34,12 +40,23 @@ pub struct ChunkManagerPlugin;
 impl Plugin for ChunkManagerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChunkManager>()
+            .init_resource::<FogSettings>()
             .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
+            .add_plugins(ExtractResourcePlugin::<FogSettings>::default())
             .register_type::<MapChunk>()
             .register_type::<InCameraView>()
             .add_systems(PreUpdate, (manage_chunks_by_viewport).chain())
             .add_systems(PreUpdate, update_chunk_visibility);
+
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+
+        render_app.add_systems(
+            Render,
+            prepare_fog_settings.in_set(RenderSet::PrepareResources),
+        );
     }
 }
 
@@ -138,6 +155,60 @@ impl Default for VisibilityState {
     fn default() -> Self {
         Self::Unexplored
     }
+}
+
+#[derive(Resource, ExtractResource, Clone, Debug)]
+pub struct FogSettings {
+    pub chunk_size: UVec2,
+    pub fog_color: Color,
+    pub explored_color: Color,
+}
+
+impl Default for FogSettings {
+    fn default() -> Self {
+        Self {
+            chunk_size: UVec2::splat(DEFAULT_CHUNK_SIZE),
+            fog_color: Color::BLACK,
+            explored_color: basic::GRAY.into(),
+        }
+    }
+}
+
+#[derive(Resource, ShaderType, Copy, Clone, Zeroable, Pod)]
+#[repr(C)]
+pub struct FogSettingsUniform {
+    pub chunk_size: UVec2,
+    // Padding to ensure 16-byte alignment
+    // 为确保 16 字节对齐添加填充
+    pub _padding: [u32; 2],
+    pub fog_color: LinearRgba,
+    pub explored_color: LinearRgba,
+}
+
+#[derive(Resource)]
+pub struct FogSettingsBuffer {
+    pub buffer: Buffer,
+}
+
+fn prepare_fog_settings(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    fog_settings: Res<FogSettings>,
+) {
+    let uniform = FogSettingsUniform {
+        chunk_size: fog_settings.chunk_size,
+        _padding: [0; 2],
+        fog_color: fog_settings.fog_color.into(),
+        explored_color: fog_settings.explored_color.into(),
+    };
+
+    let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("fog setting data buffer"),
+        contents: bytemuck::cast_slice(&[uniform]),
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+    });
+
+    commands.insert_resource(FogSettingsBuffer { buffer });
 }
 
 /// 区块管理器，管理所有加载的区块

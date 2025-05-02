@@ -30,9 +30,10 @@ struct ChunkInfo {
     layer_index: u32,   // 层索引 / layer index
 };
 
-struct MetaUniform {
-    chunks_per_row: u32,
-    chunk_size: u32
+struct FogSettings {
+    chunk_size: vec2<u32>,
+    fog_color: vec4<f32>,
+    explored_color: vec4<f32>
 };
 
 // 迷雾设置结构
@@ -60,7 +61,7 @@ var<storage, read> visions: VisionArray;
 var<storage, read> chunks: ChunkArray;
 
 @group(0) @binding(4) var vision_texture_write: texture_storage_2d_array<r8unorm, read>;
-@group(0) @binding(5) var<uniform> chunk_meta: MetaUniform;
+@group(0) @binding(5) var<uniform> fog_settings: FogSettings;
 // History exploration area read texture
 @group(0) @binding(6) var history_read: texture_storage_2d_array<rgba8unorm, read>;
 //@group(0) @binding(8) var snapshot_read: texture_storage_2d_array<rgba8unorm, read>;

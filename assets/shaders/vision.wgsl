@@ -30,9 +30,10 @@ struct ChunkArray {
     data: array<ChunkInfo>,
 };
 
-struct MetaUniform {
-    chunks_per_row: u32,
-    chunk_size: u32
+struct FogSettings {
+    chunk_size: vec2<u32>,
+    fog_color: vec4<f32>,
+    explored_color: vec4<f32>
 };
 
 // --- Bind Group 0 ---
@@ -40,7 +41,7 @@ struct MetaUniform {
 @group(0) @binding(1) var<storage, read> visions: VisionParams;
 @group(0) @binding(2) var<storage, read> chunks: ChunkArray;
 @group(0) @binding(3) var vision_texture_write: texture_storage_2d_array<r8unorm, write>;
-@group(0) @binding(4) var<uniform> chunk_meta: MetaUniform;
+@group(0) @binding(4) var<uniform> fog_settings: FogSettings;
 // History exploration area read texture
 @group(0) @binding(5) var history_read: texture_storage_2d_array<rgba8unorm, read>;
 // History exploration area write texture
@@ -61,7 +62,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (pixel_coord.x >= dims.x || pixel_coord.y >= dims.y) {
         return;
     }
-    let chunk_size = chunk_meta.chunk_size;
+    let chunk_size = fog_settings.chunk_size;
     let chunk_x = global_id.xy.x / chunk_size;
     let chunk_y = global_id.xy.y / chunk_size;
     let chunk_index: u32 = global_id.z;
