@@ -2,7 +2,7 @@ use crate::chunk::{
     ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView, MapChunk,
 };
 use crate::prelude::FogOfWarCamera;
-use bevy_app::{App, Plugin};
+use bevy_app::{App, Plugin, PreUpdate};
 use bevy_asset::AssetServer;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy_diagnostic::FrameCount;
@@ -12,6 +12,7 @@ use bevy_log::warn;
 use bevy_math::{IVec2, Vec2};
 use bevy_reflect::Reflect;
 use bevy_render::extract_component::ExtractComponentPlugin;
+use bevy_render::extract_resource::ExtractResourcePlugin;
 use bevy_render::prelude::ViewVisibility;
 use bevy_render::render_resource::binding_types::{sampler, texture_2d};
 use bevy_render::render_resource::{
@@ -32,7 +33,7 @@ use bevy_render::{
     texture::{CachedTexture, TextureCache},
     view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 };
-use bevy_render_macros::{ExtractComponent, RenderLabel};
+use bevy_render_macros::{ExtractComponent, ExtractResource, RenderLabel};
 use bevy_transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
 
@@ -49,13 +50,14 @@ pub struct VisionComputePlugin;
 
 impl Plugin for VisionComputePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ExtractComponentPlugin::<VisionSource>::default());
+        app.add_plugins(ExtractComponentPlugin::<VisionSource>::default())
+            .add_plugins(ExtractResourcePlugin::<VisionParamsResource>::default())
+            .add_systems(PreUpdate, update_vision_sources);
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
         render_app
-            .init_resource::<VisionParamsResource>()
             // .init_resource::<VisionTexture>()
             .init_resource::<ExploredTexture>()
             .add_systems(
@@ -63,7 +65,6 @@ impl Plugin for VisionComputePlugin {
                 (
                     prepare_explored_texture,
                     prepare_vision_texture.run_if(not(resource_exists::<VisionTexture>)),
-                    update_vision_params,
                     prepare_chunk_info,
                 )
                     .chain(),
@@ -288,11 +289,7 @@ fn prepare_bind_group(
         return;
     };
 
-    let Some(vision_buffer_binding) = vision_params.buffer.as_ref().map(|b| b.as_entire_binding())
-    else {
-        warn!("VisionParamsResource buffer is missing, skipping compute bind group creation.");
-        return;
-    };
+    let vision_buffer_binding = vision_params.buffer.as_entire_binding();
     let Some(chunk_info_buffer_binding) = chunk_info.buffer.as_ref().map(|b| b.as_entire_binding())
     else {
         warn!("ChunkInfoResource buffer is missing, skipping compute bind group creation.");
@@ -509,17 +506,17 @@ pub struct GpuVisionParams {
 
 // 视野参数资源
 // Vision parameters resource
-#[derive(Resource, Default)]
+#[derive(Resource, ExtractResource, Clone)]
 pub struct VisionParamsResource {
-    pub buffer: Option<Buffer>,
+    pub buffer: Buffer,
 }
 
 // 更新视野参数的 system
 // System for updating vision parameters
-pub fn update_vision_params(
-    mut vision_params: ResMut<VisionParamsResource>,
+pub fn update_vision_sources(
+    mut commands: Commands,
     render_device: Res<RenderDevice>,
-    query: Extract<Query<(&GlobalTransform, &VisionSource, &ViewVisibility)>>,
+    query: Query<(&GlobalTransform, &VisionSource, &ViewVisibility)>,
 ) {
     let mut sources = [GpuVisionSource {
         position: Vec2::ZERO,
@@ -549,5 +546,5 @@ pub fn update_vision_params(
         contents: bytemuck::cast_slice(&[params]),
         usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
     });
-    vision_params.buffer = Some(buffer);
+    commands.insert_resource(VisionParamsResource { buffer })
 }

@@ -186,14 +186,7 @@ impl ViewNode for FogNode2d {
             return Ok(());
         };
 
-        let vision_params_buffer_binding = vision_params_resource
-            .buffer
-            .as_ref()
-            .map(|b| b.as_entire_binding());
-
-        let Some(vision_binding) = vision_params_buffer_binding else {
-            return Ok(()); // Or handle missing vision buffer as needed
-        };
+        let vision_buffer_binding = vision_params_resource.buffer.as_entire_binding();
 
         // Return early if vision params buffer is needed but not available
         // Get the chunk info buffer binding
@@ -223,7 +216,7 @@ impl ViewNode for FogNode2d {
             &BindGroupEntries::sequential((
                 view_uniforms_binding,                          // Binding 0
                 fog_settings_buffer.buffer.as_entire_binding(), // Binding 1
-                vision_binding,                                 // Binding 2
+                vision_buffer_binding,                          // Binding 2
                 chunk_info_buffer_binding,                      // Binding 3: Chunk info
                 &vision_read.default_view,                      // 4
                 &explored_read.default_view,                    // 5
@@ -260,5 +253,3 @@ impl ViewNode for FogNode2d {
         Ok(())
     }
 }
-
-
