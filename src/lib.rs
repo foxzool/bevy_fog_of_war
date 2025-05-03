@@ -1,3 +1,4 @@
+#![feature(trivial_bounds)]
 use bevy_app::{App, Plugin};
 
 mod chunk;

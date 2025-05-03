@@ -9,7 +9,7 @@ use bevy_diagnostic::FrameCount;
 use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
 use bevy_encase_derive::ShaderType;
 use bevy_log::warn;
-use bevy_math::{IVec2, UVec2, Vec2};
+use bevy_math::{IVec2, Vec2};
 use bevy_reflect::Reflect;
 use bevy_render::extract_component::ExtractComponentPlugin;
 use bevy_render::prelude::ViewVisibility;
@@ -435,7 +435,6 @@ pub fn prepare_chunk_info(
         if let Some(index) = chunk.layer_index {
             let gpu_chunk = ChunkInfo {
                 coord: chunk.chunk_coord,
-
                 world_min: chunk.world_bounds.min,
                 world_max: chunk.world_bounds.max,
                 layer_index: index,
@@ -497,7 +496,7 @@ pub struct VisionSource {
 pub struct GpuVisionSource {
     pub position: Vec2, // 8 bytes
     pub radius: f32,    // 4 bytes
-    pub falloff: f32,   // 4 bytes, total 16 bytes to match WGSL
+    pub _padding: u32,  // 4 bytes, total 16 bytes to match WGSL
 }
 
 // 视野参数在 GPU 中的表示
@@ -531,7 +530,7 @@ pub fn update_vision_params(
     let mut sources = [GpuVisionSource {
         position: Vec2::ZERO,
         radius: 0.0,
-        falloff: 0.0,
+        _padding: 0,
     }; 16];
     let mut count = 0;
     for (transform, source, vis) in query.iter().take(16) {
@@ -539,7 +538,7 @@ pub fn update_vision_params(
             sources[count] = GpuVisionSource {
                 position: transform.translation().truncate(),
                 radius: source.range,
-                falloff: source.range * 0.2, // 设置 falloff 为视野范围的 20%
+                _padding: 0,
             };
             count += 1;
         }

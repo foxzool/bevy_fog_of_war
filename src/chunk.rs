@@ -42,6 +42,7 @@ impl Plugin for ChunkManagerPlugin {
         app.init_resource::<ChunkManager>()
             .init_resource::<FogSettings>()
             .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
+            .add_plugins(ExtractComponentPlugin::<RetainLastSeen>::default())
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
             .add_plugins(ExtractResourcePlugin::<FogSettings>::default())
             .register_type::<MapChunk>()
@@ -142,6 +143,11 @@ pub struct GpuChunks {
     pub buffer: Option<Buffer>,
     // pub offset:  u32
 }
+
+/// 保持最后一次可见的组件
+/// Component to retain the last seen state
+#[derive(Component, ExtractComponent, Clone)]
+pub struct RetainLastSeen;
 
 /// 可见性状态枚举，表示区块中每个格子的可见性
 /// Visibility state enum, represents the visibility of each cell in a chunk
