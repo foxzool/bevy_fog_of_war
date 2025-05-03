@@ -401,9 +401,7 @@ impl ViewNode for VisionComputeNode {
 #[derive(ShaderType, Clone, Copy, Debug, Pod, Zeroable)]
 #[repr(C)]
 pub struct ChunkInfo {
-    pub coord: IVec2,    // 区块坐标 / chunk coordinates
-    pub world_min: Vec2, // 世界空间边界最小点 / world space minimum point
-    pub world_max: Vec2, // 世界空间边界最大点 / world space maximum point
+    pub coord: IVec2, // 区块坐标 / chunk coordinates
     pub layer_index: u32,
     // Add padding to match WGSL std430 alignment requirements (struct size should be multiple of
     // 8)
@@ -435,8 +433,6 @@ pub fn prepare_chunk_info(
         if let Some(index) = chunk.layer_index {
             let gpu_chunk = ChunkInfo {
                 coord: chunk.chunk_coord,
-                world_min: chunk.world_bounds.min,
-                world_max: chunk.world_bounds.max,
                 layer_index: index,
                 _padding: 0,
             };
@@ -450,8 +446,6 @@ pub fn prepare_chunk_info(
             coord: IVec2::ZERO,
             layer_index: 0,
             _padding: 0,
-            world_min: Vec2::ZERO,
-            world_max: Vec2::ZERO,
         });
     }
 

@@ -11,7 +11,7 @@ const DEBUG: bool = false;
 struct VisionSource {
     position: vec2<f32>, // World position of the vision source / 视野源的世界坐标 (8 bytes, offset 0)
     radius: f32,         // Vision radius / 视野半径 (4 bytes, offset 8)
-    falloff: f32,
+    _padding: f32,
 };
 
 // Contains all vision sources.
@@ -24,9 +24,8 @@ struct VisionArray {
 // Chunk information structure
 struct ChunkInfo {
     coord: vec2<i32>,    // 区块坐标 / chunk coordinates
-    world_min: vec2<f32>, // 世界空间边界最小点 / world space minimum boundary point
-    world_max: vec2<f32>, // 世界空间边界最大点 / world space maximum boundary point
     layer_index: u32,   // 层索引 / layer index
+    _padding: u32,     // 填充以对齐 / padding for alignment
 };
 
 struct FogSettings {
@@ -88,13 +87,17 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     for (var i = 0u; i < chunk_count; i = i + 1u) {
         let chunk = chunks.data[i];
         // Check if the world position is within the chunk boundaries
-        if (world_xy.x >= chunk.world_min.x && world_xy.x < chunk.world_max.x &&
-            world_xy.y >= chunk.world_min.y && world_xy.y < chunk.world_max.y) {
+        // Calculate chunk world bounds using coord and chunk_size
+        // 使用区块坐标和区块大小计算区块世界边界
+        let chunk_world_min = vec2<f32>(chunk.coord) * vec2<f32>(chunk_size);
+        let chunk_world_max = chunk_world_min + vec2<f32>(chunk_size);
+        if (world_xy.x >= chunk_world_min.x && world_xy.x < chunk_world_max.x &&
+            world_xy.y >= chunk_world_min.y && world_xy.y < chunk_world_max.y) {
 
             let target_layer_index = chunk.layer_index;
 
              // Calculate relative position within the chunk (0.0 to 1.0 range)
-            let rel_pos_norm = (world_xy - chunk.world_min) / (chunk.world_max - chunk.world_min);
+            let rel_pos_norm = (world_xy - chunk_world_min) / vec2<f32>(chunk_size);
 
             // Map normalized position to integer texture coordinates
             // Assuming the vision texture size for this layer matches the chunk size
@@ -241,7 +244,10 @@ fn draw_layer_index_mask(pt: vec2<f32>, chunk: ChunkInfo) -> f32 {
         }
         let d = (idx / divisor) % 10u;
         let pat = patterns[d];
-        let digit_center = (chunk.world_min + chunk.world_max) * 0.5 + vec2<f32>(offset_start + f32(i) * spacing, 0.0);
+        let chunk_world_min = vec2<f32>(chunk.coord) * vec2<f32>(fog_settings.chunk_size);
+
+        let chunk_center = chunk_world_min + vec2<f32>(fog_settings.chunk_size) * 0.5;
+        let digit_center = chunk_center + vec2<f32>(offset_start + f32(i) * spacing, 0.0);
         m = m + draw_digit_mask(pt, digit_center, pat, vec2<f32>(base, base), thickness);
     }
     return clamp(m, 0.0, 1.0);
