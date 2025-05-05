@@ -44,13 +44,12 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let ndc = uv_to_ndc(uv);
     let ndc_pos = vec3<f32>(ndc, 0.0);
     let world_pos = position_ndc_to_world(ndc_pos);
-    let world_xy = world_pos.xy; // Use only xy for 2D compariso
 
     let chunk_size_f = vec2<f32>(f32(settings.chunk_size.x), f32(settings.chunk_size.y));
     let tex_res_f = vec2<f32>(f32(settings.texture_resolution_per_chunk.x), f32(settings.texture_resolution_per_chunk.y));
 
     // Calculate chunk coordinates / 计算区块坐标
-    let chunk_coords_f = floor(world_pos / chunk_size_f);
+    let chunk_coords_f = floor(world_pos.xy / chunk_size_f);
     let chunk_coords_i = vec2<i32>(i32(chunk_coords_f.x), i32(chunk_coords_f.y));
 
     // Find layer indices for this chunk using the mapping buffer
@@ -72,7 +71,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     }
 
     // Calculate UV within the chunk's texture / 计算区块纹理内的 UV
-    let uv_in_chunk = fract(world_pos / chunk_size_f);
+    let uv_in_chunk = fract(world_pos.xy / chunk_size_f);
 
     // Sample fog texture (non-filterable) / 采样雾效纹理 (不可过滤)
     // Use textureSampleLevel with level 0 and offset (0,0) / 使用 level 0 和偏移 (0,0) 的 textureSampleLevel
