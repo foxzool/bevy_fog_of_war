@@ -1,8 +1,8 @@
 pub use crate::{
     FogOfWarPlugin,
     chunk::{
-        ChunkCoord, ChunkManager, ChunkManagerPlugin, FogChunk, FogMapSettings, FogOfWarCamera,
-        InCameraView, VisibilityState,
+        ChunkCoord, ChunkManager, ChunkManagerPlugin, FogMapSettings, FogOfWarCamera, InCameraView,
+        VisibilityState,
     },
     components::*,
     resources::*,

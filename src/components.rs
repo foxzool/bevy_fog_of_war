@@ -1,0 +1,110 @@
+use crate::chunk::ChunkCoord;
+use crate::prelude::{Component, IVec2, Rect, UVec2, Vec2};
+use bevy::prelude::Reflect;
+use bevy::prelude::ReflectDefault;
+use bevy::render::extract_component::ExtractComponent;
+
+/// 区块的可见性状态
+/// Visibility state of a chunk
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
+pub enum ChunkVisibility {
+    /// 从未被任何视野源照亮过
+    /// Never been revealed by any vision source
+    Unexplored,
+    /// 曾经被照亮过，但当前不在视野内
+    /// Was revealed before, but not currently in vision
+    Explored,
+    /// 当前正被至少一个视野源照亮
+    /// Currently being revealed by at least one vision source
+    Visible,
+}
+
+impl Default for ChunkVisibility {
+    fn default() -> Self {
+        ChunkVisibility::Unexplored
+    }
+}
+
+/// 地图区块组件，代表一个空间区域的迷雾和可见性数据
+/// Fog chunk component, represents fog and visibility data for a spatial region
+#[derive(Component, ExtractComponent, Reflect, Debug, Clone)]
+pub struct FogChunk {
+    /// 区块坐标
+    /// Chunk coordinates
+    pub coord: IVec2,
+    pub layer_index: Option<u32>,
+    pub screen_index: Option<u32>,
+    /// 是否加载
+    /// Whether the chunk is loaded
+    pub loaded: bool,
+    /// 区块的当前状态 (可见性与内存位置)
+    /// Current state of the chunk (visibility and memory location)
+    pub state: ChunkState,
+    /// 区块的世界空间边界（以像素/单位为单位）
+    /// World space boundaries of the chunk (in pixels/units)
+    pub world_bounds: Rect,
+}
+
+impl FogChunk {
+    pub fn unique_id(&self) -> u32 {
+        let ox = (self.coord.x + 32768) as u32;
+        let oy = (self.coord.y + 32768) as u32;
+        (ox << 16) | (oy & 0xFFFF)
+    }
+    /// 创建一个新的地图区块
+    /// Create a new map chunk
+    pub fn new(chunk_coord: ChunkCoord, size: UVec2, tile_size: f32) -> Self {
+        let min = Vec2::new(
+            chunk_coord.x as f32 * size.x as f32 * tile_size,
+            chunk_coord.y as f32 * size.y as f32 * tile_size,
+        );
+        let max = min + Vec2::new(size.x as f32 * tile_size, size.y as f32 * tile_size);
+
+        Self {
+            coord: chunk_coord,
+            layer_index: None,
+            screen_index: None,
+            loaded: true,
+            state: Default::default(),
+            world_bounds: Rect { min, max },
+        }
+    }
+
+    /// 判断一个世界坐标是否在该区块内
+    /// Check if a world coordinate is within this chunk
+    pub fn contains_world_pos(&self, world_pos: Vec2) -> bool {
+        self.world_bounds.contains(world_pos)
+    }
+}
+
+// 区块纹理数据的存储位置
+/// Storage location of the chunk's texture data
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
+pub enum ChunkMemoryLocation {
+    /// 纹理数据存储在 GPU 显存中，可用于渲染
+    /// Texture data resides in GPU VRAM, ready for rendering
+    Gpu,
+    /// 纹理数据已从 GPU 卸载，存储在 CPU 内存中
+    /// Texture data is unloaded from GPU and stored in CPU RAM
+    Cpu,
+}
+
+impl Default for ChunkMemoryLocation {
+    fn default() -> Self {
+        // 默认新区块在 GPU 上创建 / New chunks are typically created on the GPU by default
+        ChunkMemoryLocation::Gpu
+    }
+}
+
+/// 聚合区块状态
+/// Aggregated chunk state
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect, Default)]
+#[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
+pub struct ChunkState {
+    /// 可见性状态 / Visibility state
+    pub visibility: ChunkVisibility,
+    /// 内存存储位置 / Memory storage location
+    pub memory_location: ChunkMemoryLocation,
+}

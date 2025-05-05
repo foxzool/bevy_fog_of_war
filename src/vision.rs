@@ -1,12 +1,9 @@
-use crate::chunk::{
-    ChunkManager, FogChunk, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView,
-};
-use crate::prelude::FogOfWarCamera;
+use crate::chunk::{ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView};
+use crate::prelude::*;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::diagnostic::FrameCount;
 use bevy::ecs::query::QueryItem;
 use bevy::ecs::system::lifetimeless::Read;
-use bevy::prelude::*;
 use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_graph::{

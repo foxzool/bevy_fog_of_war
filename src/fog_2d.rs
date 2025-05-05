@@ -1,14 +1,14 @@
 use crate::chunk::{FogSettingsBuffer, FogSettingsUniform, GpuChunks};
+use crate::prelude::*;
 use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
-    chunk::{InCameraView, FogChunk},
+    chunk::InCameraView,
     vision::{ChunkInfo, ExploredTexture, VisionComputeNodeLabel, VisionTexture},
 };
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state;
 use bevy::ecs::query::QueryItem;
 use bevy::ecs::system::lifetimeless::Read;
-use bevy::prelude::*;
 use bevy::render::RenderApp;
 use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::extract_component::ExtractComponentPlugin;

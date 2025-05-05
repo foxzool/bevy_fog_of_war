@@ -50,12 +50,12 @@ impl Plugin for FogOfWarPlugin {
                 clear_per_frame_caches, // Run first in the set / 在集合中首先运行
                 update_chunk_visibility,
                 update_camera_view_chunks,
-                // update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
+                update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
             )
                 .in_set(FogSystemSet::UpdateChunkState),
         );
 
-        app.add_plugins(chunk::ChunkManagerPlugin)
+        app.add_plugins(ChunkManagerPlugin)
             .add_plugins(vision::VisionComputePlugin)
             .add_plugins(fog_2d::Fog2DRenderPlugin)
             .add_plugins(sync_texture::GpuSyncTexturePlugin);
@@ -235,6 +235,34 @@ fn update_camera_view_chunks(
             }
             // Only process one main camera / 只处理一个主相机
             break;
+        }
+    }
+}
+
+/// Updates the FogChunk component's state based on the cache.
+/// 根据缓存更新 FogChunk 组件的状态。
+fn update_chunk_component_state(
+    cache: Res<ChunkStateCache>,
+    chunk_manager: Res<ChunkEntityManager>,
+    mut chunk_q: Query<&mut FogChunk>,
+) {
+    for (coords, entity) in chunk_manager.map.iter() {
+        if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
+            let is_visible = cache.visible_chunks.contains(coords);
+            let is_explored = cache.explored_chunks.contains(coords); // Should always contain visible
+
+            let new_visibility = if is_visible {
+                ChunkVisibility::Visible
+            } else if is_explored {
+                ChunkVisibility::Explored
+            } else {
+                ChunkVisibility::Unexplored // Should not happen if explored_chunks is managed correctly / 如果 explored_chunks 管理正确则不应发生
+            };
+
+            if chunk.state.visibility != new_visibility {
+                // info!("Chunk {:?} visibility changed to {:?}", coords, new_visibility);
+                chunk.state.visibility = new_visibility;
+            }
         }
     }
 }

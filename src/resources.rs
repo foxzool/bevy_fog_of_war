@@ -1,11 +1,20 @@
-use bevy::platform::collections::HashSet;
 use crate::prelude::*;
+use bevy::platform::collections::{HashMap, HashSet};
 
+/// 快速查找区块坐标对应的 FogChunk 实体
+/// Resource for quickly looking up FogChunk entities by their coordinates
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource, Default)] // 注册为反射资源, 并提供默认值反射 / Register as reflectable resource with default reflection
+pub struct ChunkEntityManager {
+    /// 从区块坐标到实体 ID 的映射
+    /// Map from chunk coordinates to Entity ID
+    pub map: HashMap<IVec2, Entity>,
+}
 
 /// 缓存各种状态的区块坐标集合，用于系统间的快速查询
 /// Resource caching sets of chunk coordinates in various states for fast querying between systems
 #[derive(Resource, Debug, Clone, Default, Reflect)]
-#[reflect(Resource, Default)]
+#[reflect(Resource, Default)] // 注册为反射资源, 并提供默认值反射 / Register as reflectable resource with default reflection
 pub struct ChunkStateCache {
     /// 当前被至少一个 VisionSource 照亮的区块坐标集合
     /// Set of chunk coordinates currently revealed by at least one VisionSource
@@ -54,7 +63,6 @@ pub struct SnapshotTextureArray {
 // SnapshotTextureArray 通常在 setup 系统中创建并插入，没有 Default
 // SnapshotTextureArray is usually created and inserted in a setup system, no Default
 
-
 /// 管理 TextureArray 中层的使用情况
 /// Manages the usage of layers within the TextureArrays
 #[derive(Resource, Debug, Clone, Default, Reflect)]
@@ -95,9 +103,14 @@ impl TextureArrayManager {
     /// 分配一个空闲的层索引对 (雾效, 快照)
     /// Allocates a pair of free layer indices (fog, snapshot)
     pub fn allocate_layer_indices(&mut self, coords: IVec2) -> Option<(u32, u32)> {
-        if let (Some(fog_idx), Some(snapshot_idx)) = (self.free_fog_indices.pop(), self.free_snapshot_indices.pop()) {
+        if let (Some(fog_idx), Some(snapshot_idx)) = (
+            self.free_fog_indices.pop(),
+            self.free_snapshot_indices.pop(),
+        ) {
             // 检查索引是否在范围内 (虽然理论上 pop 出来的应该在) / Double check index bounds (though pop should guarantee it)
-            if (fog_idx as usize) < self.fog_layers.len() && (snapshot_idx as usize) < self.snapshot_layers.len() {
+            if (fog_idx as usize) < self.fog_layers.len()
+                && (snapshot_idx as usize) < self.snapshot_layers.len()
+            {
                 self.fog_layers[fog_idx as usize] = Some(coords);
                 self.snapshot_layers[snapshot_idx as usize] = Some(coords);
                 Some((fog_idx, snapshot_idx))
