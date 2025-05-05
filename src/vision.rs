@@ -1,5 +1,5 @@
 use crate::chunk::{
-    ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView, MapChunk,
+    ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView, FogChunk,
 };
 use crate::prelude::FogOfWarCamera;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -401,9 +401,9 @@ pub struct ChunkInfo {
 pub fn prepare_chunk_info(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
-    chunks_query: Extract<Query<&MapChunk, With<InCameraView>>>,
+    chunks_query: Extract<Query<&FogChunk, With<InCameraView>>>,
 ) {
-    let mut chunks_in_view: Vec<&MapChunk> = chunks_query
+    let mut chunks_in_view: Vec<&FogChunk> = chunks_query
         .iter()
         .filter(|chunk| chunk.layer_index.is_some())
         .map(|chunk| chunk)
@@ -420,7 +420,7 @@ pub fn prepare_chunk_info(
     for chunk in chunks_in_view {
         if let Some(index) = chunk.layer_index {
             let gpu_chunk = ChunkInfo {
-                coord: chunk.chunk_coord,
+                coord: chunk.coord,
                 layer_index: index,
                 _padding: 0,
             };

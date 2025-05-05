@@ -34,7 +34,7 @@ impl Plugin for ChunkManagerPlugin {
             .add_plugins(ExtractComponentPlugin::<RetainLastSeen>::default())
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
             .add_plugins(ExtractResourcePlugin::<FogSettings>::default())
-            .register_type::<MapChunk>()
+            .register_type::<FogChunk>()
             .register_type::<InCameraView>()
             .add_systems(PreUpdate, (manage_chunks_by_viewport).chain())
             .add_systems(PreUpdate, update_chunk_visibility);
@@ -52,17 +52,12 @@ impl Plugin for ChunkManagerPlugin {
 }
 
 /// 地图区块组件，代表一个空间区域的迷雾和可见性数据
-/// Map chunk component, represents fog and visibility data for a spatial region
+/// Fog chunk component, represents fog and visibility data for a spatial region
 #[derive(Component, ExtractComponent, Reflect, Debug, Clone)]
-pub struct MapChunk {
+pub struct FogChunk {
     /// 区块坐标
     /// Chunk coordinates
-    pub chunk_coord: ChunkCoord,
-
-    /// 区块尺寸
-    /// Chunk size
-    pub size: UVec2,
-
+    pub coord: ChunkCoord,
     pub layer_index: Option<u32>,
     pub screen_index: Option<u32>,
 
@@ -75,10 +70,10 @@ pub struct MapChunk {
     pub world_bounds: Rect,
 }
 
-impl MapChunk {
+impl FogChunk {
     pub fn unique_id(&self) -> u32 {
-        let ox = (self.chunk_coord.x + 32768) as u32;
-        let oy = (self.chunk_coord.y + 32768) as u32;
+        let ox = (self.coord.x + 32768) as u32;
+        let oy = (self.coord.y + 32768) as u32;
         (ox << 16) | (oy & 0xFFFF)
     }
     /// 创建一个新的地图区块
@@ -91,30 +86,11 @@ impl MapChunk {
         let max = min + Vec2::new(size.x as f32 * tile_size, size.y as f32 * tile_size);
 
         Self {
-            chunk_coord,
-            size,
+            coord: chunk_coord,
             layer_index: None,
             screen_index: None,
             loaded: true,
             world_bounds: Rect { min, max },
-        }
-    }
-
-    /// 将世界坐标转换为区块内的局部坐标
-    /// Convert world coordinates to local coordinates within the chunk
-    pub fn world_to_local(&self, world_pos: Vec2, tile_size: f32) -> Option<UVec2> {
-        if !self.world_bounds.contains(world_pos) {
-            return None;
-        }
-
-        let relative_pos = world_pos - self.world_bounds.min;
-        let local_x = (relative_pos.x / tile_size) as u32;
-        let local_y = (relative_pos.y / tile_size) as u32;
-
-        if local_x < self.size.x && local_y < self.size.y {
-            Some(UVec2::new(local_x, local_y))
-        } else {
-            None
         }
     }
 
@@ -266,7 +242,7 @@ impl Default for ChunkManager {
 }
 
 impl ChunkManager {
-    pub fn update_layer(&mut self, chunk: &mut MapChunk, new_screen_index: u32) {
+    pub fn update_layer(&mut self, chunk: &mut FogChunk, new_screen_index: u32) {
         if chunk.screen_index.is_none() {
             // 是从屏幕外进入屏幕
             if let Some(layer_id) = self.layer_queue.pop_front() {
@@ -280,7 +256,7 @@ impl ChunkManager {
         chunk.screen_index.replace(new_screen_index);
     }
 
-    pub fn unload_layer(&mut self, chunk: &mut MapChunk) {
+    pub fn unload_layer(&mut self, chunk: &mut FogChunk) {
         if let Some(layer_id) = chunk.layer_index {
             self.layer_queue.push_back(layer_id);
             chunk.screen_index = None;
@@ -428,7 +404,7 @@ fn manage_chunks_by_viewport(
             // Create chunk entity
             let entity = commands
                 .spawn((
-                    MapChunk::new(chunk_coord, chunk_size, tile_size),
+                    FogChunk::new(chunk_coord, chunk_size, tile_size),
                     SyncChunk::new(chunk_coord, image1.clone(), size, &render_device),
                     // ImageCopier::new(chunk_coord, image1.clone(), size, &render_device),
                     InCameraView::default(),
@@ -451,14 +427,14 @@ fn manage_chunks_by_viewport(
 fn on_texture_download(
     trigger: Trigger<SyncChunkComplete>,
     mut images: ResMut<Assets<Image>>,
-    mut q_chunk: Query<(&MapChunk, &mut SyncChunk)>,
+    mut q_chunk: Query<(&FogChunk, &mut SyncChunk)>,
 ) {
     let (chunk, mut chunk_texture) = q_chunk.get_mut(trigger.target()).unwrap();
 
     let data: Vec<u8> = trigger.event().data.clone();
     chunk_texture.need_upload = false;
     chunk_texture.need_download = false;
-    if chunk.chunk_coord == ChunkCoord::new(-1, -1) {
+    if chunk.coord == ChunkCoord::new(-1, -1) {
         if data.iter().all(|&x| x == 0) {
             info!("All pixels are zero");
         } else {
@@ -476,7 +452,7 @@ fn on_texture_download(
 fn update_chunk_visibility(
     mut chunk_manager: ResMut<ChunkManager>,
     cameras: Query<(&Camera, &GlobalTransform, &Projection), Changed<GlobalTransform>>,
-    mut chunks: Query<(Entity, &mut MapChunk, &mut SyncChunk, Option<&InCameraView>)>,
+    mut chunks: Query<(Entity, &mut FogChunk, &mut SyncChunk, Option<&InCameraView>)>,
     mut commands: Commands,
 ) {
     // 遍历所有相机，更新区块的可见性状态
@@ -516,7 +492,7 @@ fn update_chunk_visibility(
             for (entity, mut chunk, mut sync_texture, opt_in_view) in chunks.iter_mut() {
                 let mut in_view = false;
                 'f: for (screen_index, order_chunk) in ordered_coords.iter().enumerate() {
-                    if *order_chunk == chunk.chunk_coord {
+                    if *order_chunk == chunk.coord {
                         chunk_manager.update_layer(&mut chunk, screen_index as u32);
                         sync_texture.layer_index = chunk.layer_index.unwrap();
                         in_view = true;

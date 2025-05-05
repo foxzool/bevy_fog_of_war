@@ -1,7 +1,7 @@
 use crate::chunk::{FogSettingsBuffer, FogSettingsUniform, GpuChunks};
 use crate::vision::{GpuVisionParams, VisionParamsResource};
 use crate::{
-    chunk::{InCameraView, MapChunk},
+    chunk::{InCameraView, FogChunk},
     vision::{ChunkInfo, ExploredTexture, VisionComputeNodeLabel, VisionTexture},
 };
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
@@ -39,7 +39,7 @@ impl Plugin for Fog2DRenderPlugin {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .add_plugins(ExtractComponentPlugin::<InCameraView>::default())
-                .add_plugins(ExtractComponentPlugin::<MapChunk>::default());
+                .add_plugins(ExtractComponentPlugin::<FogChunk>::default());
 
             render_app
                 .add_render_graph_node::<ViewNodeRunner<FogNode2d>>(Core2d, FogNode2dLabel)

@@ -532,7 +532,7 @@ fn debug_draw_chunks(
     mut gizmos: Gizmos,
     mut chunk_query: Query<(
         Entity,
-        &MapChunk,
+        &FogChunk,
         Option<&mut Text2d>,
         Option<&InCameraView>,
     )>,
@@ -574,7 +574,7 @@ fn debug_draw_chunks(
             if let Some(mut text) = opt_text {
                 text.0 = format!(
                     "sid: {:?}\nlid: {:?}\n({}, {})",
-                    chunk.screen_index, chunk.layer_index, chunk.chunk_coord.x, chunk.chunk_coord.y
+                    chunk.screen_index, chunk.layer_index, chunk.coord.x, chunk.coord.y
                 );
             } else {
                 let font = asset_server.load("fonts/FiraSans-Bold.ttf");
@@ -583,7 +583,7 @@ fn debug_draw_chunks(
                     font_size: 13.0,
                     ..default()
                 };
-                let pos = chunk_manager.chunk_coord_to_world(chunk.chunk_coord)
+                let pos = chunk_manager.chunk_coord_to_world(chunk.coord)
                     + chunk.world_bounds.size() * 0.5;
 
                 // Draw chunk unique_id and coordinate text
@@ -593,8 +593,8 @@ fn debug_draw_chunks(
                         "sid: {:?}\nlid: {:?}\n({}, {})",
                         chunk.screen_index,
                         chunk.layer_index,
-                        chunk.chunk_coord.x,
-                        chunk.chunk_coord.y
+                        chunk.coord.x,
+                        chunk.coord.y
                     )),
                     text_font,
                     TextColor(RED.into()),
