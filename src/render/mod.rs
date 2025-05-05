@@ -2,8 +2,8 @@ use bevy::asset::weak_handle;
 // fog_render/mod.rs
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::prelude::*;
-use bevy::render::render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner};
-use bevy::render::render_resource::{SpecializedRenderPipeline, SpecializedRenderPipelines};
+use bevy::render::render_graph::{RenderGraphApp, ViewNodeRunner};
+use bevy::render::render_resource::SpecializedRenderPipelines;
 use bevy::render::{Render, RenderApp, RenderSet};
 
 // Import submodules for organization / 导入子模块以组织代码
@@ -15,7 +15,7 @@ mod snapshot; // Contains snapshot node and related logic / 包含快照节点�
 
 // Re-export relevant items / 重新导出相关项
 pub use compute::FogComputeNode;
-pub use extract::RenderFogMapSettings;
+pub use extract::GpuFogMapSettings;
 // Make extracted settings accessible / 使提取的设置可访问
 pub use overlay::FogOverlayNode;
 pub use prepare::{
@@ -51,7 +51,6 @@ impl Plugin for FogOfWarRenderPlugin {
         // Add systems and resources to Render App / 向 Render App 添加系统和资源
         render_app
             // Resources for extracted data / 用于提取数据的资源
-            .init_resource::<RenderFogMapSettings>()
             .init_resource::<extract::ExtractedVisionSources>()
             .init_resource::<extract::ExtractedGpuChunkData>()
             .init_resource::<extract::SnapshotRequestQueue>()

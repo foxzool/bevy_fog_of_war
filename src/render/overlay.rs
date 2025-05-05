@@ -6,12 +6,13 @@ use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::texture::FallbackImage;
-use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms}; // Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
+use bevy::render::texture::{FallbackImage, GpuImage};
+use bevy::render::view::{ViewTarget, ViewUniformOffset, ViewUniforms};
+// Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
 
-use super::FOG_OVERLAY_SHADER_HANDLE;
 use super::extract::{RenderFogTexture, RenderSnapshotTexture};
 use super::prepare::{FogBindGroups, FogUniforms, OverlayChunkMappingBuffer};
+use super::FOG_OVERLAY_SHADER_HANDLE;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogOverlayNodeLabel;
@@ -135,13 +136,17 @@ pub fn queue_fog_overlay_pipelines(
 
 impl ViewNode for FogOverlayNode {
     // Query ViewTarget and ViewUniformOffset / 查询 ViewTarget 和 ViewUniformOffset
-    type ViewQuery = (&'static ViewTarget, &'static ViewUniformOffset);
+    type ViewQuery = (
+        &'static ViewTarget,
+        &'static ViewUniformOffset,
+        &'static Msaa,
+    );
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
+        (view_target, view_uniform_offset, msaa): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let overlay_pipeline = world.resource::<FogOverlayPipeline>();
@@ -150,7 +155,7 @@ impl ViewNode for FogOverlayNode {
             world.resource::<SpecializedRenderPipelines<FogOverlayPipeline>>();
 
         // Get the specialized pipeline for this view / 获取此视图的特化管线
-        let Some(pipeline) = specialized_pipelines.get_pipeline(overlay_pipeline.pipeline_id, &())
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(overlay_pipeline.pipeline_id)
         else {
             // info!("Overlay pipeline not ready.");
             return Ok(());
@@ -161,7 +166,7 @@ impl ViewNode for FogOverlayNode {
         let overlay_chunk_buffer = world.resource::<OverlayChunkMappingBuffer>();
         let fog_texture = world.resource::<RenderFogTexture>();
         let snapshot_texture = world.resource::<RenderSnapshotTexture>();
-        let images = world.resource::<RenderAssets<Image>>();
+        let images = world.resource::<RenderAssets<GpuImage>>();
         let fallback_image = world.resource::<FallbackImage>();
         let view_uniforms = world.resource::<ViewUniforms>();
 
@@ -184,12 +189,12 @@ impl ViewNode for FogOverlayNode {
         let fog_texture_view = images
             .get(&fog_texture.0)
             .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.texture_view);
+            .unwrap_or(&fallback_image.d1.texture_view);
 
         let snapshot_texture_view = images
             .get(&snapshot_texture.0)
             .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.texture_view);
+            .unwrap_or(&fallback_image.d1.texture_view);
 
         // Create the bind group for this specific view / 为此特定视图创建绑定组
         let bind_group = render_context.render_device().create_bind_group(
@@ -226,11 +231,14 @@ impl ViewNode for FogOverlayNode {
         // Begin render pass targeting the view / 开始针对视图的渲染通道
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_overlay_pass"),
-            color_attachments: &[Some(view_target.get_color_attachment(Operations {
-                // Load previous content (main scene), store result / 加载先前内容 (主场景)，存储结果
-                load: LoadOp::Load,
-                store: StoreOp::Store,
-            }))],
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view: view_target.main_texture_view(),
+                resolve_target: None,
+                ops: Operations {
+                    load: LoadOp::Load,
+                    store: StoreOp::Store,
+                },
+            })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,

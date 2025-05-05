@@ -1,11 +1,14 @@
 // fog_render/compute.rs
+use super::FOG_COMPUTE_SHADER_HANDLE;
+use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
+use crate::render::extract::GpuFogMapSettings;
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel};
-use bevy::render::render_resource::{BindGroupLayout, CachedComputePipelineId, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineCache};
-use bevy::render::renderer::{RenderContext, RenderDevice};
-
-use super::prepare::{FogBindGroups, GpuChunkInfoBuffer}; // Import buffer to get chunk count / 导入缓冲区以获取区块数量
-use super::{FOG_COMPUTE_SHADER_HANDLE, RenderFogMapSettings}; // Import shader handle / 导入 shader 句柄
+use bevy::render::render_resource::{
+    BindGroupLayout, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
+    PipelineCache,
+};
+use bevy::render::renderer::RenderContext; // Import buffer to get chunk count / 导入缓冲区以获取区块数量 // Import shader handle / 导入 shader 句柄
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogComputeNodeLabel;
@@ -22,7 +25,6 @@ pub struct FogComputePipeline {
 // System to initialize the compute pipeline / 初始化计算管线的系统
 impl FromWorld for FogComputePipeline {
     fn from_world(world: &mut World) -> Self {
-        let render_device = world.resource::<RenderDevice>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let fog_bind_groups = world.resource::<FogBindGroups>();
 
@@ -64,7 +66,7 @@ impl Node for FogComputeNode {
         let compute_pipeline = world.resource::<FogComputePipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let chunk_buffer = world.resource::<GpuChunkInfoBuffer>();
-        let settings = world.resource::<RenderFogMapSettings>();
+        let settings = world.resource::<GpuFogMapSettings>();
 
         let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id)
         else {
@@ -83,7 +85,7 @@ impl Node for FogComputeNode {
             return Ok(()); // No work to do / 无需工作
         }
 
-        let texture_res = settings.0.texture_resolution_per_chunk;
+        let texture_res = settings.texture_resolution_per_chunk;
         // Calculate workgroups needed / 计算所需的工作组
         // Example: One workgroup per chunk, 8x8 threads per workgroup
         // 示例: 每个区块一个工作组，每个工作组 8x8 线程

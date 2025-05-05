@@ -1,14 +1,31 @@
+use crate::components::*;
+use crate::resources::*;
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
-use crate::components::*;
-use crate::resources::*;
-
+use bytemuck::{Pod, Zeroable};
 // --- Resources in RenderWorld to hold extracted data ---
 // --- RenderWorld 中用于保存提取数据的资源 ---
 
-#[derive(Resource, Debug, Clone, Default)]
-pub struct RenderFogMapSettings(pub FogMapSettings);
+#[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
+#[repr(C)]
+pub struct GpuFogMapSettings {
+    /// 每个区块的大小 (世界单位)
+    /// Size of each chunk (in world units)
+    pub chunk_size: UVec2,
+    /// 每个区块对应纹理的分辨率 (像素)
+    /// Resolution of the texture per chunk (in pixels)
+    pub texture_resolution_per_chunk: UVec2,
+    /// 未探索区域的雾颜色
+    /// Fog color for unexplored areas
+    pub fog_color_unexplored: Vec4, // Use Vec4 for shader compatibility / 使用 Vec4 以兼容 shader
+    /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
+    /// Fog color for explored but not currently visible areas (usually semi-transparent)
+    pub fog_color_explored: Vec4,
+    /// 视野完全清晰区域的“颜色”（通常用于混合或阈值，可能完全透明）
+    /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
+    pub vision_clear_color: Vec4,
+}
 
 #[derive(Resource, Debug, Clone, Default)]
 pub struct ExtractedVisionSources {
@@ -39,7 +56,7 @@ pub struct RenderSnapshotTexture(pub Handle<Image>);
 // --- 与 shader 缓冲区布局匹配的数据结构 ---
 
 // Ensure alignment and size match WGSL / 确保对齐和大小匹配 WGSL
-#[derive(Copy, Clone, ShaderType, Debug)]
+#[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct VisionSourceData {
     pub pos: Vec2,     // World position / 世界位置
@@ -47,7 +64,7 @@ pub struct VisionSourceData {
     pub _padding: f32, // WGSL vec2/f32 alignment / WGSL vec2/f32 对齐
 }
 
-#[derive(Copy, Clone, ShaderType, Debug)]
+#[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct ChunkComputeData {
     pub coords: IVec2,        // Chunk coordinates / 区块坐标
@@ -55,7 +72,7 @@ pub struct ChunkComputeData {
     pub _padding: u32,        // WGSL IVec2/u32 alignment / WGSL IVec2/u32 对齐
 }
 
-#[derive(Copy, Clone, ShaderType, Debug)]
+#[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct OverlayChunkData {
     pub coords: IVec2,             // Chunk coordinates / 区块坐标
@@ -74,7 +91,13 @@ pub struct SnapshotRequest {
 // --- 提取系统 ---
 
 pub fn extract_fog_settings(mut commands: Commands, settings: Extract<Res<FogMapSettings>>) {
-    commands.insert_resource(RenderFogMapSettings(settings.clone()));
+    commands.insert_resource(GpuFogMapSettings {
+        chunk_size: settings.chunk_size,
+        texture_resolution_per_chunk: settings.texture_resolution_per_chunk,
+        fog_color_unexplored: settings.fog_color_unexplored.to_linear().to_vec4(),
+        fog_color_explored: settings.fog_color_explored.to_linear().to_vec4(),
+        vision_clear_color: settings.vision_clear_color.to_linear().to_vec4(),
+    });
 }
 
 pub fn extract_texture_handles(

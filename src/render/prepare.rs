@@ -1,15 +1,14 @@
-use crate::prelude::FogMapSettings;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::{FallbackImage, GpuImage};
-use bevy::render::view::ViewUniforms;
+use bevy::render::view::{ViewUniform, ViewUniforms};
 // Needed for view bindings / 视图绑定需要 // For default texture / 用于默认纹理
 
 use super::extract::{
-    ChunkComputeData, ExtractedGpuChunkData, ExtractedVisionSources, OverlayChunkData,
-    RenderFogMapSettings, RenderFogTexture, RenderSnapshotTexture, VisionSourceData,
+    ChunkComputeData, ExtractedGpuChunkData, ExtractedVisionSources, GpuFogMapSettings,
+    OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, VisionSourceData,
 };
 use super::{FOG_COMPUTE_SHADER_HANDLE, FOG_OVERLAY_SHADER_HANDLE}; // Import shader handles / 导入 shader 句柄
 
@@ -53,111 +52,59 @@ pub struct FogBindGroups {
 // --- 缓冲区准备系统 ---
 
 pub fn prepare_fog_uniforms(
-    settings: Res<RenderFogMapSettings>,
+    settings: Res<GpuFogMapSettings>,
     mut fog_uniforms: ResMut<FogUniforms>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
 ) {
-    // Create buffer if it doesn't exist / 如果缓冲区不存在则创建
-    let buffer = fog_uniforms.buffer.get_or_insert_with(|| {
-        render_device.create_buffer(&BufferDescriptor {
-            label: Some("fog_settings_uniform_buffer"),
-            size: FogMapSettings::min_size().get(), // Get size from ShaderType / 从 ShaderType 获取大小
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
+    let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("fog setting data buffer"),
+        contents: bytemuck::cast_slice(&[*settings]),
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     });
 
-    // Write settings data to buffer / 将设置数据写入缓冲区
-    let settings_data = settings.0.clone(); // Assuming FogMapSettings derives ShaderType / 假设 FogMapSettings 派生 ShaderType
-    let buffer_contents = settings_data.as_wgsl_bytes(); // Convert to byte slice / 转换为字节切片
-    render_queue.write_buffer(buffer, 0, &buffer_contents);
-}
-
-// Helper function to prepare dynamic storage buffers / 准备动态存储缓冲区的辅助函数
-fn prepare_storage_buffer<T: ShaderType + Clone>(
-    buffer_res: &mut Option<Buffer>,
-    capacity: &mut usize,
-    label: &str,
-    data: &[T],
-    render_device: &RenderDevice,
-    render_queue: &RenderQueue,
-) {
-    let new_size = data.len() * std::mem::size_of::<T>();
-    let new_capacity = data.len();
-
-    match buffer_res {
-        Some(buffer) if new_capacity <= *capacity => {
-            // Buffer exists and has enough capacity, just write data / 缓冲区存在且容量足够，只需写入数据
-            if new_size > 0 {
-                let byte_data = data.as_wgsl_bytes();
-                render_queue.write_buffer(buffer, 0, &byte_data);
-            }
-        }
-        _ => {
-            // Create or recreate buffer / 创建或重新创建缓冲区
-            *buffer_res = Some(render_device.create_buffer(&BufferDescriptor {
-                label: Some(label),
-                size: new_size.max(T::min_size().get()) as u64, // Ensure minimum size / 确保最小大小
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }));
-            *capacity = new_capacity;
-            if new_size > 0 {
-                let byte_data = data.as_wgsl_bytes();
-                render_queue.write_buffer(buffer_res.as_ref().unwrap(), 0, &byte_data);
-            }
-            // info!("Created/Resized {} buffer, capacity: {}", label, new_capacity);
-        }
-    }
+    fog_uniforms.buffer = Some(buffer);
 }
 
 pub fn prepare_vision_source_buffer(
     extracted_sources: Res<ExtractedVisionSources>,
     mut buffer_res: ResMut<VisionSourceBuffer>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
 ) {
-    prepare_storage_buffer(
-        &mut buffer_res.buffer,
-        &mut buffer_res.capacity,
-        "vision_source_storage_buffer",
-        &extracted_sources.sources,
-        &render_device,
-        &render_queue,
-    );
+    let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("vision_source_storage_buffer"),
+        contents: bytemuck::cast_slice(&extracted_sources.sources),
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+    });
+
+    buffer_res.buffer = Some(buffer);
 }
 
 pub fn prepare_gpu_chunk_buffer(
     extracted_chunks: Res<ExtractedGpuChunkData>,
     mut buffer_res: ResMut<GpuChunkInfoBuffer>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
 ) {
-    prepare_storage_buffer(
-        &mut buffer_res.buffer,
-        &mut buffer_res.capacity,
-        "gpu_chunk_info_storage_buffer",
-        &extracted_chunks.compute_chunks,
-        &render_device,
-        &render_queue,
-    );
+    let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("gpu_chunk_info_storage_buffer"),
+        contents: bytemuck::cast_slice(&extracted_chunks.compute_chunks),
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+    });
+
+    buffer_res.buffer = Some(buffer);
 }
 
 pub fn prepare_overlay_chunk_mapping_buffer(
     extracted_chunks: Res<ExtractedGpuChunkData>,
     mut buffer_res: ResMut<OverlayChunkMappingBuffer>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
 ) {
-    prepare_storage_buffer(
-        &mut buffer_res.buffer,
-        &mut buffer_res.capacity,
-        "overlay_chunk_mapping_storage_buffer",
-        &extracted_chunks.overlay_mapping,
-        &render_device,
-        &render_queue,
-    );
+    let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("overlay_chunk_mapping_storage_buffer"),
+        contents: bytemuck::cast_slice(&extracted_chunks.overlay_mapping),
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+    });
+
+    buffer_res.buffer = Some(buffer);
 }
 
 // --- Bind Group Preparation ---
@@ -180,19 +127,14 @@ pub fn prepare_fog_bind_groups(
     let fog_texture_view = images
         .get(&fog_texture.0)
         .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.texture_view);
-
-    let snapshot_texture_view = images
-        .get(&snapshot_texture.0)
-        .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.texture_view);
+        .unwrap_or(&fallback_image.d1.texture_view);
 
     // --- Compute Bind Group Layout ---
     // --- 计算绑定组布局 ---
     let compute_layout = fog_bind_groups.compute_layout.get_or_insert_with(|| {
-        render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("fog_compute_bind_group_layout"),
-            entries: &[
+        render_device.create_bind_group_layout(
+            "fog_compute_bind_group_layout",
+            &[
                 // Fog Texture (Storage) / 雾效纹理 (存储)
                 BindGroupLayoutEntry {
                     binding: 0,
@@ -233,12 +175,12 @@ pub fn prepare_fog_bind_groups(
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(FogMapSettings::min_size()),
+                        min_binding_size: Some(GpuFogMapSettings::min_size()),
                     },
                     count: None,
                 },
             ],
-        })
+        )
     });
 
     // --- Compute Bind Group ---
@@ -279,9 +221,9 @@ pub fn prepare_fog_bind_groups(
     // This layout is often shared or derived from a standard pipeline (like 2D)
     // 这个布局通常是共享的或从标准管线 (如 2D) 派生的
     fog_bind_groups.overlay_layout.get_or_insert_with(|| {
-        render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("fog_overlay_bind_group_layout"),
-            entries: &[
+        render_device.create_bind_group_layout(
+            "fog_overlay_bind_group_layout",
+            &[
                 // View Uniforms (Standard Bevy Binding) / 视图统一变量 (标准 Bevy 绑定)
                 BindGroupLayoutEntry {
                     binding: 0,
@@ -330,7 +272,7 @@ pub fn prepare_fog_bind_groups(
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(FogMapSettings::min_size()),
+                        min_binding_size: Some(GpuFogMapSettings::min_size()),
                     },
                     count: None,
                 },
@@ -346,7 +288,7 @@ pub fn prepare_fog_bind_groups(
                     count: None,
                 },
             ],
-        })
+        )
     });
 
     // Overlay Bind Group is created per-view in the FogOverlayNode using this layout

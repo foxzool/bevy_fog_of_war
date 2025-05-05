@@ -145,8 +145,6 @@ impl TextureArrayManager {
     // More helper methods can be added, e.g., finding indices by coords, etc.
 }
 
-
-
 /// 战争迷雾地图的全局设置
 /// Global settings for the fog of war map
 #[derive(Resource, ExtractResource, Clone, Debug)]

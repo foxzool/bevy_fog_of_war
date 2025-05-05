@@ -3,8 +3,11 @@ use bevy::pbr::{MeshPipeline, MeshPipelineKey};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode};
-use bevy::render::render_phase::RenderCommand;
-use bevy::render::render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, SpecializedMeshPipeline, SpecializedRenderPipeline, StoreOp, TextureViewDescriptor, TextureViewDimension};
+use bevy::render::render_resource::{
+    BindGroupLayout, BindGroupLayoutDescriptor, LoadOp, Operations, RenderPassColorAttachment,
+    RenderPassDescriptor, RenderPipelineDescriptor, SpecializedMeshPipeline,
+    SpecializedRenderPipeline, StoreOp, TextureViewDescriptor, TextureViewDimension,
+};
 use bevy::render::renderer::{RenderContext, RenderDevice};
 // For depth / 用于深度
 
@@ -73,8 +76,7 @@ impl FromWorld for SnapshotPipeline {
 
 // System to queue snapshot items into a RenderPhase
 // 将快照项排队到 RenderPhase 的系统
-pub fn queue_snapshot_pipelines(
-// This system needs access to entities with Snapshottable
+pub fn queue_snapshot_pipelines(// This system needs access to entities with Snapshottable
 // It might need to run in the Extract schedule or have data extracted
 // 此系统需要访问带有 Snapshottable 的实体
 // 它可能需要在 Extract 调度中运行或提取数据
@@ -87,8 +89,8 @@ pub fn queue_snapshot_pipelines(
 // material_meta: Res<MaterialPipeline<YourMaterial>>, // If using custom material / 如果使用自定义材质
 // snapshottable_query: Query<(Entity, &Handle<Mesh>, &MeshUniform, &Handle<YourMaterial>), With<Snapshottable>>,
 // mut views: Query<&mut RenderPhase<SnapshotItem>>, // Query the custom phase / 查询自定义阶段
-// snapshot_requests: Res<SnapshotRequestQueue>, // Get requests to know which chunks are active / 获取请求以了解哪些区块是活动的))
-)
+// snapshot_requests: Res<SnapshotRequestQueue>, // Get requests to know which chunks are active / 获取请求以了解哪些区块是活动的)))
+
 {
     // 1. Iterate through views (cameras) - though snapshotting might be view-independent
     //    遍历视图 (相机) - 尽管快照可能与视图无关
