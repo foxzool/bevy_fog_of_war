@@ -1,5 +1,6 @@
 use self::prelude::*;
 use bevy::asset::RenderAssetUsages;
+use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 
@@ -31,6 +32,26 @@ pub struct FogOfWarPlugin;
 
 impl Plugin for FogOfWarPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<VisionSource>()
+            .register_type::<FogChunk>()
+            .register_type::<Snapshottable>()
+            .register_type::<ChunkVisibility>()
+            .register_type::<ChunkMemoryLocation>()
+            .register_type::<ChunkState>()
+            // .register_type::<FogMapSettings>()
+            .register_type::<FogTextureArray>()
+            .register_type::<SnapshotTextureArray>()
+            .register_type::<ChunkEntityManager>()
+            .register_type::<ChunkStateCache>()
+            .register_type::<TextureArrayManager>()
+            .register_type::<CpuChunkStorage>();
+
+        app.init_resource::<FogMapSettings>()
+            .init_resource::<ChunkEntityManager>()
+            .init_resource::<ChunkStateCache>()
+            .init_resource::<CpuChunkStorage>();
+
+
         app.configure_sets(
             Update,
             (
@@ -40,6 +61,7 @@ impl Plugin for FogOfWarPlugin {
             )
                 .chain(), // Ensure they run in this order / 确保它们按此顺序运行
         );
+
 
         app.add_systems(Startup, setup_fog_resources);
 
@@ -53,6 +75,11 @@ impl Plugin for FogOfWarPlugin {
                 update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
             )
                 .in_set(FogSystemSet::UpdateChunkState),
+        );
+
+        app.add_systems(
+            Update,
+            manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
         );
 
         app.add_plugins(ChunkManagerPlugin)
@@ -265,4 +292,127 @@ fn update_chunk_component_state(
             }
         }
     }
+}
+
+/// Creates/activates FogChunk entities based on visibility and camera view.
+/// 根据可见性和相机视图创建/激活 FogChunk 实体。
+fn manage_chunk_entities(
+    mut commands: Commands,
+    settings: Res<FogMapSettings>,
+    mut cache: ResMut<ChunkStateCache>,
+    mut chunk_manager: ResMut<ChunkEntityManager>,
+    mut texture_manager: ResMut<TextureArrayManager>,
+    mut cpu_storage: ResMut<CpuChunkStorage>,
+    mut chunk_q: Query<&mut FogChunk>, // Query to update state if chunk already exists
+                                       // We might need Assets<Image> here if we immediately upload from CPU storage
+                                       // 如果我们立即从 CPU 存储上传，这里可能需要 Assets<Image>
+) {
+    let chunk_size_f = settings.chunk_size.as_vec2();
+    let chunk_size_i = settings.chunk_size.as_ivec2();
+
+    // Determine chunks that should be active (in GPU memory)
+    // 确定哪些区块应该是活动的 (在 GPU 内存中)
+    // Rule: Visible chunks OR explored chunks within camera view (plus buffer?)
+    // 规则: 可见区块 或 相机视图内的已探索区块 (加缓冲区?)
+    let mut required_gpu_chunks = cache.visible_chunks.clone();
+    for coords in &cache.camera_view_chunks {
+        if cache.explored_chunks.contains(coords) {
+            required_gpu_chunks.insert(*coords);
+        }
+    }
+    // Optional: Add a buffer zone around camera/visible chunks
+    // 可选: 在相机/可见区块周围添加缓冲区
+
+    // Activate/Create necessary chunks
+    // 激活/创建必要的区块
+    let mut chunks_to_make_gpu = HashSet::new();
+    for &coords in &required_gpu_chunks {
+        if let Some(entity) = chunk_manager.map.get(&coords) {
+            // Chunk entity exists, check its memory state
+            // 区块实体存在，检查其内存状态
+            if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
+                if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
+                    // Mark for transition to GPU
+                    // 标记以转换到 GPU
+                    chunks_to_make_gpu.insert(coords);
+                    // Actual data upload handled in manage_chunk_memory_logic or RenderApp
+                    // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
+                }
+                // Ensure it's marked as GPU resident in cache (will be done in memory logic)
+                // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
+            }
+        } else {
+            // Chunk entity doesn't exist, create it
+            // 区块实体不存在，创建它
+            if let Some((fog_idx, snap_idx)) = texture_manager.allocate_layer_indices(coords) {
+                let world_min = coords.as_vec2() * chunk_size_f;
+                let world_bounds = Rect::from_corners(world_min, world_min + chunk_size_f);
+
+                // Check if data exists in CPU storage (was previously offloaded)
+                // 检查 CPU 存储中是否存在数据 (之前被卸载过)
+                let initial_state = if cpu_storage.storage.contains_key(&coords) {
+                    // Will be loaded from CPU, mark for transition
+                    // 将从 CPU 加载，标记转换
+                    chunks_to_make_gpu.insert(coords);
+                    ChunkState {
+                        // Visibility should be Explored if it was offloaded
+                        // 如果被卸载过，可见性应该是 Explored
+                        visibility: ChunkVisibility::Explored,
+                        memory_location: ChunkMemoryLocation::Cpu, // Will be set to Gpu by memory logic / 将由内存逻辑设为 Gpu
+                    }
+                } else {
+                    // Brand new chunk, starts Unexplored on GPU
+                    // 全新区块，在 GPU 上以 Unexplored 开始
+                    ChunkState {
+                        visibility: ChunkVisibility::Unexplored, // Visibility updated later / 可见性稍后更新
+                        memory_location: ChunkMemoryLocation::Gpu,
+                    }
+                };
+
+                let entity = commands
+                    .spawn(FogChunk {
+                        coords,
+                        layer_index: None,
+                        screen_index: None,
+                        fog_layer_index: fog_idx,
+                        snapshot_layer_index: snap_idx,
+                        loaded: false,
+                        state: initial_state,
+                        world_bounds,
+                    })
+                    .id();
+
+                chunk_manager.map.insert(coords, entity);
+                if initial_state.memory_location == ChunkMemoryLocation::Gpu {
+                    cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
+                }
+                // info!("Created FogChunk {:?} (Fog: {}, Snap: {}) State: {:?}", coords, fog_idx, snap_idx, initial_state);
+            } else {
+                error!(
+                    "Failed to allocate texture layers for chunk {:?}! TextureArray might be full.",
+                    coords
+                );
+                // Handle error: maybe stop creating chunks, or implement LRU eviction
+                // 处理错误: 可能停止创建区块，或实现 LRU 驱逐
+            }
+        }
+    }
+
+    // Update state for chunks transitioning from CPU to GPU
+    // 更新从 CPU 转换到 GPU 的区块状态
+    for coords in chunks_to_make_gpu {
+        if let Some(entity) = chunk_manager.map.get(&coords) {
+            if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
+                chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+                cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
+                // Remove from CPU storage (data transfer happens elsewhere)
+                // 从 CPU 存储中移除 (数据传输在别处发生)
+                cpu_storage.storage.remove(&coords);
+                // info!("Chunk {:?} marked for GPU residency.", coords);
+            }
+        }
+    }
+
+    // TODO: Implement chunk despawning for very distant chunks
+    // TODO: 为非常遥远的区块实现实体销毁
 }

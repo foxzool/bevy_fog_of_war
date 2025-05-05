@@ -417,7 +417,7 @@ pub fn prepare_chunk_info(
     for chunk in chunks_in_view {
         if let Some(index) = chunk.layer_index {
             let gpu_chunk = ChunkInfo {
-                coord: chunk.coord,
+                coord: chunk.coords,
                 layer_index: index,
                 _padding: 0,
             };

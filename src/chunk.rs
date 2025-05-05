@@ -424,7 +424,7 @@ fn on_texture_download(
     let data: Vec<u8> = trigger.event().data.clone();
     chunk_texture.need_upload = false;
     chunk_texture.need_download = false;
-    if chunk.coord == ChunkCoord::new(-1, -1) {
+    if chunk.coords == ChunkCoord::new(-1, -1) {
         if data.iter().all(|&x| x == 0) {
             info!("All pixels are zero");
         } else {
@@ -482,7 +482,7 @@ fn update_chunk_visibility(
             for (entity, mut chunk, mut sync_texture, opt_in_view) in chunks.iter_mut() {
                 let mut in_view = false;
                 'f: for (screen_index, order_chunk) in ordered_coords.iter().enumerate() {
-                    if *order_chunk == chunk.coord {
+                    if *order_chunk == chunk.coords {
                         chunk_manager.update_layer(&mut chunk, screen_index as u32);
                         sync_texture.layer_index = chunk.layer_index.unwrap();
                         in_view = true;

@@ -1,7 +1,5 @@
-use crate::chunk::ChunkCoord;
-use crate::prelude::{Component, IVec2, Rect, UVec2, Vec2};
-use bevy::prelude::Reflect;
-use bevy::prelude::ReflectDefault;
+use crate::prelude::*;
+use bevy::platform::collections::HashMap;
 use bevy::render::extract_component::ExtractComponent;
 
 /// 区块的可见性状态
@@ -32,9 +30,15 @@ impl Default for ChunkVisibility {
 pub struct FogChunk {
     /// 区块坐标
     /// Chunk coordinates
-    pub coord: IVec2,
+    pub coords: IVec2,
     pub layer_index: Option<u32>,
     pub screen_index: Option<u32>,
+    /// 此区块在雾效 TextureArray 中的层索引
+    /// Layer index for this chunk in the fog TextureArray
+    pub fog_layer_index: u32,
+    /// 此区块在快照 TextureArray 中的层索引
+    /// Layer index for this chunk in the snapshot TextureArray
+    pub snapshot_layer_index: u32,
     /// 是否加载
     /// Whether the chunk is loaded
     pub loaded: bool,
@@ -48,8 +52,8 @@ pub struct FogChunk {
 
 impl FogChunk {
     pub fn unique_id(&self) -> u32 {
-        let ox = (self.coord.x + 32768) as u32;
-        let oy = (self.coord.y + 32768) as u32;
+        let ox = (self.coords.x + 32768) as u32;
+        let oy = (self.coords.y + 32768) as u32;
         (ox << 16) | (oy & 0xFFFF)
     }
     /// 创建一个新的地图区块
@@ -62,9 +66,11 @@ impl FogChunk {
         let max = min + Vec2::new(size.x as f32 * tile_size, size.y as f32 * tile_size);
 
         Self {
-            coord: chunk_coord,
+            coords: chunk_coord,
             layer_index: None,
             screen_index: None,
+            fog_layer_index: 0,
+            snapshot_layer_index: 0,
             loaded: true,
             state: Default::default(),
             world_bounds: Rect { min, max },
@@ -107,4 +113,24 @@ pub struct ChunkState {
     pub visibility: ChunkVisibility,
     /// 内存存储位置 / Memory storage location
     pub memory_location: ChunkMemoryLocation,
+}
+
+/// 在 CPU 内存中存储已卸载的区块纹理数据
+/// Resource for storing unloaded chunk texture data in CPU memory
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource, Default)] // 注册为反射资源, 并提供默认值反射 / Register as reflectable resource with default reflection
+pub struct CpuChunkStorage {
+    /// 从区块坐标到 (雾效原始数据, 快照原始数据) 的映射
+    /// Map from chunk coordinates to (raw fog data, raw snapshot data)
+    /// Vec<u8> 存储了对应纹理格式的字节数据
+    /// Vec<u8> stores the byte data for the corresponding texture format
+    pub storage: HashMap<IVec2, (Vec<u8>, Vec<u8>)>,
+}
+
+/// 标记组件，指示该实体应被包含在战争迷雾的快照中
+/// Marker component indicating this entity should be included in the fog of war snapshot
+#[derive(Component, Debug, Clone, Default, Reflect)]
+#[reflect(Component, Default)]
+pub struct Snapshottable {
+    pub priority: u8,
 }
