@@ -8,6 +8,7 @@ mod chunk;
 mod components;
 mod fog_2d;
 pub mod prelude;
+mod render;
 mod resources;
 mod sync_texture;
 mod vision;
@@ -51,7 +52,6 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<ChunkStateCache>()
             .init_resource::<CpuChunkStorage>();
 
-
         app.configure_sets(
             Update,
             (
@@ -61,7 +61,6 @@ impl Plugin for FogOfWarPlugin {
             )
                 .chain(), // Ensure they run in this order / 确保它们按此顺序运行
         );
-
 
         app.add_systems(Startup, setup_fog_resources);
 

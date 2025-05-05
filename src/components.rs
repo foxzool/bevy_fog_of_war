@@ -2,6 +2,30 @@ use crate::prelude::*;
 use bevy::platform::collections::HashMap;
 use bevy::render::extract_component::ExtractComponent;
 
+
+/// 视野源组件
+/// Vision source component
+#[derive(Component, Reflect, ExtractComponent, Clone)]
+#[reflect(Component)]
+pub struct VisionSource {
+    /// 视野范围（世界单位）
+    /// Vision range (world units)
+    pub range: f32,
+    /// 是否启用
+    /// Enabled
+    pub enabled: bool,
+}
+
+impl Default for VisionSource {
+    fn default() -> Self {
+        Self {
+            range: 100.0,
+            enabled: true,
+        }
+    }
+}
+
+
 /// 区块的可见性状态
 /// Visibility state of a chunk
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]

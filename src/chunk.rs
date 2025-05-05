@@ -100,49 +100,6 @@ impl Default for VisibilityState {
     }
 }
 
-/// 战争迷雾地图的全局设置
-/// Global settings for the fog of war map
-#[derive(Resource, ExtractResource, Clone, Debug)]
-pub struct FogMapSettings {
-    /// 每个区块的大小 (世界单位)
-    /// Size of each chunk (in world units)
-    pub chunk_size: UVec2,
-    /// 每个区块对应纹理的分辨率 (像素)
-    /// Resolution of the texture per chunk (in pixels)
-    pub texture_resolution_per_chunk: UVec2,
-    /// 未探索区域的雾颜色
-    /// Fog color for unexplored areas
-    pub fog_color_unexplored: Color,
-    /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
-    /// Fog color for explored but not currently visible areas (usually semi-transparent)
-    pub fog_color_explored: Color,
-    /// 视野完全清晰区域的“颜色”（通常用于混合或阈值，可能完全透明）
-    /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
-    pub vision_clear_color: Color, // 例如 Color::NONE 或用于计算的特定值 / e.g., Color::NONE or a specific value for calculations
-    /// 雾效纹理数组的格式
-    /// Texture format for the fog texture array ]
-    pub fog_texture_format: TextureFormat,
-    /// 快照纹理数组的格式
-    /// Texture format for the snapshot texture array
-    pub snapshot_texture_format: TextureFormat,
-}
-
-impl Default for FogMapSettings {
-    fn default() -> Self {
-        Self {
-            chunk_size: UVec2::splat(256),
-            texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
-            fog_color_unexplored: Color::BLACK,
-            fog_color_explored: Color::srgba(0.0, 0.0, 0.0, 0.6), // 半透明黑色 / Semi-transparent black
-            vision_clear_color: Color::NONE,                      // 完全透明 / Fully transparent
-            // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
-            // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
-            fog_texture_format: TextureFormat::R8Unorm,
-            // 快照需要颜色和透明度 / Snapshots need color and alpha
-            snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
-        }
-    }
-}
 
 #[derive(Resource, ShaderType, Copy, Clone, Zeroable, Pod)]
 #[repr(C)]

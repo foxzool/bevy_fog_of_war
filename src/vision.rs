@@ -456,27 +456,6 @@ pub fn prepare_chunk_info(
     commands.insert_resource(chunk_info_resource);
 }
 
-/// 视野源组件
-/// Vision source component
-#[derive(Component, Reflect, ExtractComponent, Clone)]
-#[reflect(Component)]
-pub struct VisionSource {
-    /// 视野范围（世界单位）
-    /// Vision range (world units)
-    pub range: f32,
-    /// 是否启用
-    /// Enabled
-    pub enabled: bool,
-}
-
-impl Default for VisionSource {
-    fn default() -> Self {
-        Self {
-            range: 100.0,
-            enabled: true,
-        }
-    }
-}
 
 // 视野源参数在 GPU 中的表示
 // GPU representation of vision source parameters
