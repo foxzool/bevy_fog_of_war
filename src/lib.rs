@@ -1,5 +1,6 @@
 use self::prelude::*;
 use bevy::asset::RenderAssetUsages;
+use bevy::render::camera::RenderTarget;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 
 mod chunk;
@@ -48,7 +49,7 @@ impl Plugin for FogOfWarPlugin {
                 // --- UpdateChunkState Set ---
                 clear_per_frame_caches, // Run first in the set / 在集合中首先运行
                 update_chunk_visibility,
-                // update_camera_view_chunks,
+                update_camera_view_chunks,
                 // update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
             )
                 .in_set(FogSystemSet::UpdateChunkState),
@@ -132,7 +133,6 @@ fn setup_fog_resources(
     info!("Fog of War resources initialized.");
 }
 
-
 /// Clears caches that are rebuilt each frame.
 /// 清除每帧重建的缓存。
 fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
@@ -187,6 +187,54 @@ fn update_chunk_visibility(
                 // Alternative: Check if circle intersects chunk rect
                 // 备选方案: 检查圆形是否与区块矩形相交
             }
+        }
+    }
+}
+
+/// Updates the set of chunks currently within the camera's view.
+/// 更新当前在相机视野内的区块集合。
+fn update_camera_view_chunks(
+    settings: Res<FogMapSettings>,
+    mut cache: ResMut<ChunkStateCache>,
+    // Assuming a single primary 2D camera with OrthographicProjection
+    // 假设有一个带 OrthographicProjection 的主 2D 相机
+    camera_q: Query<(&Camera, &GlobalTransform, &Projection)>,
+) {
+    let chunk_size = settings.chunk_size.as_vec2();
+
+    for (camera, cam_transform, projection) in camera_q.iter() {
+        if let Projection::Orthographic(projection) = projection {
+            // Consider only the active camera targeting the primary window
+            // 只考虑渲染到主窗口的活动相机
+            if !camera.is_active || !matches!(camera.target, RenderTarget::Window(_)) {
+                continue;
+            }
+
+            // Calculate camera's view AABB in world space
+            // 计算相机在世界空间中的视图 AABB
+            // Note: This is simplified. Real calculation depends on projection type and camera orientation.
+            // 注意: 这是简化的。实际计算取决于投影类型和相机方向。
+            // For Orthographic, it's roughly based on scale and position.
+            // 对于正交投影，大致基于缩放和位置。
+            let camera_pos = cam_transform.translation().truncate();
+
+            // 基于投影缩放和视口大小估算半宽/高 (Bevy 0.12+ 在 OrthographicProjection 中使用 `area`)
+            let half_width = projection.area.width() * 0.5 * projection.scale;
+            let half_height = projection.area.height() * 0.5 * projection.scale;
+
+            let cam_min_world = camera_pos - Vec2::new(half_width, half_height);
+            let cam_max_world = camera_pos + Vec2::new(half_width, half_height);
+
+            let min_chunk = (cam_min_world / chunk_size).floor().as_ivec2();
+            let max_chunk = (cam_max_world / chunk_size).ceil().as_ivec2();
+
+            for y in min_chunk.y..=max_chunk.y {
+                for x in min_chunk.x..=max_chunk.x {
+                    cache.camera_view_chunks.insert(IVec2::new(x, y));
+                }
+            }
+            // Only process one main camera / 只处理一个主相机
+            break;
         }
     }
 }
