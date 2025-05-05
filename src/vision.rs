@@ -2,39 +2,30 @@ use crate::chunk::{
     ChunkManager, FogSettingsBuffer, FogSettingsUniform, GpuChunks, InCameraView, MapChunk,
 };
 use crate::prelude::FogOfWarCamera;
-use bevy_app::{App, Plugin, PreUpdate};
-use bevy_asset::AssetServer;
-use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy_diagnostic::FrameCount;
-use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
-use bevy_encase_derive::ShaderType;
-use bevy_log::warn;
-use bevy_math::{IVec2, Vec2};
-use bevy_reflect::Reflect;
-use bevy_render::extract_component::ExtractComponentPlugin;
-use bevy_render::extract_resource::ExtractResourcePlugin;
-use bevy_render::prelude::ViewVisibility;
-use bevy_render::render_resource::binding_types::{sampler, texture_2d};
-use bevy_render::render_resource::{
-    Buffer, Sampler, SamplerBindingType, SamplerDescriptor, TextureSampleType,
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::diagnostic::FrameCount;
+use bevy::ecs::query::QueryItem;
+use bevy::ecs::system::lifetimeless::Read;
+use bevy::prelude::*;
+use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy::render::render_graph::{
+    NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
 };
-use bevy_render::view::ViewTarget;
-use bevy_render::{
-    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
-    render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
-    render_resource::{
-        BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
-        BufferUsages, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
-        Extent3d, PipelineCache, ShaderStages, StorageTextureAccess, TextureDescriptor,
-        TextureDimension, TextureFormat, TextureUsages,
-        binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
-    },
-    renderer::{RenderContext, RenderDevice},
-    texture::{CachedTexture, TextureCache},
-    view::{ViewUniform, ViewUniformOffset, ViewUniforms},
+use bevy::render::render_resource::binding_types::{
+    sampler, storage_buffer_read_only, texture_2d, texture_storage_2d_array, uniform_buffer,
 };
-use bevy_render_macros::{ExtractComponent, ExtractResource, RenderLabel};
-use bevy_transform::components::GlobalTransform;
+use bevy::render::render_resource::{
+    BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, Buffer,
+    BufferInitDescriptor, BufferUsages, CachedComputePipelineId, ComputePassDescriptor,
+    ComputePipelineDescriptor, Extent3d, PipelineCache, Sampler, SamplerBindingType,
+    SamplerDescriptor, ShaderStages, ShaderType, StorageTextureAccess, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages,
+};
+use bevy::render::renderer::{RenderContext, RenderDevice};
+use bevy::render::texture::{CachedTexture, TextureCache};
+use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
+use bevy::render::{Extract, Render, RenderApp, RenderSet};
 use bytemuck::{Pod, Zeroable};
 
 /// Render graph node label for the vision compute pass.

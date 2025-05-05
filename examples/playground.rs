@@ -1,3 +1,4 @@
+use bevy::diagnostic::{FrameCount, LogDiagnosticsPlugin};
 use bevy::{
     color::palettes::{
         basic::GREEN,
@@ -6,7 +7,6 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
-use bevy_diagnostic::{FrameCount, LogDiagnosticsPlugin};
 // use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_fog_of_war::prelude::*;

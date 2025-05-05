@@ -1,5 +1,4 @@
-#![feature(trivial_bounds)]
-use bevy_app::{App, Plugin};
+use bevy::app::{App, Plugin};
 
 mod chunk;
 mod fog_2d;

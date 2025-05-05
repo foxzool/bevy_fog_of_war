@@ -1,27 +1,16 @@
 use crate::{prelude::SyncChunkComplete, sync_texture::SyncChunk};
-use bevy_app::prelude::*;
-use bevy_asset::{Assets, RenderAssetUsages};
-use bevy_color::palettes::basic;
-use bevy_color::{Color, LinearRgba};
-use bevy_ecs::prelude::*;
-use bevy_encase_derive::ShaderType;
-use bevy_image::Image;
-use bevy_log::{info, warn};
-use bevy_math::prelude::*;
-use bevy_platform::collections::{HashMap, HashSet};
-use bevy_reflect::Reflect;
-use bevy_render::extract_component::ExtractComponentPlugin;
-use bevy_render::render_resource::{Buffer, BufferInitDescriptor, BufferUsages};
-use bevy_render::{
-    Render, RenderApp, RenderSet,
-    extract_resource::ExtractResourcePlugin,
-    prelude::*,
-    render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-    renderer::RenderDevice,
+use bevy::asset::RenderAssetUsages;
+use bevy::color::palettes::basic;
+use bevy::platform::collections::{HashMap, HashSet};
+use bevy::prelude::*;
+use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy::render::render_resource::{
+    Buffer, BufferInitDescriptor, BufferUsages, Extent3d, ShaderType, TextureDimension,
+    TextureFormat, TextureUsages,
 };
-use bevy_render_macros::{ExtractComponent, ExtractResource};
-use bevy_transform::prelude::GlobalTransform;
-use bevy_utils::prelude::*;
+use bevy::render::renderer::RenderDevice;
+use bevy::render::{Render, RenderApp, RenderSet};
 use bytemuck::{Pod, Zeroable};
 use std::collections::VecDeque;
 

@@ -4,34 +4,29 @@ use crate::{
     chunk::{InCameraView, MapChunk},
     vision::{ChunkInfo, ExploredTexture, VisionComputeNodeLabel, VisionTexture},
 };
-use bevy_app::prelude::*;
-use bevy_asset::AssetServer;
-use bevy_core_pipeline::{
-    core_2d::graph::{Core2d, Node2d},
-    fullscreen_vertex_shader::fullscreen_shader_vertex_state,
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state;
+use bevy::ecs::query::QueryItem;
+use bevy::ecs::system::lifetimeless::Read;
+use bevy::prelude::*;
+use bevy::render::RenderApp;
+use bevy::render::diagnostic::RecordDiagnostics;
+use bevy::render::extract_component::ExtractComponentPlugin;
+use bevy::render::render_graph::{
+    NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
 };
-use bevy_ecs::{prelude::*, query::QueryItem, system::lifetimeless::Read};
-use bevy_image::BevyDefault;
-use bevy_log::error;
-use bevy_render::{
-    RenderApp,
-    diagnostic::RecordDiagnostics,
-    extract_component::ExtractComponentPlugin,
-    mesh::PrimitiveTopology,
-    render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
-    render_resource::{
-        BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, FrontFace, LoadOp,
-        MultisampleState, Operations, PipelineCache, PolygonMode, PrimitiveState,
-        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages,
-        StorageTextureAccess, StoreOp, TextureFormat,
-        binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
-    },
-    renderer::{RenderContext, RenderDevice},
-    view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
+use bevy::render::render_resource::binding_types::{
+    storage_buffer_read_only, texture_storage_2d_array, uniform_buffer,
 };
-use bevy_render_macros::RenderLabel;
-use bevy_utils::default;
+use bevy::render::render_resource::{
+    BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendComponent, BlendState,
+    CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, FrontFace, LoadOp,
+    MultisampleState, Operations, PipelineCache, PolygonMode, PrimitiveState, PrimitiveTopology,
+    RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages,
+    StorageTextureAccess, StoreOp, TextureFormat,
+};
+use bevy::render::renderer::{RenderContext, RenderDevice};
+use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_2d.wgsl";
 
@@ -113,14 +108,16 @@ impl FromWorld for FogOfWar2dPipeline {
                     format: TextureFormat::bevy_default(),
                     blend: Some(BlendState {
                         color: BlendComponent {
-                            src_factor: bevy_render::render_resource::BlendFactor::SrcAlpha,
-                            dst_factor: bevy_render::render_resource::BlendFactor::OneMinusSrcAlpha,
-                            operation: bevy_render::render_resource::BlendOperation::Add,
+                            src_factor: bevy::render::render_resource::BlendFactor::SrcAlpha,
+                            dst_factor:
+                                bevy::render::render_resource::BlendFactor::OneMinusSrcAlpha,
+                            operation: bevy::render::render_resource::BlendOperation::Add,
                         },
                         alpha: BlendComponent {
-                            src_factor: bevy_render::render_resource::BlendFactor::SrcAlpha,
-                            dst_factor: bevy_render::render_resource::BlendFactor::OneMinusSrcAlpha,
-                            operation: bevy_render::render_resource::BlendOperation::Add,
+                            src_factor: bevy::render::render_resource::BlendFactor::SrcAlpha,
+                            dst_factor:
+                                bevy::render::render_resource::BlendFactor::OneMinusSrcAlpha,
+                            operation: bevy::render::render_resource::BlendOperation::Add,
                         },
                     }),
                     write_mask: ColorWrites::ALL,

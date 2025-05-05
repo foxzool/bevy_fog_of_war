@@ -1,31 +1,21 @@
 use crate::{prelude::ChunkCoord, vision::ExploredTexture};
 use async_channel::{Receiver, Sender};
-use bevy_app::{App, Plugin};
-use bevy_asset::Handle;
-use bevy_ecs::{
-    change_detection::ResMut,
-    entity::Entity,
-    event::Event,
-    prelude::{Component, Resource},
-    schedule::IntoScheduleConfigs,
-    system::{Query, Res},
-};
-use bevy_image::Image;
-use bevy_log::{debug, warn};
-use bevy_render::{
-    ExtractSchedule, MainWorld, Render, RenderApp, RenderSet,
-    extract_component::ExtractComponentPlugin,
-    render_asset::RenderAssets,
-    render_resource::{
-        Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
-        Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+use bevy::{
+    prelude::*,
+    render::{
+        MainWorld, Render, RenderApp, RenderSet,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        render_asset::RenderAssets,
+        render_resource::{
+            Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
+            Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo,
+            TextureAspect,
+        },
+        renderer::{RenderDevice, RenderQueue, render_system},
+        sync_world::MainEntity,
+        texture::GpuImage,
     },
-    renderer::{RenderDevice, RenderQueue, render_system},
-    sync_world::MainEntity,
-    texture::GpuImage,
 };
-use bevy_render_macros::ExtractComponent;
-use encase::{ShaderType, internal::ReadFrom, private::Reader};
 
 /// A plugin that enables reading back gpu buffers and textures to the cpu.
 pub struct GpuSyncTexturePlugin;
@@ -222,16 +212,6 @@ impl SyncChunk {
 pub struct SyncChunkComplete {
     pub buffer: Buffer,
     pub data: Vec<u8>,
-}
-
-impl SyncChunkComplete {
-    /// Convert the raw bytes of the event to a shader type.
-    pub fn to_shader_type<T: ShaderType + ReadFrom + Default>(&self) -> T {
-        let mut val = T::default();
-        let mut reader = Reader::new::<T>(&self.data, 0).expect("Failed to create Reader");
-        T::read_from(&mut val, &mut reader);
-        val
-    }
 }
 
 /// `ImageCopier` aggregator in `RenderWorld`
