@@ -42,6 +42,18 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_systems(Startup, setup_fog_resources);
 
+        app.add_systems(
+            Update,
+            (
+                // --- UpdateChunkState Set ---
+                clear_per_frame_caches, // Run first in the set / 在集合中首先运行
+                // update_chunk_visibility,
+                // update_camera_view_chunks,
+                // update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
+            )
+                .in_set(FogSystemSet::UpdateChunkState),
+        );
+
         app.add_plugins(chunk::ChunkManagerPlugin)
             .add_plugins(vision::VisionComputePlugin)
             .add_plugins(fog_2d::Fog2DRenderPlugin)
@@ -118,4 +130,14 @@ fn setup_fog_resources(
     commands.insert_resource(TextureArrayManager::new(array_layers));
 
     info!("Fog of War resources initialized.");
+}
+
+
+/// Clears caches that are rebuilt each frame.
+/// 清除每帧重建的缓存。
+fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
+    cache.visible_chunks.clear();
+    cache.camera_view_chunks.clear();
+    // explored_chunks persists / explored_chunks 会持久存在
+    // gpu_resident_chunks is managed by memory system / gpu_resident_chunks 由内存系统管理
 }

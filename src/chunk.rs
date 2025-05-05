@@ -1,8 +1,8 @@
+use crate::prelude::*;
 use crate::{prelude::SyncChunkComplete, sync_texture::SyncChunk};
 use bevy::{
     asset::RenderAssetUsages,
     platform::collections::{HashMap, HashSet},
-    prelude::*,
     render::{
         Render, RenderApp, RenderSet,
         extract_component::{ExtractComponent, ExtractComponentPlugin},
@@ -226,36 +226,6 @@ fn prepare_fog_settings(
     });
 
     commands.insert_resource(FogSettingsBuffer { buffer });
-}
-
-/// 缓存各种状态的区块坐标集合，用于系统间的快速查询
-/// Resource caching sets of chunk coordinates in various states for fast querying between systems
-#[derive(Resource, Debug, Clone, Default, Reflect)]
-#[reflect(Resource, Default)]
-pub struct ChunkStateCache {
-    /// 当前被至少一个 VisionSource 照亮的区块坐标集合
-    /// Set of chunk coordinates currently revealed by at least one VisionSource
-    pub visible_chunks: HashSet<IVec2>,
-    /// 曾经被照亮过的区块坐标集合 (包含 visible_chunks)
-    /// Set of chunk coordinates that have ever been revealed (includes visible_chunks)
-    pub explored_chunks: HashSet<IVec2>,
-    /// 当前在主相机视锥范围内的区块坐标集合
-    /// Set of chunk coordinates currently within the main camera's view frustum
-    pub camera_view_chunks: HashSet<IVec2>,
-    /// 其纹理当前存储在 GPU 显存中的区块坐标集合
-    /// Set of chunk coordinates whose textures are currently resident in GPU memory
-    pub gpu_resident_chunks: HashSet<IVec2>,
-}
-
-impl ChunkStateCache {
-    /// 清除所有缓存的区块集合，通常在每帧开始时调用
-    /// Clears all cached chunk sets, typically called at the beginning of each frame
-    pub fn clear(&mut self) {
-        self.visible_chunks.clear();
-        // explored_chunks 通常不清空，除非需要重置迷雾 / explored_chunks is usually not cleared unless resetting fog
-        self.camera_view_chunks.clear();
-        // gpu_resident_chunks 的管理更复杂，不一定每帧清空 / gpu_resident_chunks management is more complex, not necessarily cleared every frame
-    }
 }
 
 /// 区块管理器，管理所有加载的区块
