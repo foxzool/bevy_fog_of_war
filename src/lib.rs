@@ -3,6 +3,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use crate::render::FogOfWarRenderPlugin;
 
 mod chunk;
 mod components;
@@ -80,6 +81,8 @@ impl Plugin for FogOfWarPlugin {
             Update,
             manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
         );
+        
+        app.add_plugins(FogOfWarRenderPlugin);
 
         // app.add_plugins(ChunkManagerPlugin)
         //     .add_plugins(vision::VisionComputePlugin)

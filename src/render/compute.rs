@@ -1,14 +1,11 @@
 // fog_render/compute.rs
 use super::FOG_COMPUTE_SHADER_HANDLE;
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
-use crate::render::extract::RenderFogMapSettings;
+use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel};
-use bevy::render::render_resource::{
-    BindGroupLayout, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor,
-    PipelineCache,
-};
-use bevy::render::renderer::RenderContext; // Import buffer to get chunk count / 导入缓冲区以获取区块数量 // Import shader handle / 导入 shader 句柄
+use bevy::render::render_resource::{BindGroupLayout, BindGroupLayoutEntry, BindingType, BufferBindingType, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType, StorageTextureAccess, TextureFormat, TextureViewDimension};
+use bevy::render::renderer::{RenderContext, RenderDevice}; // Import buffer to get chunk count / 导入缓冲区以获取区块数量 // Import shader handle / 导入 shader 句柄
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogComputeNodeLabel;
@@ -28,10 +25,57 @@ impl FromWorld for FogComputePipeline {
         let pipeline_cache = world.resource::<PipelineCache>();
         let fog_bind_groups = world.resource::<FogBindGroups>();
 
-        let compute_layout = fog_bind_groups
-            .compute_layout
-            .clone()
-            .expect("Compute layout not created");
+        let render_device = world.resource::<RenderDevice>();
+
+        let compute_layout = render_device.create_bind_group_layout(
+            "fog_compute_bind_group_layout",
+            &[
+                // Fog Texture (Storage) / 雾效纹理 (存储)
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::StorageTexture {
+                        access: StorageTextureAccess::ReadWrite, // Read and write fog / 读写雾效
+                        format: TextureFormat::R8Unorm, // Must match image format / 必须匹配图像格式
+                        view_dimension: TextureViewDimension::D2Array,
+                    },
+                    count: None,
+                },
+                // Vision Sources (Storage Buffer) / 视野源 (存储缓冲区)
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(VisionSourceData::min_size()),
+                    },
+                    count: None,
+                },
+                // GPU Chunk Info (Storage Buffer) / GPU 区块信息 (存储缓冲区)
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(ChunkComputeData::min_size()),
+                    },
+                    count: None,
+                },
+                // Fog Settings (Uniform Buffer) / 雾设置 (统一缓冲区)
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::FRAGMENT, // Also used by overlay / 覆盖也会使用
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(RenderFogMapSettings::min_size()),
+                    },
+                    count: None,
+                },
+            ],
+        );
 
         let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("fog_compute_pipeline".into()),

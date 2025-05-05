@@ -1,218 +1,116 @@
-// fog_render/overlay.rs
-use bevy::core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
-use bevy::prelude::*;
-use bevy::render::render_graph::{NodeRunError, RenderGraphContext, ViewNode};
-use bevy::render::render_resource::*;
-use bevy::render::renderer::RenderContext;
-use bevy::render::view::{ViewTarget, ViewUniformOffset, ViewUniforms, ViewUniform}; // Import ViewUniform / 导入 ViewUniform
-use bevy::render::texture::FallbackImage; // For default texture / 用于默认纹理
+#import bevy_render::view::View
 
-use super::prepare::{FogBindGroups, FogUniforms, OverlayChunkMappingBuffer};
-use super::extract::{RenderFogTexture, RenderSnapshotTexture};
-use super::FOG_OVERLAY_SHADER_HANDLE;
+struct VisionSourceData {
+    pos: vec2<f32>,
+    range_sq: f32,
+    // padding f32
+};
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
-pub struct FogOverlayNodeLabel;
+struct ChunkComputeData {
+    coords: vec2<i32>,
+    fog_layer_index: u32,
+    // padding u32
+};
 
-#[derive(Default)]
-pub struct FogOverlayNode;
+// Match FogMapSettings struct layout / 匹配 FogMapSettings 结构布局
+// Ensure alignment and types match Rust struct / 确保对齐和类型匹配 Rust 结构
+@group(0) @binding(0) var fog_texture: texture_storage_2d_array<r8unorm, read_write>; // Fog data / 雾效数据
+@group(0) @binding(1) var<storage, read> vision_sources: array<VisionSourceData>; // Vision sources / 视野源
+@group(0) @binding(2) var<storage, read> chunks: array<ChunkComputeData>; // Active GPU chunks / 活动 GPU 区块
+@group(0) @binding(3) var<uniform> settings: FogMapSettings; // Global settings / 全局设置
 
-// Pipeline resource for the overlay shader / 覆盖 shader 的管线资源
-#[derive(Resource)]
-pub struct FogOverlayPipeline {
-    layout: BindGroupLayout,
-    sampler: Sampler, // Store sampler / 存储采样器
-    pipeline_id: CachedRenderPipelineId,
-}
+// Define FogMapSettings struct matching Rust / 定义匹配 Rust 的 FogMapSettings 结构
+// Make sure fields, types, and alignment match! / 确保字段、类型和对齐匹配！
+struct FogMapSettings {
+    chunk_size: vec2<u32>,
+    texture_resolution_per_chunk: vec2<u32>,
+    fog_color_unexplored: vec4<f32>, // Assuming Color -> vec4 / 假设 Color -> vec4
+    fog_color_explored: vec4<f32>,
+    vision_clear_color: vec4<f32>,
+    // Add texture formats if needed by logic, otherwise padding might be needed
+    // 如果逻辑需要，添加纹理格式，否则可能需要填充
+    // Example padding for alignment / 对齐填充示例
+     _padding1: u32,
+     _padding2: u32,
+     _padding3: u32,
+     _padding4: u32,
+};
 
-impl SpecializedRenderPipeline for FogOverlayPipeline {
-    type Key = (); // No specialization needed for this simple overlay / 这个简单的覆盖不需要特化
 
-    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
-        let layout = vec![self.layout.clone()];
-        // Use fullscreen vertex shader and custom fragment shader / 使用全屏顶点着色器和自定义片段着色器
-        RenderPipelineDescriptor {
-            label: Some("fog_overlay_pipeline".into()),
-            layout,
-            vertex: VertexState {
-                shader: FULLSCREEN_SHADER_HANDLE, // Use Bevy's fullscreen vertex shader / 使用 Bevy 的全屏顶点着色器
-                shader_defs: vec![],
-                entry_point: "fullscreen_vertex_shader".into(),
-                buffers: vec![], // No vertex buffers needed for fullscreen quad / 全屏四边形不需要顶点缓冲区
-            },
-            fragment: Some(FragmentState {
-                shader: FOG_OVERLAY_SHADER_HANDLE, // Our custom fragment shader / 我们的自定义片段着色器
-                shader_defs: vec![],
-                entry_point: "fragment".into(),
-                targets: vec![Some(ColorTargetState {
-                    format: ViewTarget::TEXTURE_FORMAT_HDR, // Target HDR format / 目标 HDR 格式
-                    blend: Some(BlendState::ALPHA_BLENDING), // Enable alpha blending / 启用 alpha 混合
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: PrimitiveState::default(), // Default triangle list / 默认三角形列表
-            depth_stencil: None, // No depth testing/writing / 无深度测试/写入
-            multisample: MultisampleState::default(), // No MSAA / 无 MSAA
-            push_constant_ranges: vec![],
+// Define constants for fog values / 定义雾值的常量
+const FOG_VISIBLE: f32 = 0.0;
+const FOG_EXPLORED: f32 = 0.5; // Example value / 示例值
+const FOG_UNEXPLORED: f32 = 1.0;
+
+// Define workgroup size (must match dispatch size logic in Rust)
+// 定义工作组大小 (必须匹配 Rust 中的分派大小逻辑)
+@compute @workgroup_size(8, 8, 1) // 8x8 threads per chunk, 1 chunk per workgroup Z / 每区块 8x8 线程，每工作组 Z 1 个区块
+fn main(
+    @builtin(global_invocation_id) global_id: vec3<u32>, // x, y pixel within texture, z chunk index / 纹理内的 x, y 像素, z 区块索引
+) {
+    let texture_dims = textureDimensions(fog_texture); // Get dimensions (width, height, layers) / 获取维度 (宽, 高, 层数)
+    let chunk_index = global_id.z;
+
+    // Bounds check / 边界检查
+    if (global_id.x >= texture_dims.x || global_id.y >= texture_dims.y || chunk_index >= u32(arrayLength(chunks))) {
+        return;
+    }
+
+    // Get chunk info for this invocation / 获取此调用的区块信息
+    let chunk_data = chunks[chunk_index];
+    let chunk_coords_f = vec2<f32>(f32(chunk_data.coords.x), f32(chunk_data.coords.y));
+    let fog_layer_index = chunk_data.fog_layer_index;
+
+    // Calculate texture coordinates within the layer / 计算层内的纹理坐标
+    let texel_coord = vec2<i32>(i32(global_id.x), i32(global_id.y));
+
+    // Calculate world position of this texel / 计算此纹素的世界位置
+    let chunk_size_f = vec2<f32>(f32(settings.chunk_size.x), f32(settings.chunk_size.y));
+    let tex_res_f = vec2<f32>(f32(settings.texture_resolution_per_chunk.x), f32(settings.texture_resolution_per_chunk.y));
+    let uv_in_chunk = (vec2<f32>(f32(global_id.x), f32(global_id.y)) + 0.5) / tex_res_f; // Texel center UV / 纹素中心 UV
+    let world_pos = chunk_coords_f * chunk_size_f + uv_in_chunk * chunk_size_f;
+
+    // Load current fog value / 加载当前雾值
+    // Use vec4<f32> because textureLoad only works with formats like rgba8uint etc.
+    // R8Unorm needs careful handling or use a different format like R32Float if easier.
+    // 使用 vec4<f32> 因为 textureLoad 仅适用于 rgba8uint 等格式。
+    // R8Unorm 需要小心处理，或者如果更容易，使用不同的格式如 R32Float。
+    // Let's assume R8Unorm maps directly to the 'r' component.
+    // 假设 R8Unorm 直接映射到 'r' 组件。
+    let current_fog_vec = textureLoad(fog_texture, texel_coord, i32(fog_layer_index));
+    let current_fog = current_fog_vec.r; // Extract the single float value / 提取单个浮点值
+
+    // Check against vision sources / 对照视野源检查
+    var is_visible = false;
+    for (var i = 0u; i < arrayLength(&vision_sources); i = i + 1u) {
+        let source = vision_sources[i];
+        let dist_sq = distanceSquared(world_pos, source.pos);
+        if (dist_sq <= source.range_sq) {
+            is_visible = true;
+            break;
         }
     }
+
+    // Determine new fog state / 确定新的雾状态
+    var new_fog = current_fog;
+    if (is_visible) {
+        new_fog = FOG_VISIBLE;
+    } else {
+        // If not visible, but was previously revealed (not unexplored)
+        // 如果不可见，但之前被揭示过 (不是未探索)
+        if (current_fog < FOG_UNEXPLORED) {
+             new_fog = FOG_EXPLORED;
+        }
+        // Otherwise, it stays unexplored / 否则，它保持未探索
+    }
+
+    // Write the new fog value back / 写回新的雾值
+    // Write back as vec4<f32> for r8unorm storage texture / 作为 vec4<f32> 写回 r8unorm 存储纹理
+    textureStore(fog_texture, texel_coord, i32(fog_layer_index), vec4<f32>(new_fog, 0.0, 0.0, 1.0));
 }
 
-
-impl FromWorld for FogOverlayPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let render_device = world.resource::<RenderDevice>();
-        let fog_bind_groups = world.resource::<FogBindGroups>();
-
-        let layout = fog_bind_groups.overlay_layout.clone().expect("Overlay layout not created");
-
-        // Create a sampler / 创建采样器
-        let sampler = render_device.create_sampler(&SamplerDescriptor {
-            label: Some("fog_overlay_sampler"),
-            mag_filter: FilterMode::Linear, // Linear for snapshot / 快照使用线性
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest, // No mipmaps / 无 mipmap
-            address_mode_u: AddressMode::ClampToEdge, // Clamp coordinates / 夹紧坐标
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            ..Default::default()
-        });
-
-        let pipeline_id = world
-            .resource_mut::<PipelineCache>()
-            .queue_render_pipeline(RenderPipelineDescriptor {
-                label: Some("fog_overlay_pipeline_init".into()), // Initial descriptor label / 初始描述符标签
-                layout: vec![layout.clone()],
-                vertex: VertexState {
-                    shader: FULLSCREEN_SHADER_HANDLE,
-                    shader_defs: vec![],
-                    entry_point: "fullscreen_vertex_shader".into(),
-                    buffers: vec![],
-                },
-                fragment: Some(FragmentState {
-                    shader: FOG_OVERLAY_SHADER_HANDLE,
-                    shader_defs: vec![],
-                    entry_point: "fragment".into(),
-                    targets: vec![Some(ColorTargetState {
-                        format: ViewTarget::TEXTURE_FORMAT_HDR,
-                        blend: Some(BlendState::ALPHA_BLENDING),
-                        write_mask: ColorWrites::ALL,
-                    })],
-                }),
-                primitive: PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: MultisampleState::default(),
-                push_constant_ranges: vec![],
-            });
-
-
-        FogOverlayPipeline { layout, sampler, pipeline_id }
-    }
-}
-
-// System to queue the specialized pipeline instance / 排队特化管线实例的系统
-pub fn queue_fog_overlay_pipelines(
-    mut pipeline_cache: ResMut<PipelineCache>,
-    mut pipelines: ResMut<SpecializedRenderPipelines<FogOverlayPipeline>>,
-    pipeline: Res<FogOverlayPipeline>,
-    views: Query<Entity, With<ViewTarget>>, // Queue for all views with a ViewTarget / 为所有带 ViewTarget 的视图排队
-) {
-    for view_entity in views.iter() {
-        // Queue the pipeline for this view / 为此视图排队管线
-        pipelines.specialize(&mut pipeline_cache, pipeline, ());
-    }
-}
-
-
-impl ViewNode for FogOverlayNode {
-    // Query ViewTarget and ViewUniformOffset / 查询 ViewTarget 和 ViewUniformOffset
-    type ViewQuery = (&'static ViewTarget, &'static ViewUniformOffset);
-
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let overlay_pipeline = world.resource::<FogOverlayPipeline>();
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let specialized_pipelines = world.resource::<SpecializedRenderPipelines<FogOverlayPipeline>>();
-
-        // Get the specialized pipeline for this view / 获取此视图的特化管线
-        let Some(pipeline) = specialized_pipelines.get_pipeline(overlay_pipeline.pipeline_id, &()) else {
-            // info!("Overlay pipeline not ready.");
-            return Ok(());
-        };
-
-        // Get other needed resources / 获取其他所需资源
-        let fog_uniforms = world.resource::<FogUniforms>();
-        let overlay_chunk_buffer = world.resource::<OverlayChunkMappingBuffer>();
-        let fog_texture = world.resource::<RenderFogTexture>();
-        let snapshot_texture = world.resource::<RenderSnapshotTexture>();
-        let images = world.resource::<RenderAssets<Image>>();
-        let fallback_image = world.resource::<FallbackImage>();
-        let view_uniforms = world.resource::<ViewUniforms>();
-
-        // Ensure buffers and view uniforms are ready / 确保缓冲区和视图统一变量已准备好
-        let (
-            Some(uniform_buf),
-            Some(mapping_buf),
-            Some(view_uniform_binding) // Get view uniform binding / 获取视图统一绑定
-        ) = (
-            fog_uniforms.buffer.as_ref(),
-            overlay_chunk_buffer.buffer.as_ref(),
-            view_uniforms.uniforms.binding() // Get buffer binding / 获取缓冲区绑定
-        ) else {
-            // info!("Overlay buffers or view uniforms not ready.");
-            return Ok(());
-        };
-
-        // Get texture views / 获取纹理视图
-        let fog_texture_view = images
-            .get(&fog_texture.0)
-            .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.texture_view);
-
-        let snapshot_texture_view = images
-            .get(&snapshot_texture.0)
-            .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.texture_view);
-
-
-        // Create the bind group for this specific view / 为此特定视图创建绑定组
-        let bind_group = render_context.render_device().create_bind_group(
-            "fog_overlay_bind_group",
-            &overlay_pipeline.layout,
-            &[
-                BindGroupEntry { binding: 0, resource: view_uniform_binding }, // View uniforms / 视图统一变量
-                BindGroupEntry { binding: 1, resource: BindingResource::TextureView(fog_texture_view) },
-                BindGroupEntry { binding: 2, resource: BindingResource::TextureView(snapshot_texture_view) },
-                BindGroupEntry { binding: 3, resource: BindingResource::Sampler(&overlay_pipeline.sampler) },
-                BindGroupEntry { binding: 4, resource: uniform_buf.as_entire_binding() },
-                BindGroupEntry { binding: 5, resource: mapping_buf.as_entire_binding() },
-            ],
-        );
-
-        // Begin render pass targeting the view / 开始针对视图的渲染通道
-        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-            label: Some("fog_overlay_pass"),
-            color_attachments: &[Some(view_target.get_color_attachment(Operations {
-                // Load previous content (main scene), store result / 加载先前内容 (主场景)，存储结果
-                load: LoadOp::Load,
-                store: StoreOp::Store,
-            }))],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        render_pass.set_render_pipeline(pipeline);
-        // Set bind group with dynamic offset for view uniforms / 设置带有视图统一变量动态偏移的绑定组
-        render_pass.set_bind_group(0, &bind_group, &[view_uniform_offset.offset]);
-        // Draw fullscreen quad (3 vertices, 1 instance) / 绘制全屏四边形 (3 个顶点, 1 个实例)
-        render_pass.draw(0..3, 0..1);
-
-        Ok(())
-    }
+// Helper for distance squared / 平方距离辅助函数
+fn distanceSquared(p1: vec2<f32>, p2: vec2<f32>) -> f32 {
+    let diff = p1 - p2;
+    return dot(diff, diff);
 }

@@ -1,15 +1,6 @@
-// fog_render/shaders/fog_overlay.wgsl
 
-// Import structs from Bevy's PBR shader for View uniform / 从 Bevy 的 PBR shader 导入 View 统一变量的结构
-// Alternatively, define a minimal View struct / 或者，定义一个最小的 View 结构
-#import bevy_pbr::utils View // Use Bevy's View struct / 使用 Bevy 的 View 结构
-// Or define manually: / 或手动定义:
-// struct View {
-//     view_proj: mat4x4<f32>,
-//     inverse_view_proj: mat4x4<f32>,
-//     world_position: vec3<f32>,
-//     // ... other fields if needed / ... 其他字段如果需要
-// };
+#import bevy_render::view::View
+
 
 struct OverlayChunkData {
     coords: vec2<i32>,

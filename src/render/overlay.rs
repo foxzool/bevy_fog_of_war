@@ -7,12 +7,12 @@ use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, 
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
-use bevy::render::view::{ViewTarget, ViewUniformOffset, ViewUniforms};
+use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
 // Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
 
-use super::extract::{RenderFogTexture, RenderSnapshotTexture};
+use super::extract::{OverlayChunkData, RenderFogTexture, RenderSnapshotTexture};
 use super::prepare::{FogBindGroups, FogUniforms, OverlayChunkMappingBuffer};
-use super::FOG_OVERLAY_SHADER_HANDLE;
+use super::{FOG_OVERLAY_SHADER_HANDLE, RenderFogMapSettings};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogOverlayNodeLabel;
@@ -65,12 +65,75 @@ impl SpecializedRenderPipeline for FogOverlayPipeline {
 impl FromWorld for FogOverlayPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
-        let fog_bind_groups = world.resource::<FogBindGroups>();
 
-        let layout = fog_bind_groups
-            .overlay_layout
-            .clone()
-            .expect("Overlay layout not created");
+        let layout = render_device.create_bind_group_layout(
+            "fog_overlay_bind_group_layout",
+            &[
+                // View Uniforms (Standard Bevy Binding) / 视图统一变量 (标准 Bevy 绑定)
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: true, // Important for view uniforms / 对视图统一变量很重要
+                        min_binding_size: Some(ViewUniform::min_size()),
+                    },
+                    count: None,
+                },
+                // Fog Texture (Sampled) / 雾效纹理 (采样)
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: false }, // R8Unorm is not filterable / R8Unorm 不可过滤
+                        view_dimension: TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // Snapshot Texture (Sampled) / 快照纹理 (采样)
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true }, // RGBA8 is filterable / RGBA8 可过滤
+                        view_dimension: TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // Sampler / 采样器
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering), // Use filtering for snapshot / 对快照使用过滤
+                    count: None,
+                },
+                // Fog Settings (Uniform Buffer) / 雾设置 (统一缓冲区) - Reuse binding 3 from compute layout? No, use new binding.
+                // 重用计算布局中的绑定 3？不，使用新绑定。
+                BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: ShaderStages::FRAGMENT, // Only fragment needed here / 这里只需要片段
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(RenderFogMapSettings::min_size()),
+                    },
+                    count: None,
+                },
+                // Overlay Chunk Mapping (Storage Buffer) / 覆盖区块映射 (存储缓冲区)
+                BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(OverlayChunkData::min_size()),
+                    },
+                    count: None,
+                },
+            ],
+        );
 
         // Create a sampler / 创建采样器
         let sampler = render_device.create_sampler(&SamplerDescriptor {
