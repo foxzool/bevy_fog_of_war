@@ -289,7 +289,7 @@ fn camera_movement(
 fn update_fog_settings(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut fog_settings: ResMut<FogSettings>,
+    mut fog_settings: ResMut<FogMapSettings>,
     mut fog_debug_settings: ResMut<FogDebugSettings>,
     mut settings_text_query: Query<&mut Text, With<FogSettingsText>>,
 ) {
@@ -300,18 +300,18 @@ fn update_fog_settings(
     // 更新雾颜色透明度
     // Update fog color alpha
     if keyboard.pressed(KeyCode::PageUp) {
-        let new_alpha = (fog_settings.fog_color.alpha() + time.delta_secs() * 0.5).min(1.0);
-        fog_settings.fog_color.set_alpha(new_alpha);
+        let new_alpha = (fog_settings.fog_color_unexplored.alpha() + time.delta_secs() * 0.5).min(1.0);
+        fog_settings.fog_color_unexplored.set_alpha(new_alpha);
     }
     if keyboard.pressed(KeyCode::PageDown) {
-        let new_alpha = (fog_settings.fog_color.alpha() - time.delta_secs() * 0.5).max(0.0);
-        fog_settings.fog_color.set_alpha(new_alpha);
+        let new_alpha = (fog_settings.fog_color_unexplored.alpha() - time.delta_secs() * 0.5).max(0.0);
+        fog_settings.fog_color_unexplored.set_alpha(new_alpha);
     }
 
     // 更新 UI 文本
     // Update UI text
     if let Ok(mut text) = settings_text_query.single_mut() {
-        let alpha_percentage = fog_settings.fog_color.alpha() * 100.0;
+        let alpha_percentage = fog_settings.fog_color_unexplored.alpha() * 100.0;
         let status = if fog_debug_settings.enabled {
             "Enabled"
         } else {

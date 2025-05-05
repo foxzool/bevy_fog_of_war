@@ -1,16 +1,19 @@
 use crate::{prelude::SyncChunkComplete, sync_texture::SyncChunk};
-use bevy::asset::RenderAssetUsages;
-use bevy::color::palettes::basic;
-use bevy::platform::collections::{HashMap, HashSet};
-use bevy::prelude::*;
-use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::render_resource::{
-    Buffer, BufferInitDescriptor, BufferUsages, Extent3d, ShaderType, TextureDimension,
-    TextureFormat, TextureUsages,
+use bevy::{
+    asset::RenderAssetUsages,
+    platform::collections::{HashMap, HashSet},
+    prelude::*,
+    render::{
+        Render, RenderApp, RenderSet,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        render_resource::{
+            Buffer, BufferInitDescriptor, BufferUsages, Extent3d, ShaderType, TextureDimension,
+            TextureFormat, TextureUsages,
+        },
+        renderer::RenderDevice,
+    },
 };
-use bevy::render::renderer::RenderDevice;
-use bevy::render::{Render, RenderApp, RenderSet};
 use bytemuck::{Pod, Zeroable};
 use std::collections::VecDeque;
 
@@ -28,13 +31,16 @@ pub struct ChunkManagerPlugin;
 
 impl Plugin for ChunkManagerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ChunkManager>()
-            .init_resource::<FogSettings>()
-            .add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
+        app.add_plugins(ExtractComponentPlugin::<FogOfWarCamera>::default())
             .add_plugins(ExtractComponentPlugin::<RetainLastSeen>::default())
             .add_plugins(ExtractResourcePlugin::<ChunkManager>::default())
-            .add_plugins(ExtractResourcePlugin::<FogSettings>::default())
+            .add_plugins(ExtractResourcePlugin::<FogMapSettings>::default())
+            .init_resource::<ChunkManager>()
+            .init_resource::<FogMapSettings>()
+            .init_resource::<ChunkStateCache>()
             .register_type::<FogChunk>()
+            .register_type::<Snapshottable>()
+            .register_type::<ChunkStateCache>()
             .register_type::<InCameraView>()
             .add_systems(PreUpdate, (manage_chunks_by_viewport).chain())
             .add_systems(PreUpdate, update_chunk_visibility);
@@ -57,14 +63,12 @@ impl Plugin for ChunkManagerPlugin {
 pub struct FogChunk {
     /// 区块坐标
     /// Chunk coordinates
-    pub coord: ChunkCoord,
+    pub coord: IVec2,
     pub layer_index: Option<u32>,
     pub screen_index: Option<u32>,
-
     /// 是否加载
     /// Whether the chunk is loaded
     pub loaded: bool,
-
     /// 区块的世界空间边界（以像素/单位为单位）
     /// World space boundaries of the chunk (in pixels/units)
     pub world_bounds: Rect,
@@ -100,6 +104,12 @@ impl FogChunk {
         self.world_bounds.contains(world_pos)
     }
 }
+
+/// 标记组件，指示该实体应被包含在战争迷雾的快照中
+/// Marker component indicating this entity should be included in the fog of war snapshot
+#[derive(Component, Debug, Clone, Default, Reflect)]
+#[reflect(Component, Default)] // 注册为反射组件, 并提供默认值反射 / Register as reflectable component with default reflection
+pub struct Snapshottable;
 
 /// Resource to hold chunk information for GPU
 /// 用于保存传递给GPU的chunk信息的资源
@@ -137,19 +147,46 @@ impl Default for VisibilityState {
     }
 }
 
+/// 战争迷雾地图的全局设置
+/// Global settings for the fog of war map
 #[derive(Resource, ExtractResource, Clone, Debug)]
-pub struct FogSettings {
+pub struct FogMapSettings {
+    /// 每个区块的大小 (世界单位)
+    /// Size of each chunk (in world units)
     pub chunk_size: UVec2,
-    pub fog_color: Color,
-    pub explored_color: Color,
+    /// 每个区块对应纹理的分辨率 (像素)
+    /// Resolution of the texture per chunk (in pixels)
+    pub texture_resolution_per_chunk: UVec2,
+    /// 未探索区域的雾颜色
+    /// Fog color for unexplored areas
+    pub fog_color_unexplored: Color,
+    /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
+    /// Fog color for explored but not currently visible areas (usually semi-transparent)
+    pub fog_color_explored: Color,
+    /// 视野完全清晰区域的“颜色”（通常用于混合或阈值，可能完全透明）
+    /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
+    pub vision_clear_color: Color, // 例如 Color::NONE 或用于计算的特定值 / e.g., Color::NONE or a specific value for calculations
+    /// 雾效纹理数组的格式
+    /// Texture format for the fog texture array ]
+    pub fog_texture_format: TextureFormat,
+    /// 快照纹理数组的格式
+    /// Texture format for the snapshot texture array
+    pub snapshot_texture_format: TextureFormat,
 }
 
-impl Default for FogSettings {
+impl Default for FogMapSettings {
     fn default() -> Self {
         Self {
-            chunk_size: UVec2::splat(DEFAULT_CHUNK_SIZE),
-            fog_color: Color::BLACK,
-            explored_color: basic::GRAY.into(),
+            chunk_size: UVec2::splat(256),
+            texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
+            fog_color_unexplored: Color::BLACK,
+            fog_color_explored: Color::srgba(0.0, 0.0, 0.0, 0.6), // 半透明黑色 / Semi-transparent black
+            vision_clear_color: Color::NONE,                      // 完全透明 / Fully transparent
+            // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
+            // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
+            fog_texture_format: TextureFormat::R8Unorm,
+            // 快照需要颜色和透明度 / Snapshots need color and alpha
+            snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
         }
     }
 }
@@ -173,13 +210,13 @@ pub struct FogSettingsBuffer {
 fn prepare_fog_settings(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
-    fog_settings: Res<FogSettings>,
+    fog_settings: Res<FogMapSettings>,
 ) {
     let uniform = FogSettingsUniform {
         chunk_size: fog_settings.chunk_size,
         _padding: [0; 2],
-        fog_color: fog_settings.fog_color.into(),
-        explored_color: fog_settings.explored_color.into(),
+        fog_color: fog_settings.fog_color_unexplored.into(),
+        explored_color: fog_settings.fog_color_explored.into(),
     };
 
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -189,6 +226,36 @@ fn prepare_fog_settings(
     });
 
     commands.insert_resource(FogSettingsBuffer { buffer });
+}
+
+/// 缓存各种状态的区块坐标集合，用于系统间的快速查询
+/// Resource caching sets of chunk coordinates in various states for fast querying between systems
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource, Default)]
+pub struct ChunkStateCache {
+    /// 当前被至少一个 VisionSource 照亮的区块坐标集合
+    /// Set of chunk coordinates currently revealed by at least one VisionSource
+    pub visible_chunks: HashSet<IVec2>,
+    /// 曾经被照亮过的区块坐标集合 (包含 visible_chunks)
+    /// Set of chunk coordinates that have ever been revealed (includes visible_chunks)
+    pub explored_chunks: HashSet<IVec2>,
+    /// 当前在主相机视锥范围内的区块坐标集合
+    /// Set of chunk coordinates currently within the main camera's view frustum
+    pub camera_view_chunks: HashSet<IVec2>,
+    /// 其纹理当前存储在 GPU 显存中的区块坐标集合
+    /// Set of chunk coordinates whose textures are currently resident in GPU memory
+    pub gpu_resident_chunks: HashSet<IVec2>,
+}
+
+impl ChunkStateCache {
+    /// 清除所有缓存的区块集合，通常在每帧开始时调用
+    /// Clears all cached chunk sets, typically called at the beginning of each frame
+    pub fn clear(&mut self) {
+        self.visible_chunks.clear();
+        // explored_chunks 通常不清空，除非需要重置迷雾 / explored_chunks is usually not cleared unless resetting fog
+        self.camera_view_chunks.clear();
+        // gpu_resident_chunks 的管理更复杂，不一定每帧清空 / gpu_resident_chunks management is more complex, not necessarily cleared every frame
+    }
 }
 
 /// 区块管理器，管理所有加载的区块
