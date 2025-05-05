@@ -52,7 +52,7 @@ fn main(
     let chunk_index = global_id.z;
 
     // Bounds check / 边界检查
-    if (global_id.x >= texture_dims.x || global_id.y >= texture_dims.y || chunk_index >= u32(arrayLength(chunks))) {
+    if (global_id.x >= texture_dims.x || global_id.y >= texture_dims.y) {
         return;
     }
 

@@ -1,6 +1,9 @@
-
+#import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
 #import bevy_render::view::View
-
+#import bevy_pbr::view_transformations::{
+    uv_to_ndc,
+    position_ndc_to_world,
+}
 
 struct OverlayChunkData {
     coords: vec2<i32>,
@@ -29,25 +32,19 @@ struct FogMapSettings {
 @group(0) @binding(4) var<uniform> settings: FogMapSettings; // Global settings / 全局设置
 @group(0) @binding(5) var<storage, read> chunk_mapping: array<OverlayChunkData>; // Chunk coord -> layer index / 区块坐标 -> 层索引
 
-
-struct FragmentInput {
-    @builtin(position) position: vec4<f32>, // Clip space position / 裁剪空间位置
-    @location(0) uv: vec2<f32>, // Screen UV (0-1) / 屏幕 UV (0-1)
-};
-
 // Constants for fog thresholds / 雾阈值常量
 const VISIBLE_THRESHOLD: f32 = 0.1; // Allow slight fog in visible areas / 允许可见区域有轻微雾效
 const EXPLORED_THRESHOLD: f32 = 0.6; // Threshold between explored and unexplored / 已探索和未探索之间的阈值
 const EXPLORED_FOG_INTENSITY: f32 = 0.7; // How much to blend explored fog color / 混合多少已探索雾颜色
 
 @fragment
-fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
-    // Calculate world position from screen UV and depth (simplified for 2D)
-    // 从屏幕 UV 和深度计算世界位置 (为 2D 简化)
-    // Use inverse view projection / 使用逆视图投影
-    let ndc = vec3<f32>(in.uv.x * 2.0 - 1.0, (1.0 - in.uv.y) * 2.0 - 1.0, 0.0); // Assuming Z=0 for 2D overlay / 假设 2D 覆盖 Z=0
-    let world_h = view.inverse_view_proj * vec4<f32>(ndc, 1.0);
-    let world_pos = world_h.xy / world_h.w; // Perspective divide / 透视除法
+fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    let uv = in.uv;
+    // Use helper functions to convert UV to world position
+    let ndc = uv_to_ndc(uv);
+    let ndc_pos = vec3<f32>(ndc, 0.0);
+    let world_pos = position_ndc_to_world(ndc_pos);
+    let world_xy = world_pos.xy; // Use only xy for 2D compariso
 
     let chunk_size_f = vec2<f32>(f32(settings.chunk_size.x), f32(settings.chunk_size.y));
     let tex_res_f = vec2<f32>(f32(settings.texture_resolution_per_chunk.x), f32(settings.texture_resolution_per_chunk.y));
@@ -78,8 +75,8 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let uv_in_chunk = fract(world_pos / chunk_size_f);
 
     // Sample fog texture (non-filterable) / 采样雾效纹理 (不可过滤)
-    // Use textureSampleLevel with level 0 / 使用 level 0 的 textureSampleLevel
-    let fog_value = textureSampleLevel(fog_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(fog_layer_index)), 0.0).r;
+    // Use textureSampleLevel with level 0 and offset (0,0) / 使用 level 0 和偏移 (0,0) 的 textureSampleLevel
+    let fog_value = textureSampleLevel(fog_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(fog_layer_index)), 0.0, vec2<i32>(0, 0)).r;
 
     // --- Blending Logic ---
     // --- 混合逻辑 ---
@@ -93,7 +90,7 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     } else if (fog_value <= EXPLORED_THRESHOLD) {
         // Explored but not visible - show snapshot blended with explored fog
         // 已探索但不可见 - 显示与已探索雾混合的快照
-        let snapshot_color = textureSample(snapshot_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(snapshot_layer_index)));
+        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(snapshot_layer_index)), 0.0, vec2<i32>(0, 0));
 
         // Optional: Desaturate or darken snapshot / 可选: 去饱和或调暗快照
         // let gray = dot(snapshot_color.rgb, vec3<f32>(0.299, 0.587, 0.114));

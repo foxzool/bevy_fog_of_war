@@ -123,7 +123,6 @@ pub fn prepare_fog_bind_groups(
     fallback_image: Res<FallbackImage>, // For default textures / 用于默认纹理
     view_uniforms: Res<ViewUniforms>,   // For view uniform binding / 用于视图统一绑定
 ) {
-    return;
     // Get texture views, use fallback if not loaded yet / 获取纹理视图，如果尚未加载则使用后备
     let fog_texture_view = images
         .get(&fog_texture.0)

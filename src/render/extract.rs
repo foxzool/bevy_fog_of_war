@@ -22,9 +22,12 @@ pub struct RenderFogMapSettings {
     /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
     /// Fog color for explored but not currently visible areas (usually semi-transparent)
     pub fog_color_explored: Vec4,
-    /// 视野完全清晰区域的“颜色”（通常用于混合或阈值，可能完全透明）
+    /// 视野完全清晰区域的"颜色"（通常用于混合或阈值，可能完全透明）
     /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
     pub vision_clear_color: Vec4,
+    /// Padding to ensure 16-byte alignment
+    /// 填充以确保 16 字节对齐
+    pub _padding: [u32; 4],
 }
 
 #[derive(Resource, Debug, Clone, Default)]
@@ -97,6 +100,7 @@ pub fn extract_fog_settings(mut commands: Commands, settings: Extract<Res<FogMap
         fog_color_unexplored: settings.fog_color_unexplored.to_linear().to_vec4(),
         fog_color_explored: settings.fog_color_explored.to_linear().to_vec4(),
         vision_clear_color: settings.vision_clear_color.to_linear().to_vec4(),
+        _padding: [0; 4],
     });
 }
 
@@ -155,6 +159,19 @@ pub fn extract_gpu_chunk_data(
                 });
             }
         }
+    }
+
+    if cache.gpu_resident_chunks.is_empty() {
+        chunk_data_res.compute_chunks.push(ChunkComputeData {
+            coords: IVec2::ZERO,
+            fog_layer_index: 0,
+            _padding: 0,
+        });
+        chunk_data_res.overlay_mapping.push(OverlayChunkData {
+            coords: IVec2::ZERO,
+            fog_layer_index: 0,
+            snapshot_layer_index: 0,
+        });
     }
 }
 

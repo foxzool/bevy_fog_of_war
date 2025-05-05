@@ -1,5 +1,7 @@
 // fog_render/overlay.rs
-use bevy::core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
+use bevy::core_pipeline::fullscreen_vertex_shader::{
+    FULLSCREEN_SHADER_HANDLE, fullscreen_shader_vertex_state,
+};
 use bevy::ecs::query::QueryItem;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
@@ -37,12 +39,7 @@ impl SpecializedRenderPipeline for FogOverlayPipeline {
         RenderPipelineDescriptor {
             label: Some("fog_overlay_pipeline".into()),
             layout,
-            vertex: VertexState {
-                shader: FULLSCREEN_SHADER_HANDLE, // Use Bevy's fullscreen vertex shader / 使用 Bevy 的全屏顶点着色器
-                shader_defs: vec![],
-                entry_point: "fullscreen_vertex_shader".into(),
-                buffers: vec![], // No vertex buffers needed for fullscreen quad / 全屏四边形不需要顶点缓冲区
-            },
+            vertex: fullscreen_shader_vertex_state(),
             fragment: Some(FragmentState {
                 shader: FOG_OVERLAY_SHADER_HANDLE, // Our custom fragment shader / 我们的自定义片段着色器
                 shader_defs: vec![],

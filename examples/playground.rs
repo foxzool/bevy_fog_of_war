@@ -1,8 +1,6 @@
-use bevy::diagnostic::{FrameCount, LogDiagnosticsPlugin};
+use bevy::diagnostic::FrameCount;
 use bevy::{
-    color::palettes::{
-        css::{GOLD, RED},
-    },
+    color::palettes::css::{GOLD, RED},
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
@@ -302,11 +300,13 @@ fn update_fog_settings(
     // 更新雾颜色透明度
     // Update fog color alpha
     if keyboard.pressed(KeyCode::PageUp) {
-        let new_alpha = (fog_settings.fog_color_unexplored.alpha() + time.delta_secs() * 0.5).min(1.0);
+        let new_alpha =
+            (fog_settings.fog_color_unexplored.alpha() + time.delta_secs() * 0.5).min(1.0);
         fog_settings.fog_color_unexplored.set_alpha(new_alpha);
     }
     if keyboard.pressed(KeyCode::PageDown) {
-        let new_alpha = (fog_settings.fog_color_unexplored.alpha() - time.delta_secs() * 0.5).max(0.0);
+        let new_alpha =
+            (fog_settings.fog_color_unexplored.alpha() - time.delta_secs() * 0.5).max(0.0);
         fog_settings.fog_color_unexplored.set_alpha(new_alpha);
     }
 
@@ -527,7 +527,6 @@ fn movable_vision_control(
         transform.translation += movement;
     }
 }
-
 
 // 新增：水平移动系统
 // New: Horizontal movement system
