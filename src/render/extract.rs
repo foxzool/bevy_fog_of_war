@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 #[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
 #[repr(C)]
-pub struct GpuFogMapSettings {
+pub struct RenderFogMapSettings {
     /// 每个区块的大小 (世界单位)
     /// Size of each chunk (in world units)
     pub chunk_size: UVec2,
@@ -91,7 +91,7 @@ pub struct SnapshotRequest {
 // --- 提取系统 ---
 
 pub fn extract_fog_settings(mut commands: Commands, settings: Extract<Res<FogMapSettings>>) {
-    commands.insert_resource(GpuFogMapSettings {
+    commands.insert_resource(RenderFogMapSettings {
         chunk_size: settings.chunk_size,
         texture_resolution_per_chunk: settings.texture_resolution_per_chunk,
         fog_color_unexplored: settings.fog_color_unexplored.to_linear().to_vec4(),

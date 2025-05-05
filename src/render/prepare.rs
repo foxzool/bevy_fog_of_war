@@ -7,7 +7,7 @@ use bevy::render::view::{ViewUniform, ViewUniforms};
 // Needed for view bindings / 视图绑定需要 // For default texture / 用于默认纹理
 
 use super::extract::{
-    ChunkComputeData, ExtractedGpuChunkData, ExtractedVisionSources, GpuFogMapSettings,
+    ChunkComputeData, ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings,
     OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, VisionSourceData,
 };
 use super::{FOG_COMPUTE_SHADER_HANDLE, FOG_OVERLAY_SHADER_HANDLE}; // Import shader handles / 导入 shader 句柄
@@ -52,7 +52,7 @@ pub struct FogBindGroups {
 // --- 缓冲区准备系统 ---
 
 pub fn prepare_fog_uniforms(
-    settings: Res<GpuFogMapSettings>,
+    settings: Res<RenderFogMapSettings>,
     mut fog_uniforms: ResMut<FogUniforms>,
     render_device: Res<RenderDevice>,
 ) {
@@ -175,7 +175,7 @@ pub fn prepare_fog_bind_groups(
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(GpuFogMapSettings::min_size()),
+                        min_binding_size: Some(RenderFogMapSettings::min_size()),
                     },
                     count: None,
                 },
@@ -272,7 +272,7 @@ pub fn prepare_fog_bind_groups(
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(GpuFogMapSettings::min_size()),
+                        min_binding_size: Some(RenderFogMapSettings::min_size()),
                     },
                     count: None,
                 },

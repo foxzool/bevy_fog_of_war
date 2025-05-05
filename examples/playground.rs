@@ -1,7 +1,6 @@
 use bevy::diagnostic::{FrameCount, LogDiagnosticsPlugin};
 use bevy::{
     color::palettes::{
-        basic::GREEN,
         css::{GOLD, RED},
     },
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -42,7 +41,7 @@ fn main() {
                 })
                 .set(ImagePlugin::default_nearest()),
             FrameTimeDiagnosticsPlugin::default(),
-            LogDiagnosticsPlugin::default(),
+            // LogDiagnosticsPlugin::default(),
             // bevy_render::diagnostic::RenderDiagnosticsPlugin,
         ))
         .init_gizmo_group::<MyRoundGizmos>()
@@ -60,7 +59,7 @@ fn main() {
                 update_fog_settings,
                 update_fps_text,
                 movable_vision_control,
-                debug_draw_chunks,
+                // debug_draw_chunks,
                 horizontal_movement_system,
             ),
         )
@@ -106,6 +105,9 @@ struct MovableVision;
 struct HorizontalMover {
     direction: f32, // 1.0 for right, -1.0 for left
 }
+
+#[derive(Component)]
+struct FogOfWarCamera;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");
@@ -526,84 +528,6 @@ fn movable_vision_control(
     }
 }
 
-/// 在屏幕上绘制区块边界和状态的调试信息
-/// System to draw chunk boundaries and status for debugging
-fn debug_draw_chunks(
-    mut gizmos: Gizmos,
-    mut chunk_query: Query<(
-        Entity,
-        &FogChunk,
-        Option<&mut Text2d>,
-        Option<&InCameraView>,
-    )>,
-    chunk_manager: Res<ChunkManager>, // Access ChunkManager for tile_size
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    fog_debug_settings: Res<FogDebugSettings>,
-    mut debug_text_query: Query<&mut Text, With<FogSettingsText>>,
-) {
-    // 计算所有chunk数量和视野内的chunk数量
-    // Calculate total chunk count and chunks in vision
-    let total_chunks = chunk_query.iter().count();
-    let chunks_in_vision = chunk_query
-        .iter()
-        .filter(|(_, _, _, opt_in_view)| opt_in_view.is_some())
-        .count();
-
-    // 更新调试文本以显示chunk数量
-    // Update debug text to show chunk counts
-    if let Ok(mut text) = debug_text_query.single_mut() {
-        let current_text = text.0.clone();
-        text.0 = format!(
-            "{current_text}\nTotal Chunks: {total_chunks}\nChunks in Vision: {chunks_in_vision}"
-        );
-    }
-
-    if !fog_debug_settings.enabled {
-        for (chunk_entity, chunk, opt_text, _) in chunk_query.iter_mut() {
-            // Draw chunk boundary rectangle
-            gizmos.rect_2d(
-                chunk.world_bounds.center(),
-                chunk.world_bounds.size(),
-                if chunk.loaded {
-                    GREEN.with_alpha(0.3) // Green for loaded chunks
-                } else {
-                    RED.with_alpha(0.3) // Red for potentially unloaded (though usually despawned)
-                },
-            );
-            if let Some(mut text) = opt_text {
-                text.0 = format!(
-                    "sid: {:?}\nlid: {:?}\n({}, {})",
-                    chunk.screen_index, chunk.layer_index, chunk.coords.x, chunk.coords.y
-                );
-            } else {
-                let font = asset_server.load("fonts/FiraSans-Bold.ttf");
-                let text_font = TextFont {
-                    font: font.clone(),
-                    font_size: 13.0,
-                    ..default()
-                };
-                let pos = chunk_manager.chunk_coord_to_world(chunk.coords)
-                    + chunk.world_bounds.size() * 0.5;
-
-                // Draw chunk unique_id and coordinate text
-                // 显示区块 unique_id 和坐标的文本
-                commands.entity(chunk_entity).insert((
-                    Text2d::new(format!(
-                        "sid: {:?}\nlid: {:?}\n({}, {})",
-                        chunk.screen_index,
-                        chunk.layer_index,
-                        chunk.coords.x,
-                        chunk.coords.y
-                    )),
-                    text_font,
-                    TextColor(RED.into()),
-                    Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
-                ));
-            }
-        }
-    }
-}
 
 // 新增：水平移动系统
 // New: Horizontal movement system

@@ -81,10 +81,10 @@ impl Plugin for FogOfWarPlugin {
             manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
         );
 
-        app.add_plugins(ChunkManagerPlugin)
-            .add_plugins(vision::VisionComputePlugin)
-            .add_plugins(fog_2d::Fog2DRenderPlugin)
-            .add_plugins(sync_texture::GpuSyncTexturePlugin);
+        // app.add_plugins(ChunkManagerPlugin)
+        //     .add_plugins(vision::VisionComputePlugin)
+        //     .add_plugins(fog_2d::Fog2DRenderPlugin)
+        //     .add_plugins(sync_texture::GpuSyncTexturePlugin);
     }
 }
 

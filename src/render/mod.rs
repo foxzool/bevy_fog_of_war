@@ -15,13 +15,12 @@ mod snapshot; // Contains snapshot node and related logic / 包含快照节点�
 
 // Re-export relevant items / 重新导出相关项
 pub use compute::FogComputeNode;
-pub use extract::GpuFogMapSettings;
+pub use extract::RenderFogMapSettings;
 // Make extracted settings accessible / 使提取的设置可访问
 pub use overlay::FogOverlayNode;
 pub use prepare::{
     FogBindGroups, FogUniforms, GpuChunkInfoBuffer, OverlayChunkMappingBuffer, VisionSourceBuffer,
 };
-pub use snapshot::SnapshotNode;
 
 pub const FOG_COMPUTE_SHADER_HANDLE: Handle<Shader> =
     weak_handle!("c79464f5-7e93-419e-88ec-871c9ad12247");
@@ -61,7 +60,7 @@ impl Plugin for FogOfWarRenderPlugin {
             .init_resource::<OverlayChunkMappingBuffer>()
             .init_resource::<FogBindGroups>()
             .init_resource::<SpecializedRenderPipelines<overlay::FogOverlayPipeline>>() // For overlay pipeline cache / 用于覆盖管线缓存
-            .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>() // For snapshot pipeline cache / 用于快照管线缓存
+            // .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>() // For snapshot pipeline cache / 用于快照管线缓存
             // Extraction systems (Main World -> Render World) / 提取系统 (主世界 -> 渲染世界)
             .add_systems(
                 ExtractSchedule,
@@ -90,7 +89,7 @@ impl Plugin for FogOfWarRenderPlugin {
                 Render,
                 (
                     overlay::queue_fog_overlay_pipelines,
-                    snapshot::queue_snapshot_pipelines, // Queue snapshot pipelines / 排队快照管线
+                    // snapshot::queue_snapshot_pipelines, // Queue snapshot pipelines / 排队快照管线
                 )
                     .in_set(RenderSet::Queue),
             );
@@ -98,10 +97,10 @@ impl Plugin for FogOfWarRenderPlugin {
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
             .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
-            .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(
-                Core2d,
-                snapshot::SnapshotNodeLabel,
-            ) // Use ViewNode for camera access / 使用 ViewNode 访问相机
+            // .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(
+            //     Core2d,
+            //     snapshot::SnapshotNodeLabel,
+            // ) // Use ViewNode for camera access / 使用 ViewNode 访问相机
             .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
                 Core2d,
                 overlay::FogOverlayNodeLabel,
@@ -119,12 +118,12 @@ impl Plugin for FogOfWarRenderPlugin {
                 // If snapshot needs main pass depth, it runs after StartMainPass too
                 // 如果快照需要主通道深度，它也在 StartMainPass 之后运行
                 Node2d::StartMainPass,
-                snapshot::SnapshotNodeLabel,
+                // snapshot::SnapshotNodeLabel,
                 // Run overlay after compute, snapshot, and the main 2D pass
                 // 在计算、快照和主 2D 通道之后运行覆盖
                 compute::FogComputeNodeLabel,
                 overlay::FogOverlayNodeLabel,
-                snapshot::SnapshotNodeLabel,
+                // snapshot::SnapshotNodeLabel,
                 overlay::FogOverlayNodeLabel,
                 Node2d::EndMainPass, // Ensure main pass finishes before overlay / 确保主通道在覆盖之前完成
                 overlay::FogOverlayNodeLabel,
@@ -145,7 +144,7 @@ impl Plugin for FogOfWarRenderPlugin {
 
         render_app
             .init_resource::<compute::FogComputePipeline>() // Initialize compute pipeline / 初始化计算管线
-            .init_resource::<overlay::FogOverlayPipeline>() // Initialize overlay pipeline / 初始化覆盖管线
-            .init_resource::<snapshot::SnapshotPipeline>(); // Initialize snapshot pipeline / 初始化快照管线
+            .init_resource::<overlay::FogOverlayPipeline>(); // Initialize overlay pipeline / 初始化覆盖管线
+        // .init_resource::<snapshot::SnapshotPipeline>(); // Initialize snapshot pipeline / 初始化快照管线
     }
 }

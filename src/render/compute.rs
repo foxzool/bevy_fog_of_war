@@ -1,7 +1,7 @@
 // fog_render/compute.rs
 use super::FOG_COMPUTE_SHADER_HANDLE;
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
-use crate::render::extract::GpuFogMapSettings;
+use crate::render::extract::RenderFogMapSettings;
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel};
 use bevy::render::render_resource::{
@@ -66,7 +66,7 @@ impl Node for FogComputeNode {
         let compute_pipeline = world.resource::<FogComputePipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let chunk_buffer = world.resource::<GpuChunkInfoBuffer>();
-        let settings = world.resource::<GpuFogMapSettings>();
+        let settings = world.resource::<RenderFogMapSettings>();
 
         let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id)
         else {
