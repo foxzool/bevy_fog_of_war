@@ -47,7 +47,7 @@ impl Plugin for FogOfWarPlugin {
             (
                 // --- UpdateChunkState Set ---
                 clear_per_frame_caches, // Run first in the set / 在集合中首先运行
-                // update_chunk_visibility,
+                update_chunk_visibility,
                 // update_camera_view_chunks,
                 // update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
             )
@@ -140,4 +140,53 @@ fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
     cache.camera_view_chunks.clear();
     // explored_chunks persists / explored_chunks 会持久存在
     // gpu_resident_chunks is managed by memory system / gpu_resident_chunks 由内存系统管理
+}
+
+/// Updates visible and explored chunk sets based on VisionSource positions.
+/// 根据 VisionSource 位置更新可见和已探索的区块集合。
+fn update_chunk_visibility(
+    settings: Res<FogMapSettings>,
+    mut cache: ResMut<ChunkStateCache>,
+    vision_sources: Query<(&GlobalTransform, &VisionSource)>,
+    // We update the cache first, then sync to components if needed
+    // 我们先更新缓存，如果需要再同步到组件
+) {
+    let chunk_size = settings.chunk_size.as_vec2();
+
+    for (transform, source) in vision_sources.iter() {
+        if !source.enabled {
+            continue;
+        }
+
+        let source_pos = transform.translation().truncate(); // Get 2D position / 获取 2D 位置
+        let range_sq = source.range * source.range;
+
+        // Calculate the bounding box of the vision circle in chunk coordinates
+        // 计算视野圆形在区块坐标系下的包围盒
+        let min_world = source_pos - Vec2::splat(source.range);
+        let max_world = source_pos + Vec2::splat(source.range);
+
+        let min_chunk = (min_world / chunk_size).floor().as_ivec2();
+        let max_chunk = (max_world / chunk_size).ceil().as_ivec2();
+
+        // Iterate over potentially affected chunks
+        // 遍历可能受影响的区块
+        for y in min_chunk.y..=max_chunk.y {
+            for x in min_chunk.x..=max_chunk.x {
+                let chunk_coords = IVec2::new(x, y);
+                let chunk_center_world = (chunk_coords.as_vec2() + 0.5) * chunk_size;
+
+                // Simple distance check (center to source) - more accurate checks possible
+                // 简单的距离检查 (区块中心到源点) - 可以进行更精确的检查
+                if chunk_center_world.distance_squared(source_pos) <= range_sq {
+                    // Mark as visible and explored in the cache
+                    // 在缓存中标记为可见和已探索
+                    cache.visible_chunks.insert(chunk_coords);
+                    cache.explored_chunks.insert(chunk_coords);
+                }
+                // Alternative: Check if circle intersects chunk rect
+                // 备选方案: 检查圆形是否与区块矩形相交
+            }
+        }
+    }
 }
