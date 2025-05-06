@@ -43,11 +43,17 @@ impl Plugin for FogOfWarPlugin {
             .register_type::<ChunkEntityManager>()
             .register_type::<ChunkStateCache>()
             .register_type::<TextureArrayManager>()
-            .register_type::<CpuChunkStorage>();
+            .register_type::<CpuChunkStorage>()
+            .register_type::<GpuToCpuCopyQueue>()
+            .register_type::<CpuToGpuCopyQueue>()
+            .register_type::<MainWorldSnapshotRequestQueue>();
 
         app.init_resource::<FogMapSettings>()
             .init_resource::<ChunkEntityManager>()
             .init_resource::<ChunkStateCache>()
+            .init_resource::<GpuToCpuCopyQueue>()
+            .init_resource::<CpuToGpuCopyQueue>()
+            .init_resource::<MainWorldSnapshotRequestQueue>()
             .init_resource::<CpuChunkStorage>();
 
         app.configure_sets(
@@ -162,11 +168,15 @@ fn setup_fog_resources(
 
 /// Clears caches that are rebuilt each frame.
 /// 清除每帧重建的缓存。
-fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
+fn clear_per_frame_caches(
+    mut cache: ResMut<ChunkStateCache>,
+    mut gpu_to_cpu_copy_queue: ResMut<GpuToCpuCopyQueue>,
+    mut cpu_to_gpu_copy_queue: ResMut<CpuToGpuCopyQueue>
+) {
     cache.visible_chunks.clear();
     cache.camera_view_chunks.clear();
-    // explored_chunks persists / explored_chunks 会持久存在
-    // gpu_resident_chunks is managed by memory system / gpu_resident_chunks 由内存系统管理
+    gpu_to_cpu_copy_queue.clear();
+    cpu_to_gpu_copy_queue.clear();
 }
 
 /// Updates visible and explored chunk sets based on VisionSource positions.

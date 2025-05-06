@@ -90,6 +90,12 @@ pub struct SnapshotRequest {
     pub chunk_coords: IVec2, // Needed for filtering entities / 用于过滤实体
 }
 
+#[derive(Resource, Debug, Clone, Default)]
+pub struct ExtractedGpuToCpuCopyRequests(pub Vec<ChunkOffloadRequest>);
+
+#[derive(Resource, Debug, Clone, Default)]
+pub struct ExtractedCpuToGpuCopyRequests(pub Vec<ChunkReloadRequest>);
+
 // --- Extraction Systems ---
 // --- 提取系统 ---
 
@@ -205,5 +211,31 @@ pub fn extract_snapshot_requests(
                 }
             }
         }
+    }
+}
+
+/// 从主世界提取 GpuToCpuCopyQueue 到渲染世界
+/// Extracts GpuToCpuCopyQueue from the main world to the render world
+pub fn extract_gpu_to_cpu_copy_requests(
+    mut commands: Commands,
+    main_world_queue: Extract<Res<GpuToCpuCopyQueue>>,
+) {
+    if !main_world_queue.0.is_empty() {
+        commands.insert_resource(ExtractedGpuToCpuCopyRequests(main_world_queue.0.clone()));
+    } else {
+        commands.insert_resource(ExtractedGpuToCpuCopyRequests(Vec::new()));
+    }
+}
+
+/// 从主世界提取 CpuToGpuCopyQueue 到渲染世界
+/// Extracts CpuToGpuCopyQueue from the main world to the render world
+pub fn extract_cpu_to_gpu_copy_requests(
+    mut commands: Commands,
+    main_world_queue: Extract<Res<CpuToGpuCopyQueue>>,
+) {
+    if !main_world_queue.is_empty() {
+        commands.insert_resource(ExtractedCpuToGpuCopyRequests(main_world_queue.0.clone()));
+    } else {
+        commands.insert_resource(ExtractedCpuToGpuCopyRequests(Vec::new()));
     }
 }

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::prelude::*;
 use bevy::color::palettes::basic;
 use bevy::platform::collections::{HashMap, HashSet};
@@ -189,3 +190,42 @@ impl Default for FogMapSettings {
         }
     }
 }
+
+// In prelude.rs or a new snapshot_mod.rs
+#[derive(Debug, Clone, Reflect)]
+pub struct SnapshotRequestInfo {
+    pub chunk_coords: IVec2,
+    pub snapshot_layer_index: u32,
+    pub world_bounds: Rect, // For culling entities during snapshot render
+}
+
+#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
+#[reflect(Resource, Default)]
+pub struct MainWorldSnapshotRequestQueue(pub Vec<SnapshotRequestInfo>);
+
+#[derive(Debug, Clone, Reflect)]
+pub struct ChunkOffloadRequest {
+    pub coords: IVec2,
+    pub fog_layer_index: u32,
+    pub snapshot_layer_index: u32,
+}
+
+#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
+#[reflect(Resource, Default)]
+pub struct GpuToCpuCopyQueue(pub Vec<ChunkOffloadRequest>);
+
+
+#[derive(Debug, Clone , Reflect)]
+pub struct ChunkReloadRequest {
+    pub coords: IVec2,
+    pub fog_layer_index: u32,
+    pub snapshot_layer_index: u32,
+    // Using Arc to avoid cloning large Vec<u8> if the resource is accessed multiple times
+    // before actual processing. Or just Vec<u8> if ownership is clear.
+    pub fog_data: Arc<Vec<u8>>,
+    pub snapshot_data: Arc<Vec<u8>>,
+}
+
+#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
+#[reflect(Resource, Default)]
+pub struct CpuToGpuCopyQueue(pub Vec<ChunkReloadRequest>);

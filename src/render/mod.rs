@@ -53,6 +53,8 @@ impl Plugin for FogOfWarRenderPlugin {
             .init_resource::<extract::ExtractedVisionSources>()
             .init_resource::<extract::ExtractedGpuChunkData>()
             .init_resource::<extract::SnapshotRequestQueue>()
+            .init_resource::<extract::ExtractedGpuToCpuCopyRequests>()
+            .init_resource::<extract::ExtractedCpuToGpuCopyRequests>()
             // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
@@ -69,9 +71,17 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_vision_sources,
                     extract::extract_gpu_chunk_data,
                     extract::extract_snapshot_requests,
-                    extract::extract_texture_handles, // Ensure handles are available / 确保句柄可用
+                    extract::extract_texture_handles,
+                    extract::extract_gpu_to_cpu_copy_requests,
+                    extract::extract_cpu_to_gpu_copy_requests,
                 ),
             )
+            // .add_systems(
+            //     Render,
+            //     prepare::process_texture_copies
+            //         .in_set(RenderSet::Prepare) // Before PrepareBindGroups
+            //         .before(RenderSet::PrepareBindGroups), // Explicit ordering
+            // )
             // Prepare systems (Create/Update GPU buffers and bind groups) / 准备系统 (创建/更新 GPU 缓冲区和绑定组)
             .add_systems(
                 Render,
@@ -97,10 +107,11 @@ impl Plugin for FogOfWarRenderPlugin {
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
             .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
-            // .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(
+            // .add_render_graph_node::<ViewNodeRunner<snapshot::SnapshotNode>>(
+            //     // Use ViewNode
             //     Core2d,
             //     snapshot::SnapshotNodeLabel,
-            // ) // Use ViewNode for camera access / 使用 ViewNode 访问相机
+            // )
             .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
                 Core2d,
                 overlay::FogOverlayNodeLabel,
@@ -111,8 +122,8 @@ impl Plugin for FogOfWarRenderPlugin {
             Core2d,
             (
                 Node2d::MainTransparentPass,
+                snapshot::SnapshotNodeLabel,
                 compute::FogComputeNodeLabel,
-                // snapshot::SnapshotNodeLabel,
                 overlay::FogOverlayNodeLabel,
                 Node2d::EndMainPass,
             ),
@@ -130,5 +141,9 @@ impl Plugin for FogOfWarRenderPlugin {
             .init_resource::<compute::FogComputePipeline>() // Initialize compute pipeline / 初始化计算管线
             .init_resource::<overlay::FogOverlayPipeline>(); // Initialize overlay pipeline / 初始化覆盖管线
         // .init_resource::<snapshot::SnapshotPipeline>(); // Initialize snapshot pipeline / 初始化快照管线
+
+        // render_app
+        //     .init_resource::<snapshot::SnapshotPipeline>()
+        //     .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>();
     }
 }
