@@ -75,7 +75,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     // Sample fog texture (non-filterable) / 采样雾效纹理 (不可过滤)
     // Use textureSampleLevel with level 0 and offset (0,0) / 使用 level 0 和偏移 (0,0) 的 textureSampleLevel
-    let fog_value = textureSampleLevel(fog_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(fog_layer_index)), 0.0, vec2<i32>(0, 0)).r;
+    // Sample fog texture, use integer array index for layer / 采样雾效纹理，层索引用整数
+    let fog_value = textureSampleLevel(fog_texture, texture_sampler, uv_in_chunk, fog_layer_index, 0.0).r; // Use integer fog_layer_index / 使用整数 fog_layer_index
 
     // --- Blending Logic ---
     // --- 混合逻辑 ---
@@ -89,7 +90,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     } else if (fog_value <= EXPLORED_THRESHOLD) {
         // Explored but not visible - show snapshot blended with explored fog
         // 已探索但不可见 - 显示与已探索雾混合的快照
-        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, vec3<f32>(uv_in_chunk, f32(snapshot_layer_index)), 0.0, vec2<i32>(0, 0));
+        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, uv_in_chunk, snapshot_layer_index, 0.0);
 
         // Optional: Desaturate or darken snapshot / 可选: 去饱和或调暗快照
         // let gray = dot(snapshot_color.rgb, vec3<f32>(0.299, 0.587, 0.114));

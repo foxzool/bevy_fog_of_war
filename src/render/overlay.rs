@@ -103,7 +103,7 @@ impl FromWorld for FogOverlayPipeline {
                 BindGroupLayoutEntry {
                     binding: 3,
                     visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering), // Use filtering for snapshot / 对快照使用过滤
+                    ty: BindingType::Sampler(SamplerBindingType::NonFiltering), // Use filtering for snapshot / 对快照使用过滤
                     count: None,
                 },
                 // Fog Settings (Uniform Buffer) / 雾设置 (统一缓冲区) - Reuse binding 3 from compute layout? No, use new binding.
@@ -135,8 +135,8 @@ impl FromWorld for FogOverlayPipeline {
         // Create a sampler / 创建采样器
         let sampler = render_device.create_sampler(&SamplerDescriptor {
             label: Some("fog_overlay_sampler"),
-            mag_filter: FilterMode::Linear, // Linear for snapshot / 快照使用线性
-            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
             mipmap_filter: FilterMode::Nearest, // No mipmaps / 无 mipmap
             address_mode_u: AddressMode::ClampToEdge, // Clamp coordinates / 夹紧坐标
             address_mode_v: AddressMode::ClampToEdge,
@@ -161,7 +161,7 @@ impl FromWorld for FogOverlayPipeline {
                         shader_defs: vec![],
                         entry_point: "fragment".into(),
                         targets: vec![Some(ColorTargetState {
-                            format: ViewTarget::TEXTURE_FORMAT_HDR,
+                            format: TextureFormat::bevy_default(),
                             blend: Some(BlendState::ALPHA_BLENDING),
                             write_mask: ColorWrites::ALL,
                         })],
