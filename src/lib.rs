@@ -203,18 +203,17 @@ fn update_chunk_visibility(
         for y in min_chunk.y..=max_chunk.y {
             for x in min_chunk.x..=max_chunk.x {
                 let chunk_coords = IVec2::new(x, y);
-                let chunk_center_world = (chunk_coords.as_vec2() + 0.5) * chunk_size;
+                let chunk_min = chunk_coords.as_vec2() * chunk_size;
+                let chunk_max = chunk_min + chunk_size;
 
-                // Simple distance check (center to source) - more accurate checks possible
-                // 简单的距离检查 (区块中心到源点) - 可以进行更精确的检查
-                if chunk_center_world.distance_squared(source_pos) <= range_sq {
+                // Check if circle intersects chunk rectangle
+                // 检查圆是否与区块矩形相交
+                if circle_intersects_rect(source_pos, range_sq, chunk_min, chunk_max) {
                     // Mark as visible and explored in the cache
                     // 在缓存中标记为可见和已探索
                     cache.visible_chunks.insert(chunk_coords);
                     cache.explored_chunks.insert(chunk_coords);
                 }
-                // Alternative: Check if circle intersects chunk rect
-                // 备选方案: 检查圆形是否与区块矩形相交
             }
         }
     }
@@ -417,4 +416,27 @@ fn manage_chunk_entities(
 
     // TODO: Implement chunk despawning for very distant chunks
     // TODO: 为非常遥远的区块实现实体销毁
+}
+
+/// Check if a circle intersects with a rectangle
+/// 检查圆形是否与矩形相交
+fn circle_intersects_rect(
+    circle_center: Vec2,
+    range_sq: f32,
+    rect_min: Vec2,
+    rect_max: Vec2,
+) -> bool {
+    // Clamp the circle center to the rectangle's bounds
+    // 将圆心限制在矩形边界内
+    let closest_x = circle_center.x.clamp(rect_min.x, rect_max.x);
+    let closest_y = circle_center.y.clamp(rect_min.y, rect_max.y);
+
+    // Calculate the distance from the circle center to the closest point
+    // 计算圆心到最近点的距离
+    let dx = circle_center.x - closest_x;
+    let dy = circle_center.y - closest_y;
+
+    // If the distance is less than or equal to the radius, they intersect
+    // 如果距离小于等于半径，则相交
+    (dx * dx + dy * dy) <= range_sq
 }
