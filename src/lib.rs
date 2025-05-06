@@ -73,7 +73,7 @@ impl Plugin for FogOfWarPlugin {
                 update_chunk_visibility,
                 update_camera_view_chunks,
                 update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
-            )
+            ).chain()
                 .in_set(FogSystemSet::UpdateChunkState),
         );
 

@@ -84,6 +84,7 @@ pub fn prepare_gpu_chunk_buffer(
     mut buffer_res: ResMut<GpuChunkInfoBuffer>,
     render_device: Res<RenderDevice>,
 ) {
+    buffer_res.capacity = extracted_chunks.compute_chunks.len();
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("gpu_chunk_info_storage_buffer"),
         contents: bytemuck::cast_slice(&extracted_chunks.compute_chunks),
