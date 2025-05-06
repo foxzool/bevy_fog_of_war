@@ -27,6 +27,9 @@ pub const FOG_COMPUTE_SHADER_HANDLE: Handle<Shader> =
 pub const FOG_OVERLAY_SHADER_HANDLE: Handle<Shader> =
     weak_handle!("f40f9e67-6ba7-4277-93cd-718c6ded2786");
 
+pub const SNAPSHOT_SHADER_HANDLE: Handle<Shader> =
+    weak_handle!("32f45b4e-1e98-4e22-a723-caa2f4f22426");
+
 pub struct FogOfWarRenderPlugin;
 
 impl Plugin for FogOfWarRenderPlugin {
@@ -53,8 +56,6 @@ impl Plugin for FogOfWarRenderPlugin {
             .init_resource::<extract::ExtractedVisionSources>()
             .init_resource::<extract::ExtractedGpuChunkData>()
             .init_resource::<extract::SnapshotRequestQueue>()
-            .init_resource::<extract::ExtractedGpuToCpuCopyRequests>()
-            .init_resource::<extract::ExtractedCpuToGpuCopyRequests>()
             // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
@@ -72,15 +73,16 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_gpu_chunk_data,
                     extract::extract_snapshot_requests,
                     extract::extract_texture_handles,
-                    extract::extract_gpu_to_cpu_copy_requests,
-                    extract::extract_cpu_to_gpu_copy_requests,
                 ),
             )
             .add_systems(
                 Render,
-                prepare::process_texture_copies
-                    .in_set(RenderSet::Prepare) // Before PrepareBindGroups
-                    .before(RenderSet::PrepareBindGroups), // Explicit ordering
+                (
+                    prepare::process_gpu_to_cpu_copies,
+                    prepare::process_cpu_to_gpu_copies,
+                )
+                    .chain()
+                    .in_set(RenderSet::Prepare), // Before PrepareBindGroups
             )
             // Prepare systems (Create/Update GPU buffers and bind groups) / 准备系统 (创建/更新 GPU 缓冲区和绑定组)
             .add_systems(

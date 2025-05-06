@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bevy::platform::collections::HashMap;
+use bevy::render::camera::RenderTarget;
 use bevy::render::extract_component::ExtractComponent;
-
 
 /// 视野源组件
 /// Vision source component
@@ -24,7 +24,6 @@ impl Default for VisionSource {
         }
     }
 }
-
 
 /// 区块的可见性状态
 /// Visibility state of a chunk
@@ -110,8 +109,10 @@ impl FogChunk {
 
 // 区块纹理数据的存储位置
 /// Storage location of the chunk's texture data
+/// 区块纹理数据的存储位置
+/// Storage location of the chunk's texture data
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
-#[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
+#[reflect(Default)]
 pub enum ChunkMemoryLocation {
     /// 纹理数据存储在 GPU 显存中，可用于渲染
     /// Texture data resides in GPU VRAM, ready for rendering
@@ -119,12 +120,18 @@ pub enum ChunkMemoryLocation {
     /// 纹理数据已从 GPU 卸载，存储在 CPU 内存中
     /// Texture data is unloaded from GPU and stored in CPU RAM
     Cpu,
+    /// 主世界已请求渲染世界将此区块数据从 GPU 复制到 CPU。等待 ChunkGpuDataReadyEvent。
+    /// Main world has requested RenderWorld to copy this chunk's data from GPU. Awaiting ChunkGpuDataReadyEvent.
+    PendingCopyToCpu,
+    /// 主世界已请求渲染世界将 CPU 数据上传到此区块的 GPU 纹理。等待 ChunkCpuDataUploadedEvent。
+    /// Main world has requested RenderWorld to upload CPU data to this chunk's GPU texture. Awaiting ChunkCpuDataUploadedEvent.
+    PendingCopyToGpu,
 }
 
 impl Default for ChunkMemoryLocation {
     fn default() -> Self {
-        // 默认新区块在 GPU 上创建 / New chunks are typically created on the GPU by default
-        ChunkMemoryLocation::Gpu
+        ChunkMemoryLocation::Gpu // Or Cpu, depending on initial creation strategy
+        // 或 Cpu, 取决于初始创建策略
     }
 }
 
@@ -157,4 +164,21 @@ pub struct CpuChunkStorage {
 #[reflect(Component, Default)]
 pub struct Snapshottable {
     pub priority: u8,
+}
+
+/// Marker component for a camera used to render snapshots.
+/// 用于渲染快照的相机的标记组件。
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct SnapshotCamera;
+
+/// Stores the current target for a snapshot camera during rendering.
+/// Not an ExtractComponent, managed internally in RenderApp.
+/// 在渲染期间存储快照相机的当前目标。
+/// 不是 ExtractComponent，在 RenderApp 内部管理。
+#[derive(Component)]
+pub struct SnapshotCameraTarget {
+    pub render_target: RenderTarget,
+    pub world_bounds: Rect, // To help with culling or setting projection
+                            // 帮助剔除或设置投影
 }

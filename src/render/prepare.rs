@@ -6,12 +6,12 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewUniform, ViewUniforms};
+use crate::prelude::{ChunkCpuDataUploadedEvent, ChunkGpuDataReadyEvent, CpuToGpuCopyRequests, GpuToCpuCopyRequests};
 // Needed for view bindings / 视图绑定需要 // For default texture / 用于默认纹理
 
 use super::extract::{
-    ChunkComputeData, ExtractedCpuToGpuCopyRequests, ExtractedGpuChunkData,
-    ExtractedGpuToCpuCopyRequests, ExtractedVisionSources, OverlayChunkData, RenderFogMapSettings,
-    RenderFogTexture, RenderSnapshotTexture, VisionSourceData,
+    ChunkComputeData, ExtractedGpuChunkData, ExtractedVisionSources, OverlayChunkData,
+    RenderFogMapSettings, RenderFogTexture, RenderSnapshotTexture, VisionSourceData,
 };
 use super::{FOG_COMPUTE_SHADER_HANDLE, FOG_OVERLAY_SHADER_HANDLE}; // Import shader handles / 导入 shader 句柄
 
@@ -299,212 +299,61 @@ pub fn prepare_fog_bind_groups(
     // 覆盖绑定组在 FogOverlayNode 中使用此布局按视图创建
 }
 
-pub fn process_texture_copies(
+// System to handle GPU -> CPU copy requests
+pub fn process_gpu_to_cpu_copies(
+    // world: &mut World, // If using exclusive system
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    images: Res<RenderAssets<GpuImage>>, // Bevy 0.12+
-    // images: Res<RenderAssets<Image>>, // Bevy < 0.12
-    fog_map_settings: Res<RenderFogMapSettings>, // 提取的设置 / Extracted settings
-    fog_texture_array_handle: Option<Res<RenderFogTexture>>, // 使用 Option 以防尚未初始化 / Use Option in case not yet initialized
-    snapshot_texture_array_handle: Option<Res<RenderSnapshotTexture>>,
-    mut cpu_to_gpu_requests: ResMut<ExtractedCpuToGpuCopyRequests>,
-    mut gpu_to_cpu_requests: ResMut<ExtractedGpuToCpuCopyRequests>,
+    render_queue: Res<RenderQueue>, // Not directly for copy_texture_to_buffer, but for map_buffer
+    gpu_requests: Res<GpuToCpuCopyRequests>, // Extracted from MainWorld
+    fog_texture_array: Res<RenderFogTexture>, // Extracted handle
+    snapshot_texture_array: Res<RenderSnapshotTexture>, // Extracted handle
+    images: Res<RenderAssets<GpuImage>>,
+    // mut main_world_events: EventWriter<ChunkGpuDataReadyEvent>, // To send data back
+    // You'll need a way to manage staging buffers and their mapping state
 ) {
-    // --- 1. 处理 CPU -> GPU 的复制请求 ---
-    // --- 1. Process CPU -> GPU copy requests ---
-    if let (Some(fog_handle_res), Some(snapshot_handle_res)) = (
-        fog_texture_array_handle.as_deref(),
-        snapshot_texture_array_handle.as_deref(),
-    ) {
-        if let (Some(fog_gpu_image), Some(snapshot_gpu_image)) = (
-            images.get(&fog_handle_res.0),
-            images.get(&snapshot_handle_res.0),
-        ) {
-            for request in cpu_to_gpu_requests.0.iter() {
-                // --- 复制雾效数据 ---
-                // --- Copy Fog Data ---
-                if !request.fog_data.is_empty() {
-                    let bytes_per_pixel_fog = R8Unorm.pixel_size(); // e.g., 1 for R8Unorm
-                    if bytes_per_pixel_fog == 0 {
-                        error!("Fog texture format pixel size is zero, cannot copy.");
-                        continue;
-                    }
-                    let bytes_per_row_fog = fog_map_settings.texture_resolution_per_chunk.x
-                        * bytes_per_pixel_fog as u32;
-                    // 确保 bytes_per_row 是 256 的倍数 (wgpu 要求)
-                    // Ensure bytes_per_row is a multiple of 256 (wgpu requirement)
-                    let aligned_bytes_per_row_fog = (bytes_per_row_fog + 255) & !255;
+    // For each request in gpu_requests.requests:
+    // 1. Get the GpuImage for fog_texture_array and snapshot_texture_array.
+    // 2. Create a staging buffer (or get one from a pool) large enough for both textures.
+    //    staging_buffer_fog = render_device.create_buffer(&BufferDescriptor { ... usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ ... });
+    //    staging_buffer_snapshot = ...
+    // 3. Create a CommandEncoder.
+    // 4. command_encoder.copy_texture_to_buffer(
+    //        ImageCopyTexture { texture: &gpu_fog_image.texture, mip_level: 0, origin: Origin3d { x:0, y:0, z: req.fog_layer_index }, aspect: TextureAspect::All },
+    //        ImageCopyBuffer { buffer: &staging_buffer_fog, layout: { bytes_per_row, rows_per_image ... } },
+    //        texture_resolution_per_chunk,
+    //    );
+    //    (Similar for snapshot texture)
+    // 5. Submit command_encoder.
+    // 6. staging_buffer_fog.slice(..).map_async(MapMode::Read, move |result| {
+    //       if result.is_ok() {
+    //           // Get data from buffer view
+    //           // Send ChunkGpuDataReadyEvent { coords, fog_data, snapshot_data }
+    //           // Unmap buffer
+    //       }
+    //    });
+    // This is highly simplified. Managing async mapping and buffer states is complex.
+}
 
-                    render_queue.write_texture(
-                        TexelCopyTextureInfo {
-                            texture: &fog_gpu_image.texture,
-                            mip_level: 0,
-                            origin: Origin3d {
-                                x: 0,
-                                y: 0,
-                                z: request.fog_layer_index, // 目标层索引 / Target layer index
-                            },
-                            aspect: TextureAspect::All, // 通常是 All / Usually All
-                        },
-                        &request.fog_data, // 原始字节数据 / Raw byte data
-                        TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(aligned_bytes_per_row_fog),
-                            rows_per_image: Some(fog_map_settings.texture_resolution_per_chunk.y),
-                        },
-                        Extent3d {
-                            width: fog_map_settings.texture_resolution_per_chunk.x,
-                            height: fog_map_settings.texture_resolution_per_chunk.y,
-                            depth_or_array_layers: 1, // 只复制一个层 / Copying a single layer
-                        },
-                    );
-                    // info!(
-                    //     "Copied fog data for chunk {:?} to GPU layer {}",
-                    //     request.coords, request.fog_layer_index
-                    // );
-                }
-
-                // --- 复制快照数据 ---
-                // --- Copy Snapshot Data ---
-                if !request.snapshot_data.is_empty() {
-                    let bytes_per_pixel_snapshot = snapshot_gpu_image.texture_format.pixel_size(); // e.g., 4 for Rgba8UnormSrgb
-                    if bytes_per_pixel_snapshot == 0 {
-                        error!("Snapshot texture format pixel size is zero, cannot copy.");
-                        continue;
-                    }
-                    let bytes_per_row_snapshot = fog_map_settings.texture_resolution_per_chunk.x
-                        * bytes_per_pixel_snapshot as u32;
-                    // 确保 bytes_per_row 是 256 的倍数
-                    // Ensure bytes_per_row is a multiple of 256
-                    let aligned_bytes_per_row_snapshot = (bytes_per_row_snapshot + 255) & !255;
-
-                    render_queue.write_texture(
-                        TexelCopyTextureInfo {
-                            texture: &snapshot_gpu_image.texture,
-                            mip_level: 0,
-                            origin: Origin3d {
-                                x: 0,
-                                y: 0,
-                                z: request.snapshot_layer_index, // 目标层索引 / Target layer index
-                            },
-                            aspect: TextureAspect::All,
-                        },
-                        &request.snapshot_data,
-                        TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(aligned_bytes_per_row_snapshot),
-                            rows_per_image: Some(fog_map_settings.texture_resolution_per_chunk.y),
-                        },
-                        Extent3d {
-                            width: fog_map_settings.texture_resolution_per_chunk.x,
-                            height: fog_map_settings.texture_resolution_per_chunk.y,
-                            depth_or_array_layers: 1,
-                        },
-                    );
-                    // info!(
-                    //     "Copied snapshot data for chunk {:?} to GPU layer {}",
-                    //     request.coords, request.snapshot_layer_index
-                    // );
-                }
-            }
-        } else {
-            warn!("Fog texture and Snapshot texture not available");
-        }
-    } else {
-        // warn!("Texture array handles not yet available for CPU->GPU copy.");
-    }
-    cpu_to_gpu_requests.0.clear(); // 清除已处理的请求 / Clear processed requests
-
-    // --- 2. 处理 GPU -> CPU 的复制请求 (简化版 - 仅记录) ---
-    // --- 2. Process GPU -> CPU copy requests (Simplified - logging only) ---
-    // 实际实现需要暂存缓冲区和异步回读
-    // Actual implementation requires staging buffers and asynchronous readback
-    if !gpu_to_cpu_requests.0.is_empty() {
-        if let (Some(fog_handle_res), Some(snapshot_handle_res)) = (
-            fog_texture_array_handle.as_deref(),
-            snapshot_texture_array_handle.as_deref(),
-        ) {
-            if let (Some(fog_gpu_image), Some(snapshot_gpu_image)) = (
-                images.get(&fog_handle_res.0),
-                images.get(&snapshot_handle_res.0),
-            ) {
-                let mut command_encoder = render_device.create_command_encoder(&Default::default()); // 需要一个命令编码器 / Need a command encoder
-
-                for request in gpu_to_cpu_requests.0.iter() {
-                    // TODO: 实现 GPU -> CPU 的实际复制逻辑
-                    // This involves:
-                    // 1. Creating a staging buffer (BufferUsages::COPY_DST | BufferUsages::MAP_READ)
-                    //    with size matching the texture layer data.
-                    // 2. Using command_encoder.copy_texture_to_buffer(...) for fog texture.
-                    // 3. Using command_encoder.copy_texture_to_buffer(...) for snapshot texture.
-                    // 4. Submitting the command encoder via render_queue.submit(std::iter::once(command_encoder.finish())).
-                    // 5. In a LATER frame/system (after GPU has processed the copy):
-                    //    - Slicing the buffer (buffer.slice(..)).
-                    //    - Calling map_async(MapMode::Read, ...).
-                    //    - Polling render_device.poll(Maintain::Wait) or using a callback.
-                    //    - Once mapped, get_mapped_range() to get the data.
-                    //    - Send data back to MainWorld (e.g., via crossbeam-channel).
-                    //    - Unmap the buffer.
-                    //    - Free the staging buffer.
-
-                    // 简化版：仅打印日志
-                    // Simplified: Just log
-                    // info!(
-                    //     "GPU->CPU: Requested offload for chunk {:?} (Fog Layer: {}, Snapshot Layer: {}). Actual copy NOT YET IMPLEMENTED.",
-                    //     request.coords, request.fog_layer_index, request.snapshot_layer_index
-                    // );
-
-                    // 示例：为雾效纹理层创建复制命令 (未完成)
-                    // Example: Creating copy command for fog texture layer (incomplete)
-                    let fog_bytes_per_pixel = TextureFormat::R8Unorm.pixel_size();
-                    if fog_bytes_per_pixel > 0 {
-                        let fog_data_size = (fog_map_settings.texture_resolution_per_chunk.x
-                            * fog_map_settings.texture_resolution_per_chunk.y
-                            * fog_bytes_per_pixel as u32)
-                            as u64;
-
-                        // let staging_buffer_fog = render_device.create_buffer(&BufferDescriptor {
-                        //     label: Some(&format!("fog_staging_buffer_{:?}", request.coords)),
-                        //     size: fog_data_size,
-                        //     usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-                        //     mapped_at_creation: false,
-                        // });
-                        //
-                        // let bytes_per_row_fog = fog_map_settings.texture_resolution_per_chunk.x * fog_bytes_per_pixel as u32;
-                        // let aligned_bytes_per_row_fog = (bytes_per_row_fog + 255) & !255;
-                        //
-                        // command_encoder.copy_texture_to_buffer(
-                        //     ImageCopyTexture {
-                        //         texture: &fog_gpu_image.texture,
-                        //         mip_level: 0,
-                        //         origin: Origin3d { x: 0, y: 0, z: request.fog_layer_index },
-                        //         aspect: TextureAspect::All,
-                        //     },
-                        //     ImageCopyBuffer {
-                        //         buffer: &staging_buffer_fog,
-                        //         layout: ImageDataLayout {
-                        //             offset: 0,
-                        //             bytes_per_row: Some(aligned_bytes_per_row_fog),
-                        //             rows_per_image: Some(fog_map_settings.texture_resolution_per_chunk.y),
-                        //         },
-                        //     },
-                        //     Extent3d {
-                        //         width: fog_map_settings.texture_resolution_per_chunk.x,
-                        //         height: fog_map_settings.texture_resolution_per_chunk.y,
-                        //         depth_or_array_layers: 1,
-                        //     },
-                        // );
-                        // 在这里，你需要存储 staging_buffer_fog 和请求信息，以便稍后轮询和读取
-                        // Here you would need to store staging_buffer_fog and request info for later polling and reading
-                    }
-                    // 对快照纹理执行类似操作
-                    // Similar operation for snapshot texture
-                }
-                // 如果有命令被编码，则提交
-                // If any commands were encoded, submit them
-                // render_queue.submit(std::iter::once(command_encoder.finish()));
-            }
-        }
-        gpu_to_cpu_requests.0.clear(); // 清除已（尝试）处理的请求 / Clear (attempted) processed requests
-    }
+// System to handle CPU -> GPU copy requests
+pub fn process_cpu_to_gpu_copies(
+    render_queue: Res<RenderQueue>,
+    cpu_requests: Res<CpuToGpuCopyRequests>, // Extracted from MainWorld
+    fog_texture_array: Res<RenderFogTexture>, // Extracted handle
+    snapshot_texture_array: Res<RenderSnapshotTexture>, // Extracted handle
+    images: Res<RenderAssets<GpuImage>>,
+    settings: Res<RenderFogMapSettings>, // For texture_resolution_per_chunk
+    // mut main_world_events: EventWriter<ChunkCpuDataUploadedEvent>,
+) {
+    // For each request in cpu_requests.requests:
+    // 1. Get GpuImage for fog_texture_array and snapshot_texture_array.
+    // 2. render_queue.write_texture(
+    //        ImageCopyTexture { texture: &gpu_fog_image.texture, mip_level: 0, origin: Origin3d {x:0,y:0,z:req.fog_layer_index}, aspect: TextureAspect::All },
+    //        &req.fog_data,
+    //        ImageDataLayout { offset: 0, bytes_per_row: Some(...), rows_per_image: Some(...) },
+    //        Extent3d { width: settings.texture_resolution_per_chunk.x, height: settings.texture_resolution_per_chunk.y, depth_or_array_layers: 1 },
+    //    );
+    //    (Similar for snapshot texture)
+    // 3. Send ChunkCpuDataUploadedEvent { coords: req.chunk_coords }
+    //    (This event is sent optimistically; the write is queued but not guaranteed complete yet by the GPU.
+    //     For stricter guarantees, more complex GPU synchronization is needed.)
 }

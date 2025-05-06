@@ -3,6 +3,7 @@ use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
+use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 
 mod chunk;
@@ -24,7 +25,7 @@ enum FogSystemSet {
     ManageEntities,
     /// Handle CPU <-> GPU memory transfer logic
     /// 处理 CPU <-> GPU 内存传输逻辑
-    ManageMemory,
+    PrepareTransfers,
 }
 
 pub struct FogOfWarPlugin;
@@ -44,24 +45,30 @@ impl Plugin for FogOfWarPlugin {
             .register_type::<ChunkStateCache>()
             .register_type::<TextureArrayManager>()
             .register_type::<CpuChunkStorage>()
-            .register_type::<GpuToCpuCopyQueue>()
-            .register_type::<CpuToGpuCopyQueue>()
+            .register_type::<GpuToCpuCopyRequests>()
+            .register_type::<CpuToGpuCopyRequests>()
             .register_type::<MainWorldSnapshotRequestQueue>();
 
         app.init_resource::<FogMapSettings>()
             .init_resource::<ChunkEntityManager>()
             .init_resource::<ChunkStateCache>()
-            .init_resource::<GpuToCpuCopyQueue>()
-            .init_resource::<CpuToGpuCopyQueue>()
+            .init_resource::<GpuToCpuCopyRequests>()
+            .init_resource::<CpuToGpuCopyRequests>()
             .init_resource::<MainWorldSnapshotRequestQueue>()
             .init_resource::<CpuChunkStorage>();
+
+        app.add_event::<ChunkGpuDataReadyEvent>()
+            .add_event::<ChunkCpuDataUploadedEvent>();
+
+        app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
+            .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default());
 
         app.configure_sets(
             Update,
             (
                 FogSystemSet::UpdateChunkState,
                 FogSystemSet::ManageEntities,
-                FogSystemSet::ManageMemory,
+                FogSystemSet::PrepareTransfers,
             )
                 .chain(), // Ensure they run in this order / 确保它们按此顺序运行
         );
@@ -84,6 +91,11 @@ impl Plugin for FogOfWarPlugin {
         app.add_systems(
             Update,
             manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
+        );
+
+        app.add_systems(
+            Update,
+            (manage_chunk_texture_transfer).in_set(FogSystemSet::PrepareTransfers),
         );
 
         app.add_plugins(FogOfWarRenderPlugin);
@@ -168,15 +180,9 @@ fn setup_fog_resources(
 
 /// Clears caches that are rebuilt each frame.
 /// 清除每帧重建的缓存。
-fn clear_per_frame_caches(
-    mut cache: ResMut<ChunkStateCache>,
-    mut gpu_to_cpu_copy_queue: ResMut<GpuToCpuCopyQueue>,
-    mut cpu_to_gpu_copy_queue: ResMut<CpuToGpuCopyQueue>
-) {
+fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
     cache.visible_chunks.clear();
     cache.camera_view_chunks.clear();
-    gpu_to_cpu_copy_queue.clear();
-    cpu_to_gpu_copy_queue.clear();
 }
 
 /// Updates visible and explored chunk sets based on VisionSource positions.
@@ -447,4 +453,218 @@ fn circle_intersects_rect(
     // If the distance is less than or equal to the radius, they intersect
     // 如果距离小于等于半径，则相交
     (dx * dx + dy * dy) <= range_sq
+}
+
+/// 管理区块纹理数据在 CPU 和 GPU 之间的传输。
+/// Manages the transfer of chunk texture data between CPU and GPU.
+#[allow(clippy::too_many_arguments)]
+pub fn manage_chunk_texture_transfer(
+    mut commands: Commands,
+    settings: Res<FogMapSettings>,
+    mut chunk_query: Query<(Entity, &mut FogChunk)>,
+    chunk_cache: Res<ChunkStateCache>, // 用于决定哪些区块应该在GPU上
+    // Used to decide which chunks should be on GPU
+    mut texture_manager: ResMut<TextureArrayManager>,
+    mut cpu_storage: ResMut<CpuChunkStorage>,
+    mut gpu_to_cpu_requests: ResMut<GpuToCpuCopyRequests>,
+    mut cpu_to_gpu_requests: ResMut<CpuToGpuCopyRequests>,
+    mut gpu_data_ready_reader: EventReader<ChunkGpuDataReadyEvent>,
+    mut cpu_data_uploaded_reader: EventReader<ChunkCpuDataUploadedEvent>,
+) {
+    // --- 1. 处理来自 RenderApp 的事件 ---
+    // --- 1. Process events from RenderApp ---
+
+    for event in gpu_data_ready_reader.read() {
+        if let Some((_entity, mut chunk)) = chunk_query
+            .iter_mut()
+            .find(|(_, c)| c.coords == event.chunk_coords)
+        {
+            if chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToCpu {
+                info!(
+                    "Chunk {:?}: GPU->CPU copy complete. Storing in CPU.",
+                    event.chunk_coords
+                );
+                cpu_storage.storage.insert(
+                    event.chunk_coords,
+                    (event.fog_data.clone(), event.snapshot_data.clone()),
+                );
+
+                // 释放 TextureArray 层索引
+                // Free TextureArray layer indices
+                texture_manager
+                    .free_layer_indices(chunk.fog_layer_index, chunk.snapshot_layer_index);
+                // 将索引设为无效，以防意外使用
+                // Set indices to invalid to prevent accidental use
+                // chunk.fog_layer_index = u32::MAX; // Or Option<u32>::None if you change FogChunk
+                // chunk.snapshot_layer_index = u32::MAX;
+
+                chunk.state.memory_location = ChunkMemoryLocation::Cpu;
+            } else {
+                warn!(
+                    "Chunk {:?}: Received GpuDataReadyEvent but state is {:?}, expected PendingCopyToCpu.",
+                    event.chunk_coords, chunk.state.memory_location
+                );
+            }
+        } else {
+            warn!(
+                "Received GpuDataReadyEvent for unknown chunk: {:?}",
+                event.chunk_coords
+            );
+        }
+    }
+
+    for event in cpu_data_uploaded_reader.read() {
+        if let Some((_entity, mut chunk)) = chunk_query
+            .iter_mut()
+            .find(|(_, c)| c.coords == event.chunk_coords)
+        {
+            if chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu {
+                info!(
+                    "Chunk {:?}: CPU->GPU upload complete. Now resident on GPU.",
+                    event.chunk_coords
+                );
+                chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+                // chunk_cache.gpu_resident_chunks is typically updated by manage_chunk_entities
+                // or a dedicated system that reacts to FogChunk state changes.
+                // Let's assume another system handles adding to gpu_resident_chunks in the cache
+                // based on the Gpu state. Or, we could do it here if careful about consistency.
+            } else {
+                warn!(
+                    "Chunk {:?}: Received CpuDataUploadedEvent but state is {:?}, expected PendingCopyToGpu.",
+                    event.chunk_coords, chunk.state.memory_location
+                );
+            }
+        } else {
+            warn!(
+                "Received CpuDataUploadedEvent for unknown chunk: {:?}",
+                event.chunk_coords
+            );
+        }
+    }
+
+    // 清空本帧的请求队列，因为它们将被重新评估
+    // Clear this frame's request queues as they will be re-evaluated
+    gpu_to_cpu_requests.requests.clear();
+    cpu_to_gpu_requests.requests.clear();
+
+    // --- 2. 决定哪些区块应该在 GPU 上 ---
+    // --- 2. Decide which chunks should be on GPU ---
+    let mut target_gpu_chunks = HashSet::new();
+    // 可见区块必须在 GPU
+    // Visible chunks must be on GPU
+    for &coords in &chunk_cache.visible_chunks {
+        target_gpu_chunks.insert(coords);
+    }
+    // 在相机视野内且已探索的区块也应该在 GPU
+    // Explored chunks within camera view should also be on GPU
+    for &coords in &chunk_cache.camera_view_chunks {
+        if chunk_cache.explored_chunks.contains(&coords) {
+            target_gpu_chunks.insert(coords);
+        }
+    }
+    // 你可能还想为 target_gpu_chunks 周围添加一个缓冲区
+    // You might also want to add a buffer zone around target_gpu_chunks
+
+    // --- 3. 遍历所有区块，确定是否需要传输 ---
+    // --- 3. Iterate all chunks to determine if transfer is needed ---
+    for (entity, mut chunk) in chunk_query.iter_mut() {
+        let should_be_on_gpu = target_gpu_chunks.contains(&chunk.coords);
+
+        match chunk.state.memory_location {
+            ChunkMemoryLocation::Gpu => {
+                if !should_be_on_gpu && chunk.state.visibility == ChunkVisibility::Explored {
+                    // 条件：在 GPU 上，但不再需要，并且是已探索状态 (值得保存)
+                    // Condition: On GPU, but no longer needed, and is Explored (worth saving)
+                    info!(
+                        "Chunk {:?}: Requesting GPU -> CPU transfer (is Explored, not in target GPU set).",
+                        chunk.coords
+                    );
+                    chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToCpu;
+                    gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
+                        chunk_coords: chunk.coords,
+                        fog_layer_index: chunk.fog_layer_index,
+                        snapshot_layer_index: chunk.snapshot_layer_index,
+                    });
+                } else if !should_be_on_gpu && chunk.state.visibility == ChunkVisibility::Unexplored
+                {
+                    // 条件：在 GPU 上，但不再需要，并且是未探索状态 (不需要保存，直接释放)
+                    // Condition: On GPU, but no longer needed, and is Unexplored (no need to save, just free)
+                    // 这种情况通常由 manage_chunk_entities 通过销毁实体来处理
+                    // This case is usually handled by manage_chunk_entities by despawning the entity
+                    // 如果实体仍然存在，我们在这里释放层
+                    // If entity still exists, we free layers here
+                    info!(
+                        "Chunk {:?}: Unexplored and no longer target for GPU. Freeing layers.",
+                        chunk.coords
+                    );
+                    texture_manager
+                        .free_layer_indices(chunk.fog_layer_index, chunk.snapshot_layer_index);
+                    // 考虑直接销毁此实体或标记以便 manage_chunk_entities 处理
+                    // Consider despawning this entity directly or marking it for manage_chunk_entities
+                    chunk.state.memory_location = ChunkMemoryLocation::Cpu; // Or a new "Freed" state
+                    commands.entity(entity).remove::<FogChunk>(); // Example: Despawn
+                    // Note: this requires removing from ChunkEntityManager too
+                }
+            }
+            ChunkMemoryLocation::Cpu => {
+                if should_be_on_gpu {
+                    // 条件：在 CPU 上，但现在需要上 GPU
+                    // Condition: On CPU, but now needed on GPU
+                    if let Some((fog_data, snapshot_data)) = cpu_storage.storage.get(&chunk.coords)
+                    {
+                        if let Some((fog_idx, snap_idx)) =
+                            texture_manager.allocate_layer_indices(chunk.coords)
+                        {
+                            info!(
+                                "Chunk {:?}: Requesting CPU -> GPU transfer. Layers: F{}, S{}",
+                                chunk.coords, fog_idx, snap_idx
+                            );
+                            chunk.fog_layer_index = fog_idx;
+                            chunk.snapshot_layer_index = snap_idx;
+                            chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToGpu;
+                            cpu_to_gpu_requests.requests.push(CpuToGpuCopyRequest {
+                                chunk_coords: chunk.coords,
+                                fog_layer_index: fog_idx,
+                                snapshot_layer_index: snap_idx,
+                                fog_data: fog_data.clone(), // TODO: Avoid clone if possible, maybe Rc or Arc? Or transfer ownership.
+                                snapshot_data: snapshot_data.clone(),
+                            });
+                            // 从 CPU 存储中移除，因为它正在被上传
+                            // Remove from CPU storage as it's being uploaded
+                            // (可选：可以等到 ChunkCpuDataUploadedEvent 再移除，以防上传失败)
+                            // (Optional: can wait for ChunkCpuDataUploadedEvent before removing, in case upload fails)
+                            cpu_storage.storage.remove(&chunk.coords);
+                        } else {
+                            warn!(
+                                "Chunk {:?}: Wanted to move CPU -> GPU, but no free texture layers!",
+                                chunk.coords
+                            );
+                        }
+                    } else {
+                        // 在 CPU 存储中没有数据，但被认为是 Cpu 状态。这可能是一个错误，
+                        // 或者它是一个新创建的区块，其初始状态被设为 Cpu，并且应该通过其他逻辑变为 Unexplored/Gpu。
+                        // No data in CPU storage, but considered Cpu state. This might be an error,
+                        // or it's a newly created chunk whose initial state was set to Cpu and should become Unexplored/Gpu via other logic.
+                        // 这种情况更可能由 manage_chunk_entities 处理：如果区块需要且不在CPU，则作为新区块创建在GPU。
+                        // This scenario is more likely handled by manage_chunk_entities: if chunk is needed and not on CPU, create as new on GPU.
+                        warn!(
+                            "Chunk {:?}: Is Cpu state but no data in CpuChunkStorage. This might be an issue or needs creation logic.",
+                            chunk.coords
+                        );
+                        // 可能是 manage_chunk_entities 应该创建一个全新的区块在 GPU 上
+                        // Potentially, manage_chunk_entities should create a brand new chunk on GPU.
+                        // For now, we'll assume manage_chunk_entities handles new chunk creation on GPU if no CPU data exists.
+                    }
+                }
+            }
+            ChunkMemoryLocation::PendingCopyToCpu | ChunkMemoryLocation::PendingCopyToGpu => {
+                // 正在传输中，等待事件
+                // In transit, waiting for event
+            }
+        }
+    }
+    // TODO: 更新 ChunkStateCache.gpu_resident_chunks
+    //       这可以在一个单独的系统或这里完成，通过迭代所有 chunk_query 并检查其最终的 memory_location
+    // TODO: Update ChunkStateCache.gpu_resident_chunks
+    //       This can be done in a separate system or here by iterating all chunk_query and checking their final memory_location
 }

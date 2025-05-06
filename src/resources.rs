@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use crate::prelude::*;
 use bevy::color::palettes::basic;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::TextureFormat;
+use std::sync::Arc;
 
 /// 快速查找区块坐标对应的 FogChunk 实体
 /// Resource for quickly looking up FogChunk entities by their coordinates
@@ -180,8 +180,8 @@ impl Default for FogMapSettings {
             chunk_size: UVec2::splat(256),
             texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
             fog_color_unexplored: Color::BLACK,
-            fog_color_explored: basic::GRAY.into(), 
-            vision_clear_color: Color::NONE,        
+            fog_color_explored: basic::GRAY.into(),
+            vision_clear_color: Color::NONE,
             // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
             // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
             fog_texture_format: TextureFormat::R8Unorm,
@@ -191,41 +191,68 @@ impl Default for FogMapSettings {
     }
 }
 
-// In prelude.rs or a new snapshot_mod.rs
+/// Information for a single snapshot request, generated in the main world.
+/// 单个快照请求的信息，在主世界中生成。
 #[derive(Debug, Clone, Reflect)]
-pub struct SnapshotRequestInfo {
+pub struct MainWorldSnapshotRequest {
     pub chunk_coords: IVec2,
     pub snapshot_layer_index: u32,
-    pub world_bounds: Rect, // For culling entities during snapshot render
+    pub world_bounds: Rect,
 }
 
-#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
+/// Resource in the main world to queue chunks that need a snapshot.
+/// 主世界中的资源，用于对需要快照的区块进行排队。
+#[derive(Resource, Debug, Clone, Default, Reflect)]
 #[reflect(Resource, Default)]
-pub struct MainWorldSnapshotRequestQueue(pub Vec<SnapshotRequestInfo>);
+pub struct MainWorldSnapshotRequestQueue {
+    pub requests: Vec<MainWorldSnapshotRequest>,
+}
+
+/// 由主世界填充，请求渲染世界将 GPU 纹理数据复制到 CPU。
+/// Populated by the main world to request the render world to copy GPU texture data to CPU.
+#[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
+#[reflect(Resource, Default)]
+pub struct GpuToCpuCopyRequests {
+    pub requests: Vec<GpuToCpuCopyRequest>,
+}
 
 #[derive(Debug, Clone, Reflect)]
-pub struct ChunkOffloadRequest {
-    pub coords: IVec2,
+pub struct GpuToCpuCopyRequest {
+    pub chunk_coords: IVec2,
     pub fog_layer_index: u32,
     pub snapshot_layer_index: u32,
+    // Staging buffer index or some identifier if RenderApp uses a pool
+    // 如果 RenderApp 使用池，则为暂存缓冲区索引或某种标识符
+}
+/// 由主世界填充，请求渲染世界将 CPU 纹理数据上传到 GPU。
+/// Populated by the main world to request the render world to upload CPU texture data to GPU.
+#[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
+#[reflect(Resource, Default)]
+pub struct CpuToGpuCopyRequests {
+    pub requests: Vec<CpuToGpuCopyRequest>,
 }
 
-#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
-#[reflect(Resource, Default)]
-pub struct GpuToCpuCopyQueue(pub Vec<ChunkOffloadRequest>);
-
-
-#[derive(Debug, Clone , Reflect)]
-pub struct ChunkReloadRequest {
-    pub coords: IVec2,
+#[derive(Debug, Clone, Reflect)]
+pub struct CpuToGpuCopyRequest {
+    pub chunk_coords: IVec2,
     pub fog_layer_index: u32,
     pub snapshot_layer_index: u32,
-    // Using Arc to avoid cloning large Vec<u8> if the resource is accessed multiple times
-    // before actual processing. Or just Vec<u8> if ownership is clear.
-    pub fog_data: Arc<Vec<u8>>,
-    pub snapshot_data: Arc<Vec<u8>>,
+    pub fog_data: Vec<u8>,      // Raw texture data for fog / 雾效的原始纹理数据
+    pub snapshot_data: Vec<u8>, // Raw texture data for snapshot / 快照的原始纹理数据
 }
 
-#[derive(Resource, Debug, Clone, Default, Reflect, Deref, DerefMut)]
-#[reflect(Resource, Default)]
-pub struct CpuToGpuCopyQueue(pub Vec<ChunkReloadRequest>);
+/// 事件：当 GPU 数据成功复制到 CPU 并可供主世界使用时，由 RenderApp 发送。
+/// Event: Sent by RenderApp when GPU data has been successfully copied to CPU and is available to the main world.
+#[derive(Event, Debug)]
+pub struct ChunkGpuDataReadyEvent {
+    pub chunk_coords: IVec2,
+    pub fog_data: Vec<u8>,
+    pub snapshot_data: Vec<u8>,
+}
+
+/// 事件：当 CPU 数据成功上传到 GPU 时，由 RenderApp 发送。
+/// Event: Sent by RenderApp when CPU data has been successfully uploaded to GPU.
+#[derive(Event, Debug)]
+pub struct ChunkCpuDataUploadedEvent {
+    pub chunk_coords: IVec2,
+}
