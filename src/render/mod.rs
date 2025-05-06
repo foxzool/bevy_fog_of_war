@@ -110,27 +110,11 @@ impl Plugin for FogOfWarRenderPlugin {
         render_app.add_render_graph_edges(
             Core2d,
             (
-                // Run compute shader after buffer preparation / 在缓冲区准备后运行 compute shader
-                Node2d::StartMainPass, // Or a PrepareNode if more fine-grained control needed / 或 PrepareNode 如果需要更细粒度控制
+                Node2d::MainTransparentPass,
                 compute::FogComputeNodeLabel,
-                // Run snapshotting after compute (fog state might influence snapshot?) or in parallel
-                // 在计算后运行快照 (雾状态可能影响快照?) 或并行运行
-                // If snapshot needs main pass depth, it runs after StartMainPass too
-                // 如果快照需要主通道深度，它也在 StartMainPass 之后运行
-                // Node2d::StartMainPass,
                 // snapshot::SnapshotNodeLabel,
-                // Run overlay after compute, snapshot, and the main 2D pass
-                // 在计算、快照和主 2D 通道之后运行覆盖
-                // compute::FogComputeNodeLabel,
                 overlay::FogOverlayNodeLabel,
-                // snapshot::SnapshotNodeLabel,
-                // overlay::FogOverlayNodeLabel,
-                // Node2d::EndMainPass, // Ensure main pass finishes before overlay / 确保主通道在覆盖之前完成
-                // overlay::FogOverlayNodeLabel,
-                // Connect overlay node to the end of the 2D graph (before UI)
-                // 将覆盖节点连接到 2D 图的末尾 (在 UI 之前)
-                // overlay::FogOverlayNodeLabel,
-                Node2d::EndMainPass, // Or directly to Tonemapping if needed / 或直接到 Tonemapping 如果需要
+                Node2d::EndMainPass,
             ),
         );
     }

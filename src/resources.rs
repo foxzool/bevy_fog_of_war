@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use bevy::color::palettes::basic;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::TextureFormat;
@@ -178,8 +179,8 @@ impl Default for FogMapSettings {
             chunk_size: UVec2::splat(256),
             texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
             fog_color_unexplored: Color::BLACK,
-            fog_color_explored: Color::srgba(0.0, 0.0, 0.0, 0.6), // 半透明黑色 / Semi-transparent black
-            vision_clear_color: Color::NONE,                      // 完全透明 / Fully transparent
+            fog_color_explored: basic::GRAY.into(), 
+            vision_clear_color: Color::NONE,        
             // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
             // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
             fog_texture_format: TextureFormat::R8Unorm,

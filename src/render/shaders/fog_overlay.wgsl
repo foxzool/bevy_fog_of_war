@@ -35,7 +35,7 @@ struct FogMapSettings {
 // Constants for fog thresholds / 雾阈值常量
 const VISIBLE_THRESHOLD: f32 = 0.1; // Allow slight fog in visible areas / 允许可见区域有轻微雾效
 const EXPLORED_THRESHOLD: f32 = 0.6; // Threshold between explored and unexplored / 已探索和未探索之间的阈值
-const EXPLORED_FOG_INTENSITY: f32 = 0.7; // How much to blend explored fog color / 混合多少已探索雾颜色
+const EXPLORED_FOG_INTENSITY: f32 = 1.0; // How much to blend explored fog color / 混合多少已探索雾颜色
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {

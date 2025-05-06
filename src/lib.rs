@@ -1,9 +1,9 @@
 use self::prelude::*;
+use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
-use crate::render::FogOfWarRenderPlugin;
 
 mod chunk;
 mod components;
@@ -25,9 +25,6 @@ enum FogSystemSet {
     /// Handle CPU <-> GPU memory transfer logic
     /// 处理 CPU <-> GPU 内存传输逻辑
     ManageMemory,
-    /// Prepare data for GPU processing (runs before Render Graph execution)
-    /// 为 GPU 处理准备数据 (在 Render Graph 执行前运行)
-    PrepareGpuData,
 }
 
 pub struct FogOfWarPlugin;
@@ -73,7 +70,8 @@ impl Plugin for FogOfWarPlugin {
                 update_chunk_visibility,
                 update_camera_view_chunks,
                 update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
-            ).chain()
+            )
+                .chain()
                 .in_set(FogSystemSet::UpdateChunkState),
         );
 
@@ -81,7 +79,7 @@ impl Plugin for FogOfWarPlugin {
             Update,
             manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
         );
-        
+
         app.add_plugins(FogOfWarRenderPlugin);
 
         // app.add_plugins(ChunkManagerPlugin)
@@ -331,7 +329,7 @@ fn manage_chunk_entities(
         if let Some(entity) = chunk_manager.map.get(&coords) {
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
-            if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
+            if let Ok(chunk) = chunk_q.get_mut(*entity) {
                 if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
                     // Mark for transition to GPU
                     // 标记以转换到 GPU
