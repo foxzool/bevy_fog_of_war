@@ -76,12 +76,12 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_cpu_to_gpu_copy_requests,
                 ),
             )
-            // .add_systems(
-            //     Render,
-            //     prepare::process_texture_copies
-            //         .in_set(RenderSet::Prepare) // Before PrepareBindGroups
-            //         .before(RenderSet::PrepareBindGroups), // Explicit ordering
-            // )
+            .add_systems(
+                Render,
+                prepare::process_texture_copies
+                    .in_set(RenderSet::Prepare) // Before PrepareBindGroups
+                    .before(RenderSet::PrepareBindGroups), // Explicit ordering
+            )
             // Prepare systems (Create/Update GPU buffers and bind groups) / 准备系统 (创建/更新 GPU 缓冲区和绑定组)
             .add_systems(
                 Render,
@@ -122,7 +122,7 @@ impl Plugin for FogOfWarRenderPlugin {
             Core2d,
             (
                 Node2d::MainTransparentPass,
-                snapshot::SnapshotNodeLabel,
+                // snapshot::SnapshotNodeLabel,
                 compute::FogComputeNodeLabel,
                 overlay::FogOverlayNodeLabel,
                 Node2d::EndMainPass,
