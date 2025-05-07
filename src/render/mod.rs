@@ -11,6 +11,7 @@ mod compute;
 mod extract;
 mod overlay;
 mod prepare;
+mod transfer;
 mod snapshot; // Contains snapshot node and related logic / 包含快照节点和相关逻辑
 
 // Re-export relevant items / 重新导出相关项
@@ -78,8 +79,8 @@ impl Plugin for FogOfWarRenderPlugin {
             .add_systems(
                 Render,
                 (
-                    prepare::process_gpu_to_cpu_copies,
-                    prepare::process_cpu_to_gpu_copies,
+                    transfer::process_gpu_to_cpu_copies,
+                    transfer::process_cpu_to_gpu_copies,
                 )
                     .chain()
                     .in_set(RenderSet::Prepare), // Before PrepareBindGroups
