@@ -10,6 +10,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
 #[repr(C)]
 pub struct RenderFogMapSettings {
+
     /// 每个区块的大小 (世界单位)
     /// Size of each chunk (in world units)
     pub chunk_size: UVec2,
@@ -25,9 +26,8 @@ pub struct RenderFogMapSettings {
     /// 视野完全清晰区域的"颜色"（通常用于混合或阈值，可能完全透明）
     /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
     pub vision_clear_color: Vec4,
-    /// Padding to ensure 16-byte alignment
-    /// 填充以确保 16 字节对齐
-    pub _padding: [u32; 4],
+    pub enabled: u32, // 0 for false, 1 for true
+    pub _padding1: [u32; 3],
 }
 
 #[derive(Resource, Debug, Clone, Default)]
@@ -90,19 +90,18 @@ pub struct SnapshotRequest {
     pub chunk_coords: IVec2, // Needed for filtering entities / 用于过滤实体
 }
 
-
-
 // --- Extraction Systems ---
 // --- 提取系统 ---
 
 pub fn extract_fog_settings(mut commands: Commands, settings: Extract<Res<FogMapSettings>>) {
     commands.insert_resource(RenderFogMapSettings {
+        enabled: settings.enabled as u32,
         chunk_size: settings.chunk_size,
         texture_resolution_per_chunk: settings.texture_resolution_per_chunk,
         fog_color_unexplored: settings.fog_color_unexplored.to_linear().to_vec4(),
         fog_color_explored: settings.fog_color_explored.to_linear().to_vec4(),
         vision_clear_color: settings.vision_clear_color.to_linear().to_vec4(),
-        _padding: [0; 4],
+        _padding1: [0; 3],
     });
 }
 

@@ -27,10 +27,10 @@ struct FogMapSettings {
     fog_color_unexplored: vec4<f32>, // Assuming Color -> vec4 / 假设 Color -> vec4
     fog_color_explored: vec4<f32>,
     vision_clear_color: vec4<f32>,
+    enabled: u32,
     // Add texture formats if needed by logic, otherwise padding might be needed
     // 如果逻辑需要，添加纹理格式，否则可能需要填充
     // Example padding for alignment / 对齐填充示例
-     _padding1: u32,
      _padding2: u32,
      _padding3: u32,
      _padding4: u32,
@@ -48,6 +48,9 @@ const FOG_UNEXPLORED: f32 = 1.0;
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>, // x, y pixel within texture, z chunk index / 纹理内的 x, y 像素, z 区块索引
 ) {
+    if (settings.enabled == 0u) {
+        return;
+    }
     let texture_dims = textureDimensions(fog_texture); // Get dimensions (width, height, layers) / 获取维度 (宽, 高, 层数)
     let chunk_index = global_id.z;
 

@@ -151,6 +151,9 @@ impl TextureArrayManager {
 /// Global settings for the fog of war map
 #[derive(Resource, ExtractResource, Clone, Debug)]
 pub struct FogMapSettings {
+    /// 是否启用战争迷雾系统
+    /// Whether the fog of war system is enabled
+    pub enabled: bool,
     /// 每个区块的大小 (世界单位)
     /// Size of each chunk (in world units)
     pub chunk_size: UVec2,
@@ -177,6 +180,7 @@ pub struct FogMapSettings {
 impl Default for FogMapSettings {
     fn default() -> Self {
         Self {
+            enabled: true,
             chunk_size: UVec2::splat(256),
             texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
             fog_color_unexplored: Color::BLACK,
@@ -188,6 +192,15 @@ impl Default for FogMapSettings {
             // 快照需要颜色和透明度 / Snapshots need color and alpha
             snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
         }
+    }
+}
+
+impl FogMapSettings {
+    pub fn chunk_coord_to_world(&self, chunk_coord: ChunkCoord) -> Vec2 {
+        Vec2::new(
+            chunk_coord.x as f32 * self.chunk_size.x as f32,
+            chunk_coord.y as f32 * self.chunk_size.y as f32,
+        )
     }
 }
 

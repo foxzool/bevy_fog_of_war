@@ -4,6 +4,7 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
+use bevy::color::palettes::basic::GREEN;
 // use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_fog_of_war::prelude::*;
@@ -13,20 +14,11 @@ use bevy_fog_of_war::prelude::*;
 #[derive(Resource, Default)]
 struct TargetPosition(Option<Vec3>);
 
-/// 迷雾调试设置资源
-/// Fog debug settings resource
-#[derive(Resource)]
-struct FogDebugSettings {
-    enabled: bool,
-}
 
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(TargetPosition(None))
-        // 初始化迷雾调试设置，默认启用
-        // Initialize fog debug settings, enabled by default
-        .insert_resource(FogDebugSettings { enabled: true })
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -57,7 +49,7 @@ fn main() {
                 update_fog_settings,
                 update_fps_text,
                 movable_vision_control,
-                // debug_draw_chunks,
+                debug_draw_chunks,
                 horizontal_movement_system,
             ),
         )
@@ -290,11 +282,10 @@ fn update_fog_settings(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut fog_settings: ResMut<FogMapSettings>,
-    mut fog_debug_settings: ResMut<FogDebugSettings>,
     mut settings_text_query: Query<&mut Text, With<FogSettingsText>>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyF) {
-        fog_debug_settings.enabled = !fog_debug_settings.enabled;
+        fog_settings.enabled = !fog_settings.enabled;
     }
 
     // 更新雾颜色透明度
@@ -314,7 +305,7 @@ fn update_fog_settings(
     // Update UI text
     if let Ok(mut text) = settings_text_query.single_mut() {
         let alpha_percentage = fog_settings.fog_color_unexplored.alpha() * 100.0;
-        let status = if fog_debug_settings.enabled {
+        let status = if fog_settings.enabled {
             "Enabled"
         } else {
             "Disabled"
@@ -551,6 +542,82 @@ fn horizontal_movement_system(
         } else if transform.translation.x <= left_bound {
             transform.translation.x = left_bound; // 防止超出边界 / Prevent exceeding boundary
             mover.direction = 1.0; // 向右移动 / Move right
+        }
+    }
+}
+
+
+/// 在屏幕上绘制区块边界和状态的调试信息
+/// System to draw chunk boundaries and status for debugging
+fn debug_draw_chunks(
+    mut gizmos: Gizmos,
+    mut chunk_query: Query<(
+        Entity,
+        &FogChunk,
+        Option<&mut Text2d>,
+    )>,
+    cache: ResMut<ChunkStateCache>,
+    fog_settings: Res<FogMapSettings>, // Access ChunkManager for tile_size
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut debug_text_query: Query<&mut Text, With<FogSettingsText>>,
+) {
+    // 计算所有chunk数量和视野内的chunk数量
+    // Calculate total chunk count and chunks in vision
+    let total_chunks = chunk_query.iter().count();
+    let chunks_in_vision = cache.camera_view_chunks.len();
+
+    // 更新调试文本以显示chunk数量
+    // Update debug text to show chunk counts
+    if let Ok(mut text) = debug_text_query.single_mut() {
+        let current_text = text.0.clone();
+        text.0 = format!(
+            "{current_text}\nTotal Chunks: {total_chunks}\nChunks in Vision: {chunks_in_vision}"
+        );
+    }
+
+    if !fog_settings.enabled {
+        for (chunk_entity, chunk, opt_text) in chunk_query.iter_mut() {
+            // Draw chunk boundary rectangle
+            gizmos.rect_2d(
+                chunk.world_bounds.center(),
+                chunk.world_bounds.size(),
+                if chunk.loaded {
+                    GREEN.with_alpha(0.3) // Green for loaded chunks
+                } else {
+                    RED.with_alpha(0.3) // Red for potentially unloaded (though usually despawned)
+                },
+            );
+            if let Some(mut text) = opt_text {
+                text.0 = format!(
+                    "sid: {:?}\nlid: {:?}\n({}, {})",
+                    chunk.screen_index, chunk.layer_index, chunk.coords.x, chunk.coords.y
+                );
+            } else {
+                let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+                let text_font = TextFont {
+                    font: font.clone(),
+                    font_size: 13.0,
+                    ..default()
+                };
+                let pos = fog_settings.chunk_coord_to_world(chunk.coords)
+                    + chunk.world_bounds.size() * 0.5;
+
+                // Draw chunk unique_id and coordinate text
+                // 显示区块 unique_id 和坐标的文本
+                commands.entity(chunk_entity).insert((
+                    Text2d::new(format!(
+                        "sid: {:?}\nlid: {:?}\n({}, {})",
+                        chunk.screen_index,
+                        chunk.layer_index,
+                        chunk.coords.x,
+                        chunk.coords.y
+                    )),
+                    text_font,
+                    TextColor(RED.into()),
+                    Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
+                ));
+            }
         }
     }
 }

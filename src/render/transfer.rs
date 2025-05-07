@@ -42,7 +42,7 @@ pub fn process_cpu_to_gpu_copies(
     let snapshot_format = snapshot_gpu_image.texture_format; // Should match settings.snapshot_texture_format
 
     for request in &cpu_upload_requests.requests {
-        println!("cpu to gpu {:?}", request);
+        println!("cpu to gpu {:?}", request.fog_layer_index);
         // --- 上传雾效纹理数据 ---
         // --- Upload Fog Texture Data ---
         if !request.fog_data.is_empty() {

@@ -18,7 +18,7 @@ struct FogMapSettings {
     fog_color_unexplored: vec4<f32>,
     fog_color_explored: vec4<f32>,
     vision_clear_color: vec4<f32>, // Often transparent / 通常是透明的
-     _padding1: u32,
+    enabled: u32,
      _padding2: u32,
      _padding3: u32,
      _padding4: u32,
@@ -39,6 +39,9 @@ const EXPLORED_FOG_INTENSITY: f32 = 1.0; // How much to blend explored fog color
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    if (settings.enabled == 0u) {
+       return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
     let uv = in.uv;
     // Use helper functions to convert UV to world position
     let ndc = uv_to_ndc(uv);
