@@ -1,48 +1,18 @@
 use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
 use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
+use async_channel::{Receiver, Sender};
+use bevy::platform::collections::HashMap;
 use bevy::render::MainWorld;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::{
-    Extent3d, Origin3d, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureFormat,
+    Buffer, BufferDescriptor, BufferUsages, CommandEncoder, CommandEncoderDescriptor, Extent3d,
+    MapMode, Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureFormat,
 };
-use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
 use bevy::render::texture::GpuImage;
 
-// System to handle GPU -> CPU copy requests
-pub fn process_gpu_to_cpu_copies(
-    // world: &mut World, // If using exclusive system
-    render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>, // Not directly for copy_texture_to_buffer, but for map_buffer
-    gpu_requests: Res<GpuToCpuCopyRequests>, // Extracted from MainWorld
-    fog_texture_array: Res<RenderFogTexture>, // Extracted handle
-    snapshot_texture_array: Res<RenderSnapshotTexture>, // Extracted handle
-    images: Res<RenderAssets<GpuImage>>,
-    // mut main_world_events: EventWriter<ChunkGpuDataReadyEvent>, // To send data back
-    // You'll need a way to manage staging buffers and their mapping state
-) {
-    // For each request in gpu_requests.requests:
-    // 1. Get the GpuImage for fog_texture_array and snapshot_texture_array.
-    // 2. Create a staging buffer (or get one from a pool) large enough for both textures.
-    //    staging_buffer_fog = render_device.create_buffer(&BufferDescriptor { ... usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ ... });
-    //    staging_buffer_snapshot = ...
-    // 3. Create a CommandEncoder.
-    // 4. command_encoder.copy_texture_to_buffer(
-    //        ImageCopyTexture { texture: &gpu_fog_image.texture, mip_level: 0, origin: Origin3d { x:0, y:0, z: req.fog_layer_index }, aspect: TextureAspect::All },
-    //        ImageCopyBuffer { buffer: &staging_buffer_fog, layout: { bytes_per_row, rows_per_image ... } },
-    //        texture_resolution_per_chunk,
-    //    );
-    //    (Similar for snapshot texture)
-    // 5. Submit command_encoder.
-    // 6. staging_buffer_fog.slice(..).map_async(MapMode::Read, move |result| {
-    //       if result.is_ok() {
-    //           // Get data from buffer view
-    //           // Send ChunkGpuDataReadyEvent { coords, fog_data, snapshot_data }
-    //           // Unmap buffer
-    //       }
-    //    });
-    // This is highly simplified. Managing async mapping and buffer states is complex.
-}
 pub fn process_cpu_to_gpu_copies(
     render_queue: Res<RenderQueue>,
     cpu_upload_requests: Res<CpuToGpuCopyRequests>, // Extracted from MainWorld
@@ -50,25 +20,17 @@ pub fn process_cpu_to_gpu_copies(
     snapshot_texture_array_handle: Res<RenderSnapshotTexture>, // Extracted handle
     gpu_images: Res<RenderAssets<GpuImage>>,
     render_fog_settings: Res<RenderFogMapSettings>, // Extracted settings
-    // mut main_world: ResMut<MainWorld>, // mut main_world_events: EventWriter<ChunkCpuDataUploadedEvent>,
+    mut cpu_to_gpu_requests: ResMut<CpuToGpuRequests>,
 ) {
     if cpu_upload_requests.requests.is_empty() {
         return;
     }
 
-    // 获取 GPU 图像资源
-    // Get GPU image resources
     let Some(fog_gpu_image) = gpu_images.get(&fog_texture_array_handle.0) else {
-        // warn!("FogTextureArray GpuImage not yet available in RenderAssets for CPU->GPU copy.");
-        // 如果纹理尚未在 GPU 上创建，则无法写入。
-        // If texture not yet created on GPU, cannot write to it.
-        // 这通常不应该发生，因为 TextureArray 应该在 setup 时创建。
-        // This typically shouldn't happen as TextureArrays should be created at setup.
         return;
     };
 
     let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture_array_handle.0) else {
-        // warn!("SnapshotTextureArray GpuImage not yet available in RenderAssets for CPU->GPU copy.");
         return;
     };
 
@@ -80,6 +42,7 @@ pub fn process_cpu_to_gpu_copies(
     let snapshot_format = snapshot_gpu_image.texture_format; // Should match settings.snapshot_texture_format
 
     for request in &cpu_upload_requests.requests {
+        println!("cpu to gpu {:?}", request);
         // --- 上传雾效纹理数据 ---
         // --- Upload Fog Texture Data ---
         if !request.fog_data.is_empty() {
@@ -209,21 +172,8 @@ pub fn process_cpu_to_gpu_copies(
             );
         }
 
-        // 发送事件通知主世界上传已排队（注意：这不保证GPU已完成写入）
-        // Send event to notify main world that upload has been queued (Note: this doesn't guarantee GPU has finished writing)
-        // main_world.send_event(ChunkCpuDataUploadedEvent {
-        //     chunk_coords: request.chunk_coords,
-        // });
+        cpu_to_gpu_requests.requests.push(request.chunk_coords);
     }
-
-    // 请求已处理（即使某些可能因错误而跳过），清空它们以避免下一帧重复处理
-    // Requests are processed (even if some were skipped due to errors),
-    // they should be cleared by the system that extracts them, or by re-initializing the resource.
-    // 如果 CpuToGpuCopyRequests 是从主世界 `ExtractResource` 并且每帧都重新提取，
-    // 那么在 RenderApp 中不需要显式清除。
-    // If CpuToGpuCopyRequests is `ExtractResource` from MainWorld and re-extracted each frame,
-    // no explicit clear is needed in RenderApp.
-    // The main world system `manage_chunk_texture_transfer_system` clears its request queue before repopulating.
 }
 
 /// 辅助函数：计算每行字节数。
@@ -273,6 +223,282 @@ fn calculate_bytes_per_row(width: u32, format: TextureFormat) -> Option<u32> {
         }
     };
     let bytes_per_pixel = bits_per_pixel / 8;
-    let bytes_per_row = width * bytes_per_pixel;
-    Some(bytes_per_row)
+    let unaligned = width * bytes_per_pixel;
+    // Align up to 256 bytes (COPY_BYTES_PER_ROW_ALIGNMENT)
+    // 向上对齐到 256 字节
+    let align = 256;
+    let aligned = ((unaligned + align - 1) / align) * align;
+    Some(aligned)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn initiate_gpu_to_cpu_copies_and_request_map(
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    gpu_read_requests: Res<GpuToCpuCopyRequests>,
+    fog_texture_array_handle: Res<RenderFogTexture>,
+    snapshot_texture_array_handle: Res<RenderSnapshotTexture>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+    render_fog_settings: Res<RenderFogMapSettings>,
+    mut active_copies: ResMut<GpuToCpuActiveCopies>,
+) {
+    if gpu_read_requests.requests.is_empty() {
+        return;
+    }
+
+    let Some(fog_gpu_image) = gpu_images.get(&fog_texture_array_handle.0) else {
+        return;
+    };
+    let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture_array_handle.0) else {
+        return;
+    };
+
+    let texture_width = render_fog_settings.texture_resolution_per_chunk.x;
+    let texture_height = render_fog_settings.texture_resolution_per_chunk.y;
+    let fog_format = fog_gpu_image.texture_format;
+    let snapshot_format = snapshot_gpu_image.texture_format;
+
+    for request in &gpu_read_requests.requests {
+        if active_copies
+            .pending_copies
+            .contains_key(&request.chunk_coords)
+        {
+            continue;
+        }
+
+        let Some(bytes_per_row_fog) = calculate_bytes_per_row(texture_width, fog_format) else {
+            continue;
+        };
+        let fog_buffer_size = (bytes_per_row_fog * texture_height) as u64;
+        if fog_buffer_size == 0 {
+            error!("Fog buffer size is 0 for chunk {:?}", request.chunk_coords);
+            continue;
+        }
+
+        let Some(bytes_per_row_snapshot) = calculate_bytes_per_row(texture_width, snapshot_format)
+        else {
+            continue;
+        };
+        let snapshot_buffer_size = (bytes_per_row_snapshot * texture_height) as u64;
+        if snapshot_buffer_size == 0 {
+            error!(
+                "Snapshot buffer size is 0 for chunk {:?}",
+                request.chunk_coords
+            );
+            continue;
+        }
+
+        let mut command_encoder =
+            render_device.create_command_encoder(&CommandEncoderDescriptor::default());
+
+        let fog_staging_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some(&format!("fog_staging_buffer_{:?}", request.chunk_coords)),
+            size: fog_buffer_size,
+            usage: BufferUsages::MAP_READ
+                | BufferUsages::MAP_WRITE
+                | BufferUsages::COPY_DST
+                | BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let snapshot_staging_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some(&format!(
+                "snapshot_staging_buffer_{:?}",
+                request.chunk_coords
+            )),
+            size: snapshot_buffer_size,
+            usage: BufferUsages::MAP_READ
+                | BufferUsages::MAP_WRITE
+                | BufferUsages::COPY_DST
+                | BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        // --- 复制雾效纹理数据到暂存区 ---
+        // --- Copy Fog Texture Data to Staging Buffer ---
+        command_encoder.copy_texture_to_buffer(
+            TexelCopyTextureInfo {
+                texture: &fog_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: request.fog_layer_index,
+                },
+                aspect: TextureAspect::All,
+            },
+            TexelCopyBufferInfo {
+                buffer: &fog_staging_buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row_fog), // Must be correctly aligned if required by backend
+                    rows_per_image: Some(texture_height),   // For 2D, this is height
+                },
+            },
+            Extent3d {
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1, // Copying a single layer
+            },
+        );
+
+        // --- 复制快照纹理数据到暂存区 ---
+        // --- Copy Snapshot Texture Data to Staging Buffer ---
+        command_encoder.copy_texture_to_buffer(
+            TexelCopyTextureInfo {
+                texture: &snapshot_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: request.snapshot_layer_index,
+                },
+                aspect: TextureAspect::All,
+            },
+            TexelCopyBufferInfo {
+                buffer: &snapshot_staging_buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row_snapshot),
+                    rows_per_image: Some(texture_height),
+                },
+            },
+            Extent3d {
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1, // Copying a single layer
+            },
+        );
+        let (fog_tx, fog_rx) = async_channel::bounded(1);
+        let (snapshot_tx, snapshot_rx) = async_channel::bounded(1);
+
+        active_copies.pending_copies.insert(
+            request.chunk_coords,
+            PendingCopyData {
+                fog_buffer: fog_staging_buffer,
+                fog_buffer_size,
+                fog_tx,
+                fog_rx,
+                snapshot_buffer: snapshot_staging_buffer,
+                snapshot_buffer_size,
+                snapshot_tx,
+                snapshot_rx,
+                original_request: request.clone(),
+                fog_result: None,
+                snapshot_result: None,
+            },
+        );
+
+        render_queue.submit(std::iter::once(command_encoder.finish()));
+    }
+}
+
+pub fn check_and_process_mapped_buffers(
+    mut main_world: ResMut<MainWorld>,
+    mut active_copies: ResMut<GpuToCpuActiveCopies>,
+) {
+    active_copies.mapped_copies.retain(|_, pending_data| {
+        if let Ok(data) = pending_data.fog_rx.try_recv() {
+            pending_data.fog_result = Some(data);
+        }
+        if let Ok(data) = pending_data.snapshot_rx.try_recv() {
+            pending_data.snapshot_result = Some(data);
+        }
+
+        if let (Some(fog_data), Some(snapshot_data)) =
+            (&pending_data.fog_result, &pending_data.snapshot_result)
+        {
+            main_world.send_event(ChunkGpuDataReadyEvent {
+                chunk_coords: pending_data.original_request.chunk_coords,
+                fog_data: fog_data.clone(),
+                snapshot_data: snapshot_data.clone(),
+            });
+            false
+        } else {
+            true
+        }
+    });
+}
+
+#[derive(Resource, Default)]
+pub struct CpuToGpuRequests {
+    pub requests: Vec<IVec2>,
+}
+
+/// 存储正在进行的 GPU 到 CPU 复制操作的状态。
+/// Stores the state of ongoing GPU to CPU copy operations.
+#[derive(Resource, Default)]
+pub struct GpuToCpuActiveCopies {
+    pub pending_copies: HashMap<IVec2, PendingCopyData>,
+    pub mapped_copies: HashMap<IVec2, PendingCopyData>,
+}
+
+pub struct PendingCopyData {
+    fog_buffer: Buffer,
+    fog_buffer_size: u64, // Bytes
+    fog_tx: Sender<Vec<u8>>,
+    fog_rx: Receiver<Vec<u8>>,
+    snapshot_buffer: Buffer,
+    snapshot_buffer_size: u64, // Bytes
+    snapshot_tx: Sender<Vec<u8>>,
+    snapshot_rx: Receiver<Vec<u8>>,
+    original_request: GpuToCpuCopyRequest, // To reconstruct the event later
+    fog_result: Option<Vec<u8>>,
+    snapshot_result: Option<Vec<u8>>,
+}
+
+pub fn map_buffers(mut active_copies: ResMut<GpuToCpuActiveCopies>) {
+    let pending = active_copies
+        .pending_copies
+        .drain()
+        .collect::<HashMap<IVec2, PendingCopyData>>();
+
+    for (coord, pending_data) in pending {
+        let fog_slice = pending_data.fog_buffer.slice(..);
+        let fog_buffer = pending_data.fog_buffer.clone();
+        let fog_tx = pending_data.fog_tx.clone();
+        fog_slice.map_async(MapMode::Read, move |res| {
+            res.expect("Failed to map fog buffer");
+            let buffer_slice = fog_buffer.slice(..);
+            let data = buffer_slice.get_mapped_range();
+            let result = Vec::from(&*data);
+            drop(data);
+            fog_buffer.unmap();
+            if let Err(e) = fog_tx.try_send(result) {
+                warn!("Failed to send readback result: {}", e);
+            }
+        });
+
+        let snapshot_slice = pending_data.snapshot_buffer.slice(..);
+        let snapshot_buffer = pending_data.snapshot_buffer.clone();
+        let snapshot_tx = pending_data.snapshot_tx.clone();
+        snapshot_slice.map_async(MapMode::Read, move |res| {
+            res.expect("Failed to map snapshot buffer");
+            let buffer_slice = snapshot_buffer.slice(..);
+            let data = buffer_slice.get_mapped_range();
+            let result = Vec::from(&*data);
+            drop(data);
+            snapshot_buffer.unmap();
+            if let Err(e) = snapshot_tx.try_send(result) {
+                warn!("Failed to send readback result: {}", e);
+            }
+        });
+
+        active_copies.mapped_copies.insert(coord, pending_data);
+    }
+}
+
+pub(crate) fn check_cpu_to_gpu_request(
+    mut main_world: ResMut<MainWorld>,
+    mut cpu_to_gpu_requests: ResMut<CpuToGpuRequests>,
+) {
+    let requests = cpu_to_gpu_requests
+        .requests
+        .drain(..)
+        .map(|coord| ChunkCpuDataUploadedEvent {
+            chunk_coords: coord,
+        })
+        .collect::<Vec<ChunkCpuDataUploadedEvent>>();
+
+    main_world.send_event_batch(requests);
 }

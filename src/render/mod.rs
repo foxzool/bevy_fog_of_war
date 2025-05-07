@@ -1,9 +1,9 @@
+use crate::prelude::*;
 use bevy::asset::weak_handle;
-// fog_render/mod.rs
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy::prelude::*;
 use bevy::render::render_graph::{RenderGraphApp, ViewNodeRunner};
 use bevy::render::render_resource::SpecializedRenderPipelines;
+use bevy::render::renderer::render_system;
 use bevy::render::{Render, RenderApp, RenderSet};
 
 // Import submodules for organization / 导入子模块以组织代码
@@ -11,13 +11,14 @@ mod compute;
 mod extract;
 mod overlay;
 mod prepare;
-mod transfer;
-mod snapshot; // Contains snapshot node and related logic / 包含快照节点和相关逻辑
+mod snapshot;
+mod transfer; // Contains snapshot node and related logic / 包含快照节点和相关逻辑
 
 // Re-export relevant items / 重新导出相关项
 pub use compute::FogComputeNode;
 pub use extract::RenderFogMapSettings;
 // Make extracted settings accessible / 使提取的设置可访问
+use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use overlay::FogOverlayNode;
 pub use prepare::{
     FogBindGroups, FogUniforms, GpuChunkInfoBuffer, OverlayChunkMappingBuffer, VisionSourceBuffer,
@@ -60,9 +61,11 @@ impl Plugin for FogOfWarRenderPlugin {
             // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
+            .init_resource::<GpuToCpuActiveCopies>()
             .init_resource::<GpuChunkInfoBuffer>()
             .init_resource::<OverlayChunkMappingBuffer>()
             .init_resource::<FogBindGroups>()
+            .init_resource::<CpuToGpuRequests>()
             .init_resource::<SpecializedRenderPipelines<overlay::FogOverlayPipeline>>() // For overlay pipeline cache / 用于覆盖管线缓存
             // .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>() // For snapshot pipeline cache / 用于快照管线缓存
             // Extraction systems (Main World -> Render World) / 提取系统 (主世界 -> 渲染世界)
@@ -74,16 +77,30 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_gpu_chunk_data,
                     extract::extract_snapshot_requests,
                     extract::extract_texture_handles,
+                    transfer::check_and_process_mapped_buffers,
+                    transfer::check_cpu_to_gpu_request,
                 ),
             )
             .add_systems(
                 Render,
                 (
-                    transfer::process_gpu_to_cpu_copies,
-                    transfer::process_cpu_to_gpu_copies,
-                )
-                    .chain()
-                    .in_set(RenderSet::Prepare), // Before PrepareBindGroups
+                    // CPU -> GPU
+                    (transfer::process_cpu_to_gpu_copies,).in_set(RenderSet::PrepareResources),
+                    // GPU -> CPU - Stage 1: Initiate copy and request map
+                    // Run this after rendering/compute that populates the textures for the current frame.
+                    // CleanupCommands is a good place.
+                    (
+                        transfer::initiate_gpu_to_cpu_copies_and_request_map,
+                        transfer::map_buffers,
+                    )
+                        .after(render_system)
+                        .in_set(RenderSet::Render),
+                    // GPU -> CPU - Stage 2: Check for mapped buffers and process them
+                    // Run this in the *next* frame, typically early (e.g., Prepare).
+                    // Or, if your game loop/framerate allows, and map_async is fast on your GPU,
+                    // you *could* try to check it at the very end of the current frame or start of next.
+                    // For clarity and robustness with async, processing in the next frame's Prepare is safer.
+                ),
             )
             // Prepare systems (Create/Update GPU buffers and bind groups) / 准备系统 (创建/更新 GPU 缓冲区和绑定组)
             .add_systems(
@@ -95,7 +112,7 @@ impl Plugin for FogOfWarRenderPlugin {
                     prepare::prepare_overlay_chunk_mapping_buffer,
                     prepare::prepare_fog_bind_groups,
                 )
-                    .in_set(RenderSet::PrepareBindGroups), // Run in the correct stage / 在正确的阶段运行
+                    .in_set(RenderSet::PrepareBindGroups),
             )
             // Queue systems (Prepare pipelines) / 排队系统 (准备管线)
             .add_systems(

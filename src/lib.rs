@@ -462,8 +462,7 @@ pub fn manage_chunk_texture_transfer(
     mut commands: Commands,
     settings: Res<FogMapSettings>,
     mut chunk_query: Query<(Entity, &mut FogChunk)>,
-    chunk_cache: Res<ChunkStateCache>, // 用于决定哪些区块应该在GPU上
-    // Used to decide which chunks should be on GPU
+    chunk_cache: Res<ChunkStateCache>, 
     mut texture_manager: ResMut<TextureArrayManager>,
     mut cpu_storage: ResMut<CpuChunkStorage>,
     mut gpu_to_cpu_requests: ResMut<GpuToCpuCopyRequests>,
@@ -629,6 +628,7 @@ pub fn manage_chunk_texture_transfer(
                                 fog_data: fog_data.clone(), // TODO: Avoid clone if possible, maybe Rc or Arc? Or transfer ownership.
                                 snapshot_data: snapshot_data.clone(),
                             });
+                            
                             // 从 CPU 存储中移除，因为它正在被上传
                             // Remove from CPU storage as it's being uploaded
                             // (可选：可以等到 ChunkCpuDataUploadedEvent 再移除，以防上传失败)
