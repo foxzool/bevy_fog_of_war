@@ -344,6 +344,7 @@ fn manage_chunk_entities(
         if let Some(entity) = chunk_manager.map.get(&coords) {
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
+
             if let Ok(chunk) = chunk_q.get_mut(*entity) {
                 if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
                     // Mark for transition to GPU
@@ -375,10 +376,8 @@ fn manage_chunk_entities(
                         memory_location: ChunkMemoryLocation::Cpu, // Will be set to Gpu by memory logic / 将由内存逻辑设为 Gpu
                     }
                 } else {
-                    // Brand new chunk, starts Unexplored on GPU
-                    // 全新区块，在 GPU 上以 Unexplored 开始
                     ChunkState {
-                        visibility: ChunkVisibility::Unexplored, // Visibility updated later / 可见性稍后更新
+                        visibility: ChunkVisibility::Unexplored,
                         memory_location: ChunkMemoryLocation::Gpu,
                     }
                 };
@@ -398,36 +397,7 @@ fn manage_chunk_entities(
 
                 chunk_manager.map.insert(coords, entity);
                 cache.gpu_resident_chunks.insert(coords);
-                // ----> NEW: Ensure this new GPU chunk's fog layer is actually unexplored <----
-                // This might involve queueing a write operation to the GPU for this specific layer
-                // if the TextureArrayManager doesn't guarantee fresh layers.
-                // Or, your compute shader could have a special "initialization" path if a chunk is newly added.
-                // For now, a common approach is to upload initial data.
-                let unexplored_fog_data = vec![
-                    255u8;
-                    (settings.texture_resolution_per_chunk.x
-                        * settings.texture_resolution_per_chunk.y)
-                        as usize
-                        * settings.fog_texture_format.pixel_size()
-                ]; // Assuming R8Unorm, pixel_size = 1
-
-                // This needs to be handled by your CPU->GPU transfer mechanism
-                // For example, add to cpu_to_gpu_requests.requests:
-                // This is a simplified placeholder; you'd integrate with your existing transfer request queue.
-                // You might need a specific type of request for "initialize layer" or reuse CpuToGpuCopyRequest
-                // with just fog data.
-                cpu_to_gpu_copy_requests.requests.push(CpuToGpuCopyRequest {
-                    chunk_coords: coords,
-                    fog_layer_index: fog_idx, // The newly allocated fog_idx
-                    snapshot_layer_index: snap_idx, // Snapshots for new chunks are typically black/transparent initially
-                    fog_data: unexplored_fog_data,
-                    snapshot_data: vec![
-                        0u8;
-                        (settings.texture_resolution_per_chunk.x
-                            * settings.texture_resolution_per_chunk.y
-                            * 4) as usize
-                    ], // Empty snapshot
-                });
+               
             // info!("Created FogChunk {:?} (Fog: {}, Snap: {}) State: Unexplored/Gpu. Queued initial unexplored data upload.", coords, fog_idx, snap_idx);
             } else {
                 error!(
@@ -440,24 +410,24 @@ fn manage_chunk_entities(
         }
     }
 
-    // Update state for chunks transitioning from CPU to GPU
-    // 更新从 CPU 转换到 GPU 的区块状态
-    for coords in chunks_to_make_gpu {
-        if let Some(entity) = chunk_manager.map.get(&coords) {
-            if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
-                if let Some((fog_idx, snap_idx)) = texture_manager.allocate_layer_indices(coords) {
-                    chunk.fog_layer_index = Some(fog_idx);
-                    chunk.snapshot_layer_index = Some(snap_idx);
-                    chunk.state.memory_location = ChunkMemoryLocation::Gpu;
-                    cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
-                    // Remove from CPU storage (data transfer happens elsewhere)
-                    // 从 CPU 存储中移除 (数据传输在别处发生)
-                    cpu_storage.storage.remove(&coords);
-                    // info!("Chunk {:?} marked for GPU residency.", coords);
-                }
-            }
-        }
-    }
+    // // Update state for chunks transitioning from CPU to GPU
+    // // 更新从 CPU 转换到 GPU 的区块状态
+    // for coords in chunks_to_make_gpu {
+    //     if let Some(entity) = chunk_manager.map.get(&coords) {
+    //         if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
+    //             if let Some((fog_idx, snap_idx)) = texture_manager.allocate_layer_indices(coords) {
+    //                 chunk.fog_layer_index = Some(fog_idx);
+    //                 chunk.snapshot_layer_index = Some(snap_idx);
+    //                 // chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+    //                 cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
+    //                 // Remove from CPU storage (data transfer happens elsewhere)
+    //                 // 从 CPU 存储中移除 (数据传输在别处发生)
+    //                 // cpu_storage.storage.remove(&coords);
+    //                 // info!("Chunk {:?} marked for GPU residency.", coords);
+    //             }
+    //         }
+    //     }
+    // }
 
     // TODO: Implement chunk despawning for very distant chunks
     // TODO: 为非常遥远的区块实现实体销毁
@@ -509,9 +479,11 @@ pub fn manage_chunk_texture_transfer(
             .find(|(_, c)| c.coords == event.chunk_coords)
         {
             if chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToCpu {
-                debug!(
-                    "Chunk {:?}: GPU->CPU copy complete. Storing in CPU.",
-                    event.chunk_coords
+                info!(
+                    "Chunk {:?}: GPU->CPU copy complete. Storing in CPU. Layers F{}, S{}",
+                    event.chunk_coords,
+                    chunk.fog_layer_index.unwrap(),
+                    chunk.snapshot_layer_index.unwrap()
                 );
                 cpu_storage.storage.insert(
                     event.chunk_coords,
@@ -545,10 +517,13 @@ pub fn manage_chunk_texture_transfer(
         {
             if chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu {
                 info!(
-                    "Chunk {:?}: CPU->GPU upload complete. Now resident on GPU.",
-                    event.chunk_coords
+                    "Chunk {:?}: CPU->GPU upload complete. Now resident on GPU. Layers F{}, S{}.",
+                    event.chunk_coords,
+                    chunk.fog_layer_index.unwrap(),
+                    chunk.snapshot_layer_index.unwrap()
                 );
                 chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+                cpu_storage.storage.remove(&chunk.coords);
                 // chunk_cache.gpu_resident_chunks is typically updated by manage_chunk_entities
                 // or a dedicated system that reacts to FogChunk state changes.
                 // Let's assume another system handles adding to gpu_resident_chunks in the cache
@@ -669,7 +644,7 @@ pub fn manage_chunk_texture_transfer(
                             // Remove from CPU storage as it's being uploaded
                             // (可选：可以等到 ChunkCpuDataUploadedEvent 再移除，以防上传失败)
                             // (Optional: can wait for ChunkCpuDataUploadedEvent before removing, in case upload fails)
-                            cpu_storage.storage.remove(&chunk.coords);
+                            // cpu_storage.storage.remove(&chunk.coords);
                         } else {
                             warn!(
                                 "Chunk {:?}: Wanted to move CPU -> GPU, but no free texture layers!",
