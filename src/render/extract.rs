@@ -10,7 +10,6 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
 #[repr(C)]
 pub struct RenderFogMapSettings {
-
     /// 每个区块的大小 (世界单位)
     /// Size of each chunk (in world units)
     pub chunk_size: UVec2,
@@ -71,7 +70,7 @@ pub struct VisionSourceData {
 #[repr(C)]
 pub struct ChunkComputeData {
     pub coords: IVec2,        // Chunk coordinates / 区块坐标
-    pub fog_layer_index: u32, // Layer index in fog texture / 雾效纹理中的层索引
+    pub fog_layer_index: i32, // Layer index in fog texture / 雾效纹理中的层索引
     pub _padding: u32,        // WGSL IVec2/u32 alignment / WGSL IVec2/u32 对齐
 }
 
@@ -79,8 +78,8 @@ pub struct ChunkComputeData {
 #[repr(C)]
 pub struct OverlayChunkData {
     pub coords: IVec2,             // Chunk coordinates / 区块坐标
-    pub fog_layer_index: u32,      // Layer index in fog texture / 雾效纹理中的层索引
-    pub snapshot_layer_index: u32, // Layer index in snapshot texture / 快照纹理中的层索引
+    pub fog_layer_index: i32,      // Layer index in fog texture / 雾效纹理中的层索引
+    pub snapshot_layer_index: i32, // Layer index in snapshot texture / 快照纹理中的层索引
 }
 
 #[derive(Debug, Clone)]
@@ -134,44 +133,53 @@ pub fn extract_vision_sources(
         );
 }
 
+const GFX_INVALID_LAYER: i32 = -1;
 pub fn extract_gpu_chunk_data(
     mut chunk_data_res: ResMut<ExtractedGpuChunkData>,
-    cache: Extract<Res<ChunkStateCache>>,
-    chunk_manager: Extract<Res<ChunkEntityManager>>,
-    chunk_q: Extract<Query<&FogChunk>>,
+    fog_chunk_query: Extract<Query<&FogChunk>>,
 ) {
     chunk_data_res.compute_chunks.clear();
     chunk_data_res.overlay_mapping.clear();
 
-    for coords in &cache.gpu_resident_chunks {
-        if let Some(entity) = chunk_manager.map.get(coords) {
-            if let Ok(chunk) = chunk_q.get(*entity) {
-                // Add data for compute shader / 为 compute shader 添加数据
-                chunk_data_res.compute_chunks.push(ChunkComputeData {
-                    coords: chunk.coords,
-                    fog_layer_index: chunk.fog_layer_index,
-                    _padding: 0,
-                });
-                // Add data for overlay shader mapping / 为 overlay shader 映射添加数据
-                chunk_data_res.overlay_mapping.push(OverlayChunkData {
-                    coords: chunk.coords,
-                    fog_layer_index: chunk.fog_layer_index,
-                    snapshot_layer_index: chunk.snapshot_layer_index,
-                });
-            }
+    for chunk in fog_chunk_query.iter() {
+        // 只处理在 GPU 上并且具有有效层索引的区块
+        // Only process chunks that are on GPU and have valid layer indices
+        if chunk.state.memory_location == ChunkMemoryLocation::Gpu
+            || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu
+        // Maybe include pending if data is already staged
+        {
+            let fog_idx_gfx = chunk
+                .fog_layer_index
+                .map_or(GFX_INVALID_LAYER, |val| val as i32);
+            let snap_idx_gfx = chunk
+                .snapshot_layer_index
+                .map_or(GFX_INVALID_LAYER, |val| val as i32);
+
+            chunk_data_res.compute_chunks.push(ChunkComputeData {
+                coords: chunk.coords,
+                fog_layer_index: fog_idx_gfx,
+                _padding: 0,
+            });
+            chunk_data_res.overlay_mapping.push(OverlayChunkData {
+                coords: chunk.coords,
+                fog_layer_index: fog_idx_gfx,
+                snapshot_layer_index: snap_idx_gfx,
+            });
         }
     }
 
-    if cache.gpu_resident_chunks.is_empty() {
+    // Fallback if no valid chunks found (as before)
+    // 如果未找到有效区块，则回退 (同前)
+    if chunk_data_res.compute_chunks.is_empty() {
         chunk_data_res.compute_chunks.push(ChunkComputeData {
-            coords: IVec2::ZERO,
-            fog_layer_index: 0,
+            coords: Default::default(),
+            fog_layer_index: -1,
             _padding: 0,
         });
         chunk_data_res.overlay_mapping.push(OverlayChunkData {
-            coords: IVec2::ZERO,
-            fog_layer_index: 0,
-            snapshot_layer_index: 0,
+            coords: Default::default(),
+            fog_layer_index: -1,
+            snapshot_layer_index: -1,
         });
     }
 }
@@ -198,11 +206,13 @@ pub fn extract_snapshot_requests(
         if cache.gpu_resident_chunks.contains(coords) {
             if let Some(entity) = chunk_manager.map.get(coords) {
                 if let Ok(chunk) = chunk_q.get(*entity) {
-                    queue_res.requests.push(SnapshotRequest {
-                        snapshot_layer_index: chunk.snapshot_layer_index,
-                        world_bounds: chunk.world_bounds,
-                        chunk_coords: chunk.coords,
-                    });
+                    if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
+                        queue_res.requests.push(SnapshotRequest {
+                            snapshot_layer_index,
+                            world_bounds: chunk.world_bounds,
+                            chunk_coords: chunk.coords,
+                        });
+                    }
                 }
             }
         }

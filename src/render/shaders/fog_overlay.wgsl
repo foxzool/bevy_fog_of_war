@@ -7,8 +7,8 @@
 
 struct OverlayChunkData {
     coords: vec2<i32>,
-    fog_layer_index: u32,
-    snapshot_layer_index: u32,
+    fog_layer_index: i32,
+    snapshot_layer_index: i32,
 };
 
 // Match FogMapSettings struct layout / 匹配 FogMapSettings 结构布局
@@ -23,6 +23,8 @@ struct FogMapSettings {
      _padding3: u32,
      _padding4: u32,
 };
+
+const GFX_INVALID_LAYER: i32 = -1;
 
 // Bindings must match layout in prepare.rs / 绑定必须匹配 prepare.rs 中的布局
 @group(0) @binding(0) var<uniform> view: View; // Bevy view uniforms / Bevy 视图统一变量
@@ -57,20 +59,22 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     // Find layer indices for this chunk using the mapping buffer
     // 使用映射缓冲区查找此区块的层索引
-    var fog_layer_index = -1i; // Use signed int for "not found" / 使用有符号整数表示“未找到”
-    var snapshot_layer_index = -1i;
+    var fog_layer_idx = GFX_INVALID_LAYER; // Use signed int for "not found" / 使用有符号整数表示“未找到”
+    var snapshot_layer_idx = GFX_INVALID_LAYER;
+    var chunk_found = false;
     for (var i = 0u; i < arrayLength(&chunk_mapping); i = i + 1u) {
         if (chunk_mapping[i].coords.x == chunk_coords_i.x && chunk_mapping[i].coords.y == chunk_coords_i.y) {
-            fog_layer_index = i32(chunk_mapping[i].fog_layer_index);
-            snapshot_layer_index = i32(chunk_mapping[i].snapshot_layer_index);
+            fog_layer_idx = chunk_mapping[i].fog_layer_index;
+            snapshot_layer_idx = chunk_mapping[i].snapshot_layer_index;
+            chunk_found = true;
             break;
         }
     }
 
     // If chunk data not found (outside GPU resident area), assume unexplored
     // 如果未找到区块数据 (在 GPU 驻留区域之外)，假设未探索
-    if (fog_layer_index < 0) {
-        return settings.fog_color_unexplored;
+    if (!chunk_found || fog_layer_idx == GFX_INVALID_LAYER) {
+          return settings.fog_color_unexplored;
     }
 
     // Calculate UV within the chunk's texture / 计算区块纹理内的 UV
@@ -79,7 +83,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // Sample fog texture (non-filterable) / 采样雾效纹理 (不可过滤)
     // Use textureSampleLevel with level 0 and offset (0,0) / 使用 level 0 和偏移 (0,0) 的 textureSampleLevel
     // Sample fog texture, use integer array index for layer / 采样雾效纹理，层索引用整数
-    let fog_value = textureSampleLevel(fog_texture, texture_sampler, uv_in_chunk, fog_layer_index, 0.0).r; // Use integer fog_layer_index / 使用整数 fog_layer_index
+    let fog_value = textureSampleLevel(fog_texture, texture_sampler, uv_in_chunk, fog_layer_idx, 0.0).r; // Use integer fog_layer_index / 使用整数 fog_layer_index
 
     // --- Blending Logic ---
     // --- 混合逻辑 ---
@@ -91,9 +95,13 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         // Alternative: Return clear color if blending on top / 备选: 如果在顶部混合则返回透明颜色
         // return settings.vision_clear_color;
     } else if (fog_value <= EXPLORED_THRESHOLD) {
+        if (snapshot_layer_idx == GFX_INVALID_LAYER) { // Check if snapshot is valid before sampling
+            // No valid snapshot, show explored fog only, or a default "no snapshot" color
+            return settings.fog_color_explored; // Example: just explored fog
+        }
         // Explored but not visible - show snapshot blended with explored fog
         // 已探索但不可见 - 显示与已探索雾混合的快照
-        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, uv_in_chunk, snapshot_layer_index, 0.0);
+        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, uv_in_chunk, snapshot_layer_idx, 0.0);
 
         // Optional: Desaturate or darken snapshot / 可选: 去饱和或调暗快照
         // let gray = dot(snapshot_color.rgb, vec3<f32>(0.299, 0.587, 0.114));

@@ -53,8 +53,6 @@ pub struct FogTextureArray {
     /// 图像资源的句柄 / Handle to the image asset
     pub handle: Handle<Image>,
 }
-// FogTextureArray 通常在 setup 系统中创建并插入，没有 Default
-// FogTextureArray is usually created and inserted in a setup system, no Default
 
 /// 存储快照数据的 TextureArray 资源句柄
 /// Resource handle for the TextureArray storing snapshot data
@@ -64,87 +62,145 @@ pub struct SnapshotTextureArray {
     /// 图像资源的句柄 / Handle to the image asset
     pub handle: Handle<Image>,
 }
-// SnapshotTextureArray 通常在 setup 系统中创建并插入，没有 Default
-// SnapshotTextureArray is usually created and inserted in a setup system, no Default
 
-/// 管理 TextureArray 中层的使用情况
-/// Manages the usage of layers within the TextureArrays
-#[derive(Resource, Debug, Clone, Default, Reflect)]
-#[reflect(Resource, Default)] // 注册为反射资源, 并提供默认值反射 / Register as reflectable resource with default reflection
+#[derive(Resource, Debug, Reflect)]
+#[reflect(Resource)]
 pub struct TextureArrayManager {
-    /// 记录雾效 TextureArray 每一层被哪个区块坐标使用 (None 表示空闲)
-    /// Records which chunk coordinates use each layer of the fog TextureArray (None means free)
-    pub fog_layers: Vec<Option<IVec2>>,
-    /// 记录快照 TextureArray 每一层被哪个区块坐标使用 (None 表示空闲)
-    /// Records which chunk coordinates use each layer of the snapshot TextureArray (None means free)
-    pub snapshot_layers: Vec<Option<IVec2>>,
-    /// 空闲的雾效层索引列表
-    /// List of free fog layer indices
-    pub free_fog_indices: Vec<u32>,
-    /// 空闲的快照层索引列表
-    /// List of free snapshot layer indices
-    pub free_snapshot_indices: Vec<u32>,
-    // 可以添加 capacity 字段来表示数组的总层数
-    // A capacity field could be added to represent the total number of layers in the arrays
-    // pub capacity: u32,
+    capacity: u32,
+    // Maps chunk coordinates to the layer indices they currently occupy on the GPU
+    // 将区块坐标映射到它们当前在 GPU 上占用的层索引
+    coord_to_layers: HashMap<IVec2, (u32, u32)>, // (fog_idx, snapshot_idx)
+    // Stores layer indices that are currently free to be allocated
+    // 存储当前可以自由分配的层索引
+    // Using Vec as a simple stack for free indices
+    // 使用 Vec 作为空闲索引的简单堆栈
+    free_fog_indices: Vec<u32>,
+    free_snapshot_indices: Vec<u32>,
+    // Or, if fog and snapshot always use paired indices (e.g., fog layer X always pairs with snapshot layer X)
+    // 或者，如果雾效和快照始终使用配对索引 (例如，雾效层 X 始终与快照层 X 配对)
+    // free_paired_indices: Vec<u32>,
 }
 
 impl TextureArrayManager {
-    /// 初始化管理器，指定 TextureArray 的总层数
-    /// Initializes the manager, specifying the total number of layers in the TextureArrays
-    pub fn new(capacity: u32) -> Self {
-        let capacity_usize = capacity as usize;
+    pub fn new(array_layers_capacity: u32) -> Self {
+        // Initialize all layers as free
+        // 将所有层初始化为空闲
+        let mut free_fog = Vec::with_capacity(array_layers_capacity as usize);
+        let mut free_snap = Vec::with_capacity(array_layers_capacity as usize);
+        for i in 0..array_layers_capacity {
+            free_fog.push(i);
+            free_snap.push(i); // Assuming separate pools for simplicity, or they could be linked
+        }
         Self {
-            fog_layers: vec![None; capacity_usize],
-            snapshot_layers: vec![None; capacity_usize],
-            // 初始时所有索引都是空闲的，倒序填充方便 pop / Initially all indices are free, fill in reverse for easy pop
-            free_fog_indices: (0..capacity).rev().collect(),
-            free_snapshot_indices: (0..capacity).rev().collect(),
-            // capacity: capacity,
+            capacity: array_layers_capacity,
+            coord_to_layers: HashMap::new(),
+            free_fog_indices: free_fog,
+            free_snapshot_indices: free_snap,
         }
     }
 
-    /// 分配一个空闲的层索引对 (雾效, 快照)
-    /// Allocates a pair of free layer indices (fog, snapshot)
+    /// Allocates a pair of layer indices for a given chunk coordinate.
+    /// Returns None if no free layers are available.
+    /// 为给定的区块坐标分配一对层索引。
+    /// 如果没有可用的空闲层，则返回 None。
     pub fn allocate_layer_indices(&mut self, coords: IVec2) -> Option<(u32, u32)> {
-        if let (Some(fog_idx), Some(snapshot_idx)) = (
+        if self.coord_to_layers.contains_key(&coords) {
+            // This coord already has layers, should not happen if logic is correct.
+            // Or, it means we are re-activating a chunk that somehow wasn't fully cleaned up.
+            // 这个坐标已经有层了，如果逻辑正确则不应发生。
+            // 或者，这意味着我们正在重新激活一个不知何故未完全清理的区块。
+            warn!(
+                "Attempted to allocate layers for {:?} which already has layers: {:?}. Reusing.",
+                coords,
+                self.coord_to_layers.get(&coords)
+            );
+            return self.coord_to_layers.get(&coords).copied();
+        }
+
+        if let (Some(fog_idx), Some(snap_idx)) = (
             self.free_fog_indices.pop(),
             self.free_snapshot_indices.pop(),
         ) {
-            // 检查索引是否在范围内 (虽然理论上 pop 出来的应该在) / Double check index bounds (though pop should guarantee it)
-            if (fog_idx as usize) < self.fog_layers.len()
-                && (snapshot_idx as usize) < self.snapshot_layers.len()
-            {
-                self.fog_layers[fog_idx as usize] = Some(coords);
-                self.snapshot_layers[snapshot_idx as usize] = Some(coords);
-                Some((fog_idx, snapshot_idx))
-            } else {
-                // 如果索引无效，放回去 / If index is invalid, put them back
-                self.free_fog_indices.push(fog_idx);
-                self.free_snapshot_indices.push(snapshot_idx);
-                None // 理论上不应发生 / Should not happen theoretically
-            }
+            self.coord_to_layers.insert(coords, (fog_idx, snap_idx));
+            Some((fog_idx, snap_idx))
         } else {
-            // 没有足够的空闲索引 / Not enough free indices
+            // Ran out of layers, push back any popped indices if one succeeded but other failed (shouldn't happen with paired pop)
+            // 层用完了，如果一个成功但另一个失败，则推回任何弹出的索引 (配对弹出不应发生这种情况)
+            // This logic needs to be robust if fog/snapshot indices are truly independent.
+            // 如果雾效/快照索引真正独立，则此逻辑需要稳健。
+            // For now, assuming paired allocation success/failure.
+            // 目前假设配对分配成功/失败。
+            error!("TextureArrayManager: No free layers available!");
             None
         }
     }
 
-    /// 释放指定索引对，使其可被重用
-    /// Frees the specified index pair, making them available for reuse
-    pub fn free_layer_indices(&mut self, fog_idx: u32, snapshot_idx: u32) {
-        if (fog_idx as usize) < self.fog_layers.len() {
-            self.fog_layers[fog_idx as usize] = None;
-            self.free_fog_indices.push(fog_idx); // 可以考虑排序或保持无序 / Can consider sorting or keeping unsorted
-        }
-        if (snapshot_idx as usize) < self.snapshot_layers.len() {
-            self.snapshot_layers[snapshot_idx as usize] = None;
-            self.free_snapshot_indices.push(snapshot_idx);
+    /// Frees the layer indices associated with a given chunk coordinate.
+    /// 释放与给定区块坐标关联的层索引。
+    pub fn free_layer_indices_for_coord(&mut self, coords: IVec2) {
+        if let Some((fog_idx, snap_idx)) = self.coord_to_layers.remove(&coords) {
+            // It's crucial that an index is not pushed to free_..._indices
+            // if it's already there or if it's invalid.
+            // 关键是，如果索引已存在或无效，则不要将其推送到 free_..._indices。
+            if !self.free_fog_indices.contains(&fog_idx) {
+                // Basic check to prevent double free
+                self.free_fog_indices.push(fog_idx);
+            } else {
+                warn!(
+                    "Attempted to double-free fog index {} for coord {:?}",
+                    fog_idx, coords
+                );
+            }
+            if !self.free_snapshot_indices.contains(&snap_idx) {
+                self.free_snapshot_indices.push(snap_idx);
+            } else {
+                warn!(
+                    "Attempted to double-free snapshot index {} for coord {:?}",
+                    snap_idx, coords
+                );
+            }
+        } else {
+            // warn!("Attempted to free layers for coord {:?} which has no allocated layers.", coords);
         }
     }
 
-    // 可以添加更多辅助方法，例如根据坐标查找索引等
-    // More helper methods can be added, e.g., finding indices by coords, etc.
+    /// Frees specific layer indices. This is used when FogChunk directly provides indices.
+    /// 释放特定的层索引。当 FogChunk 直接提供索引时使用。
+    pub fn free_specific_layer_indices(&mut self, fog_idx: u32, snap_idx: u32) {
+        // We also need to find which coord was using these indices to remove it from coord_to_layers
+        // 我们还需要找出哪个坐标正在使用这些索引，以便从 coord_to_layers 中删除它
+        let mut coord_to_remove = None;
+        for (coord, (f_idx, s_idx)) in &self.coord_to_layers {
+            if *f_idx == fog_idx && *s_idx == snap_idx {
+                coord_to_remove = Some(*coord);
+                break;
+            }
+        }
+        if let Some(coord) = coord_to_remove {
+            self.coord_to_layers.remove(&coord);
+        } else {
+            // warn!("Tried to free specific indices ({}, {}) that were not mapped to any coord.", fog_idx, snap_idx);
+        }
+
+        if !self.free_fog_indices.contains(&fog_idx) {
+            self.free_fog_indices.push(fog_idx);
+        } else {
+            // warn!("Attempted to double-free specific fog index {}", fog_idx);
+        }
+        if !self.free_snapshot_indices.contains(&snap_idx) {
+            self.free_snapshot_indices.push(snap_idx);
+        } else {
+            // warn!("Attempted to double-free specific snapshot index {}", snap_idx);
+        }
+    }
+
+    pub fn get_allocated_indices(&self, coords: IVec2) -> Option<(u32, u32)> {
+        self.coord_to_layers.get(&coords).copied()
+    }
+
+    pub fn is_coord_on_gpu(&self, coords: IVec2) -> bool {
+        self.coord_to_layers.contains_key(&coords)
+    }
 }
 
 /// 战争迷雾地图的全局设置

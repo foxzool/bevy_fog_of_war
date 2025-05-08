@@ -1,6 +1,7 @@
 use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
+use bevy::image::TextureFormatPixelInfo;
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_resource::ExtractResourcePlugin;
@@ -318,12 +319,10 @@ fn manage_chunk_entities(
     mut chunk_manager: ResMut<ChunkEntityManager>,
     mut texture_manager: ResMut<TextureArrayManager>,
     mut cpu_storage: ResMut<CpuChunkStorage>,
-    mut chunk_q: Query<&mut FogChunk>, // Query to update state if chunk already exists
-                                       // We might need Assets<Image> here if we immediately upload from CPU storage
-                                       // 如果我们立即从 CPU 存储上传，这里可能需要 Assets<Image>
+    mut chunk_q: Query<&mut FogChunk>,
+    mut cpu_to_gpu_copy_requests: ResMut<CpuToGpuCopyRequests>,
 ) {
     let chunk_size_f = settings.chunk_size.as_vec2();
-    let chunk_size_i = settings.chunk_size.as_ivec2();
 
     // Determine chunks that should be active (in GPU memory)
     // 确定哪些区块应该是活动的 (在 GPU 内存中)
@@ -389,8 +388,8 @@ fn manage_chunk_entities(
                         coords,
                         layer_index: None,
                         screen_index: None,
-                        fog_layer_index: fog_idx,
-                        snapshot_layer_index: snap_idx,
+                        fog_layer_index: Some(fog_idx),
+                        snapshot_layer_index: Some(snap_idx),
                         loaded: false,
                         state: initial_state,
                         world_bounds,
@@ -398,10 +397,38 @@ fn manage_chunk_entities(
                     .id();
 
                 chunk_manager.map.insert(coords, entity);
-                if initial_state.memory_location == ChunkMemoryLocation::Gpu {
-                    cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
-                }
-                // info!("Created FogChunk {:?} (Fog: {}, Snap: {}) State: {:?}", coords, fog_idx, snap_idx, initial_state);
+                cache.gpu_resident_chunks.insert(coords);
+                // ----> NEW: Ensure this new GPU chunk's fog layer is actually unexplored <----
+                // This might involve queueing a write operation to the GPU for this specific layer
+                // if the TextureArrayManager doesn't guarantee fresh layers.
+                // Or, your compute shader could have a special "initialization" path if a chunk is newly added.
+                // For now, a common approach is to upload initial data.
+                let unexplored_fog_data = vec![
+                    255u8;
+                    (settings.texture_resolution_per_chunk.x
+                        * settings.texture_resolution_per_chunk.y)
+                        as usize
+                        * settings.fog_texture_format.pixel_size()
+                ]; // Assuming R8Unorm, pixel_size = 1
+
+                // This needs to be handled by your CPU->GPU transfer mechanism
+                // For example, add to cpu_to_gpu_requests.requests:
+                // This is a simplified placeholder; you'd integrate with your existing transfer request queue.
+                // You might need a specific type of request for "initialize layer" or reuse CpuToGpuCopyRequest
+                // with just fog data.
+                cpu_to_gpu_copy_requests.requests.push(CpuToGpuCopyRequest {
+                    chunk_coords: coords,
+                    fog_layer_index: fog_idx, // The newly allocated fog_idx
+                    snapshot_layer_index: snap_idx, // Snapshots for new chunks are typically black/transparent initially
+                    fog_data: unexplored_fog_data,
+                    snapshot_data: vec![
+                        0u8;
+                        (settings.texture_resolution_per_chunk.x
+                            * settings.texture_resolution_per_chunk.y
+                            * 4) as usize
+                    ], // Empty snapshot
+                });
+            // info!("Created FogChunk {:?} (Fog: {}, Snap: {}) State: Unexplored/Gpu. Queued initial unexplored data upload.", coords, fog_idx, snap_idx);
             } else {
                 error!(
                     "Failed to allocate texture layers for chunk {:?}! TextureArray might be full.",
@@ -418,12 +445,16 @@ fn manage_chunk_entities(
     for coords in chunks_to_make_gpu {
         if let Some(entity) = chunk_manager.map.get(&coords) {
             if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
-                chunk.state.memory_location = ChunkMemoryLocation::Gpu;
-                cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
-                // Remove from CPU storage (data transfer happens elsewhere)
-                // 从 CPU 存储中移除 (数据传输在别处发生)
-                cpu_storage.storage.remove(&coords);
-                // info!("Chunk {:?} marked for GPU residency.", coords);
+                if let Some((fog_idx, snap_idx)) = texture_manager.allocate_layer_indices(coords) {
+                    chunk.fog_layer_index = Some(fog_idx);
+                    chunk.snapshot_layer_index = Some(snap_idx);
+                    chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+                    cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
+                    // Remove from CPU storage (data transfer happens elsewhere)
+                    // 从 CPU 存储中移除 (数据传输在别处发生)
+                    cpu_storage.storage.remove(&coords);
+                    // info!("Chunk {:?} marked for GPU residency.", coords);
+                }
             }
         }
     }
@@ -460,7 +491,6 @@ fn circle_intersects_rect(
 #[allow(clippy::too_many_arguments)]
 pub fn manage_chunk_texture_transfer(
     mut commands: Commands,
-    settings: Res<FogMapSettings>,
     mut chunk_query: Query<(Entity, &mut FogChunk)>,
     chunk_cache: Res<ChunkStateCache>,
     mut texture_manager: ResMut<TextureArrayManager>,
@@ -479,7 +509,7 @@ pub fn manage_chunk_texture_transfer(
             .find(|(_, c)| c.coords == event.chunk_coords)
         {
             if chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToCpu {
-                info!(
+                debug!(
                     "Chunk {:?}: GPU->CPU copy complete. Storing in CPU.",
                     event.chunk_coords
                 );
@@ -490,13 +520,9 @@ pub fn manage_chunk_texture_transfer(
 
                 // 释放 TextureArray 层索引
                 // Free TextureArray layer indices
-                texture_manager
-                    .free_layer_indices(chunk.fog_layer_index, chunk.snapshot_layer_index);
-                // 将索引设为无效，以防意外使用
-                // Set indices to invalid to prevent accidental use
-                // chunk.fog_layer_index = u32::MAX; // Or Option<u32>::None if you change FogChunk
-                // chunk.snapshot_layer_index = u32::MAX;
-
+                texture_manager.free_layer_indices_for_coord(chunk.coords);
+                chunk.fog_layer_index = None;
+                chunk.snapshot_layer_index = None;
                 chunk.state.memory_location = ChunkMemoryLocation::Cpu;
             } else {
                 warn!(
@@ -574,16 +600,27 @@ pub fn manage_chunk_texture_transfer(
                 if !should_be_on_gpu && chunk.state.visibility == ChunkVisibility::Explored {
                     // 条件：在 GPU 上，但不再需要，并且是已探索状态 (值得保存)
                     // Condition: On GPU, but no longer needed, and is Explored (worth saving)
-                    info!(
-                        "Chunk {:?}: Requesting GPU -> CPU transfer (is Explored, not in target GPU set).",
-                        chunk.coords
-                    );
-                    chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToCpu;
-                    gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
-                        chunk_coords: chunk.coords,
-                        fog_layer_index: chunk.fog_layer_index,
-                        snapshot_layer_index: chunk.snapshot_layer_index,
-                    });
+                    if let (Some(fog_idx_val), Some(snap_idx_val)) =
+                        (chunk.fog_layer_index, chunk.snapshot_layer_index)
+                    {
+                        info!(
+                            "Chunk {:?}: Requesting GPU -> CPU transfer (is Explored, not target GPU). Layers F{}, S{}",
+                            chunk.coords, fog_idx_val, snap_idx_val
+                        );
+                        chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToCpu;
+                        gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
+                            chunk_coords: chunk.coords,
+                            fog_layer_index: fog_idx_val, // Pass the unwrapped value
+                            snapshot_layer_index: snap_idx_val,
+                        });
+                        // 索引在 GpuDataReadyEvent 事件处理中设为 None
+                        // Indices are set to None in GpuDataReadyEvent event handling
+                    } else {
+                        warn!(
+                            "Chunk {:?}: Wanted GPU->CPU but indices are None. State: {:?}, Visibility: {:?}",
+                            chunk.coords, chunk.state, chunk.state.visibility
+                        );
+                    }
                 } else if !should_be_on_gpu && chunk.state.visibility == ChunkVisibility::Unexplored
                 {
                     // 条件：在 GPU 上，但不再需要，并且是未探索状态 (不需要保存，直接释放)
@@ -596,8 +633,7 @@ pub fn manage_chunk_texture_transfer(
                         "Chunk {:?}: Unexplored and no longer target for GPU. Freeing layers.",
                         chunk.coords
                     );
-                    texture_manager
-                        .free_layer_indices(chunk.fog_layer_index, chunk.snapshot_layer_index);
+                    texture_manager.free_layer_indices_for_coord(chunk.coords);
                     // 考虑直接销毁此实体或标记以便 manage_chunk_entities 处理
                     // Consider despawning this entity directly or marking it for manage_chunk_entities
                     chunk.state.memory_location = ChunkMemoryLocation::Cpu; // Or a new "Freed" state
@@ -611,20 +647,20 @@ pub fn manage_chunk_texture_transfer(
                     // Condition: On CPU, but now needed on GPU
                     if let Some((fog_data, snapshot_data)) = cpu_storage.storage.get(&chunk.coords)
                     {
-                        if let Some((fog_idx, snap_idx)) =
+                        if let Some((fog_idx_val, snap_idx_val)) =
                             texture_manager.allocate_layer_indices(chunk.coords)
                         {
                             info!(
                                 "Chunk {:?}: Requesting CPU -> GPU transfer. Layers: F{}, S{}",
-                                chunk.coords, fog_idx, snap_idx
+                                chunk.coords, fog_idx_val, snap_idx_val
                             );
-                            chunk.fog_layer_index = fog_idx;
-                            chunk.snapshot_layer_index = snap_idx;
+                            chunk.fog_layer_index = Some(fog_idx_val);
+                            chunk.snapshot_layer_index = Some(snap_idx_val);
                             chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToGpu;
                             cpu_to_gpu_requests.requests.push(CpuToGpuCopyRequest {
                                 chunk_coords: chunk.coords,
-                                fog_layer_index: fog_idx,
-                                snapshot_layer_index: snap_idx,
+                                fog_layer_index: fog_idx_val,
+                                snapshot_layer_index: snap_idx_val,
                                 fog_data: fog_data.clone(), // TODO: Avoid clone if possible, maybe Rc or Arc? Or transfer ownership.
                                 snapshot_data: snapshot_data.clone(),
                             });

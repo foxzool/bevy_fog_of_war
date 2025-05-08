@@ -58,10 +58,10 @@ pub struct FogChunk {
     pub screen_index: Option<u32>,
     /// 此区块在雾效 TextureArray 中的层索引
     /// Layer index for this chunk in the fog TextureArray
-    pub fog_layer_index: u32,
+    pub fog_layer_index: Option<u32>,
     /// 此区块在快照 TextureArray 中的层索引
     /// Layer index for this chunk in the snapshot TextureArray
-    pub snapshot_layer_index: u32,
+    pub snapshot_layer_index: Option<u32>,
     /// 是否加载
     /// Whether the chunk is loaded
     pub loaded: bool,
@@ -92,8 +92,8 @@ impl FogChunk {
             coords: chunk_coord,
             layer_index: None,
             screen_index: None,
-            fog_layer_index: 0,
-            snapshot_layer_index: 0,
+            fog_layer_index: None,
+            snapshot_layer_index: None,
             loaded: true,
             state: Default::default(),
             world_bounds: Rect { min, max },

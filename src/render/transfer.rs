@@ -376,11 +376,9 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             request.chunk_coords,
             PendingCopyData {
                 fog_buffer: fog_staging_buffer,
-                fog_buffer_size,
                 fog_tx,
                 fog_rx,
                 snapshot_buffer: snapshot_staging_buffer,
-                snapshot_buffer_size,
                 snapshot_tx,
                 snapshot_rx,
                 original_request: request.clone(),
@@ -435,11 +433,9 @@ pub struct GpuToCpuActiveCopies {
 
 pub struct PendingCopyData {
     fog_buffer: Buffer,
-    fog_buffer_size: u64, // Bytes
     fog_tx: Sender<Vec<u8>>,
     fog_rx: Receiver<Vec<u8>>,
     snapshot_buffer: Buffer,
-    snapshot_buffer_size: u64, // Bytes
     snapshot_tx: Sender<Vec<u8>>,
     snapshot_rx: Receiver<Vec<u8>>,
     original_request: GpuToCpuCopyRequest, // To reconstruct the event later

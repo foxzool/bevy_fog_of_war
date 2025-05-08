@@ -1,3 +1,6 @@
+use crate::prelude::{
+    ChunkCpuDataUploadedEvent, ChunkGpuDataReadyEvent, CpuToGpuCopyRequests, GpuToCpuCopyRequests,
+};
 use bevy::image::TextureFormatPixelInfo;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
@@ -6,7 +9,6 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewUniform, ViewUniforms};
-use crate::prelude::{ChunkCpuDataUploadedEvent, ChunkGpuDataReadyEvent, CpuToGpuCopyRequests, GpuToCpuCopyRequests};
 // Needed for view bindings / 视图绑定需要 // For default texture / 用于默认纹理
 
 use super::extract::{
@@ -59,6 +61,7 @@ pub fn prepare_fog_uniforms(
     mut fog_uniforms: ResMut<FogUniforms>,
     render_device: Res<RenderDevice>,
 ) {
+    
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("fog setting data buffer"),
         contents: bytemuck::cast_slice(&[*settings]),
@@ -73,6 +76,8 @@ pub fn prepare_vision_source_buffer(
     mut buffer_res: ResMut<VisionSourceBuffer>,
     render_device: Res<RenderDevice>,
 ) {
+    let capacity = extracted_sources.sources.len();
+    buffer_res.capacity = capacity;
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("vision_source_storage_buffer"),
         contents: bytemuck::cast_slice(&extracted_sources.sources),
@@ -102,6 +107,7 @@ pub fn prepare_overlay_chunk_mapping_buffer(
     mut buffer_res: ResMut<OverlayChunkMappingBuffer>,
     render_device: Res<RenderDevice>,
 ) {
+    let capacity = extracted_chunks.overlay_mapping.len();
     let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("overlay_chunk_mapping_storage_buffer"),
         contents: bytemuck::cast_slice(&extracted_chunks.overlay_mapping),
@@ -109,6 +115,7 @@ pub fn prepare_overlay_chunk_mapping_buffer(
     });
 
     buffer_res.buffer = Some(buffer);
+    buffer_res.capacity = capacity;
 }
 
 // --- Bind Group Preparation ---

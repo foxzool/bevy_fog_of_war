@@ -8,9 +8,11 @@ struct VisionSourceData {
 
 struct ChunkComputeData {
     coords: vec2<i32>,
-    fog_layer_index: u32,
+    fog_layer_index: i32,
     // padding u32
 };
+
+const GFX_INVALID_LAYER: i32 = -1;
 
 // Match FogMapSettings struct layout / 匹配 FogMapSettings 结构布局
 // Ensure alignment and types match Rust struct / 确保对齐和类型匹配 Rust 结构
@@ -61,6 +63,12 @@ fn main(
 
     // Get chunk info for this invocation / 获取此调用的区块信息
     let chunk_data = chunks[chunk_index];
+    let fog_layer_idx = chunk_data.fog_layer_index;
+
+    if (fog_layer_idx == GFX_INVALID_LAYER) { // Check for invalid layer
+        return; // Or handle as error/default
+    }
+
     let chunk_coords_f = vec2<f32>(f32(chunk_data.coords.x), f32(chunk_data.coords.y));
     let fog_layer_index = chunk_data.fog_layer_index;
 

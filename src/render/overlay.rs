@@ -211,8 +211,7 @@ impl ViewNode for FogOverlayNode {
     ) -> Result<(), NodeRunError> {
         let overlay_pipeline = world.resource::<FogOverlayPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
-        let specialized_pipelines =
-            world.resource::<SpecializedRenderPipelines<FogOverlayPipeline>>();
+
 
         // Get the specialized pipeline for this view / 获取此视图的特化管线
         let Some(pipeline) = pipeline_cache.get_render_pipeline(overlay_pipeline.pipeline_id)

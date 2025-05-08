@@ -1,10 +1,10 @@
+use bevy::color::palettes::basic::GREEN;
 use bevy::diagnostic::FrameCount;
 use bevy::{
     color::palettes::css::{GOLD, RED},
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
-use bevy::color::palettes::basic::GREEN;
 // use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_fog_of_war::prelude::*;
@@ -13,7 +13,6 @@ use bevy_fog_of_war::prelude::*;
 /// Movement target position resource
 #[derive(Resource, Default)]
 struct TargetPosition(Option<Vec3>);
-
 
 fn main() {
     App::new()
@@ -546,16 +545,11 @@ fn horizontal_movement_system(
     }
 }
 
-
 /// 在屏幕上绘制区块边界和状态的调试信息
 /// System to draw chunk boundaries and status for debugging
 fn debug_draw_chunks(
     mut gizmos: Gizmos,
-    mut chunk_query: Query<(
-        Entity,
-        &FogChunk,
-        Option<&mut Text2d>,
-    )>,
+    mut chunk_query: Query<(Entity, &FogChunk, Option<&mut Text2d>)>,
     cache: ResMut<ChunkStateCache>,
     fog_settings: Res<FogMapSettings>, // Access ChunkManager for tile_size
     mut commands: Commands,
@@ -591,7 +585,10 @@ fn debug_draw_chunks(
             if let Some(mut text) = opt_text {
                 text.0 = format!(
                     "sid: {:?}\nlid: {:?}\n({}, {})",
-                    chunk.screen_index, chunk.layer_index, chunk.coords.x, chunk.coords.y
+                    chunk.snapshot_layer_index,
+                    chunk.fog_layer_index,
+                    chunk.coords.x,
+                    chunk.coords.y
                 );
             } else {
                 let font = asset_server.load("fonts/FiraSans-Bold.ttf");
@@ -608,8 +605,8 @@ fn debug_draw_chunks(
                 commands.entity(chunk_entity).insert((
                     Text2d::new(format!(
                         "sid: {:?}\nlid: {:?}\n({}, {})",
-                        chunk.screen_index,
-                        chunk.layer_index,
+                        chunk.snapshot_layer_index,
+                        chunk.fog_layer_index,
                         chunk.coords.x,
                         chunk.coords.y
                     )),
