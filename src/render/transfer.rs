@@ -2,6 +2,7 @@ use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
 use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
 use async_channel::{Receiver, Sender};
+use bevy::image::TextureFormatPixelInfo;
 use bevy::platform::collections::HashMap;
 use bevy::render::MainWorld;
 use bevy::render::render_asset::RenderAssets;
@@ -340,6 +341,55 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
+        let clear_bytes_per_row_unpadded =
+            texture_width as usize * TextureFormat::R8Unorm.pixel_size(); // Use pixel_size() for correctness
+        let clear_padded_bytes_per_row =
+            RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
+        let clear_buffer_size = clear_padded_bytes_per_row * texture_height as usize;
+
+        let zero_data = vec![255u8; clear_buffer_size];
+        let buffer = render_device.create_buffer_with_data(
+            &bevy::render::render_resource::BufferInitDescriptor {
+                label: Some("clear_fog_layer_buffer"),
+                contents: &zero_data,
+                usage: BufferUsages::COPY_SRC,
+            },
+        );
+
+        command_encoder.copy_buffer_to_texture(
+            TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    // ***** CHANGE HERE *****
+                    // Use the bytes_per_row calculated for the zero_data buffer
+                    bytes_per_row: Some(u32::from(
+                        std::num::NonZeroU32::new(clear_padded_bytes_per_row as u32)
+                            .expect("Clear buffer row size should not be zero"),
+                    )),
+                    // rows_per_image should likely be None when copying to a single 2D layer/slice
+                    rows_per_image: None,
+                },
+            },
+            TexelCopyTextureInfo {
+                // Target the correct texture (explored_read seems right for clearing render data)
+                texture: &fog_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: request.fog_layer_index,
+                },
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                // Ensure the extent matches the area being cleared
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1, // Clearing one layer
+            },
+        );
+
         // --- 复制快照纹理数据到暂存区 ---
         // --- Copy Snapshot Texture Data to Staging Buffer ---
         command_encoder.copy_texture_to_buffer(
@@ -367,6 +417,56 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 depth_or_array_layers: 1, // Copying a single layer
             },
         );
+
+        let clear_bytes_per_row_unpadded =
+            texture_width as usize * TextureFormat::Rgba8Unorm.pixel_size(); // Use pixel_size() for correctness
+        let clear_padded_bytes_per_row =
+            RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
+        let clear_buffer_size = clear_padded_bytes_per_row * texture_height as usize;
+
+        let zero_data = vec![0u8; clear_buffer_size];
+        let buffer = render_device.create_buffer_with_data(
+            &bevy::render::render_resource::BufferInitDescriptor {
+                label: Some("clear_snap_layer_buffer"),
+                contents: &zero_data,
+                usage: BufferUsages::COPY_SRC,
+            },
+        );
+
+        command_encoder.copy_buffer_to_texture(
+            TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    // ***** CHANGE HERE *****
+                    // Use the bytes_per_row calculated for the zero_data buffer
+                    bytes_per_row: Some(u32::from(
+                        std::num::NonZeroU32::new(clear_padded_bytes_per_row as u32)
+                            .expect("Clear buffer row size should not be zero"),
+                    )),
+                    // rows_per_image should likely be None when copying to a single 2D layer/slice
+                    rows_per_image: None,
+                },
+            },
+            TexelCopyTextureInfo {
+                // Target the correct texture (explored_read seems right for clearing render data)
+                texture: &snapshot_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: request.snapshot_layer_index,
+                },
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                // Ensure the extent matches the area being cleared
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1, // Clearing one layer
+            },
+        );
+
         let (fog_tx, fog_rx) = async_channel::bounded(1);
         let (snapshot_tx, snapshot_rx) = async_channel::bounded(1);
 
