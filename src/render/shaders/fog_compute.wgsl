@@ -2,7 +2,7 @@
 
 struct VisionSourceData {
     pos: vec2<f32>,
-    range_sq: f32,
+    range: f32,
     // padding f32
 };
 
@@ -96,7 +96,7 @@ fn main(
     for (var i = 0u; i < arrayLength(&vision_sources); i = i + 1u) {
         let source = vision_sources[i];
         let dist_sq = distanceSquared(world_pos, source.pos);
-        if (dist_sq <= source.range_sq) {
+        if (dist_sq <= source.range * source.range) {
             is_visible = true;
             break;
         }

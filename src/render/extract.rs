@@ -62,7 +62,7 @@ pub struct RenderSnapshotTexture(pub Handle<Image>);
 #[repr(C)]
 pub struct VisionSourceData {
     pub pos: Vec2,     // World position / 世界位置
-    pub range_sq: f32, // Use squared range for efficiency / 使用平方范围以提高效率
+    pub range: f32,    // Vision range / 视野范围
     pub _padding: f32, // WGSL vec2/f32 alignment / WGSL vec2/f32 对齐
 }
 
@@ -127,7 +127,7 @@ pub fn extract_vision_sources(
                 .filter(|(_, src)| src.enabled)
                 .map(|(transform, src)| VisionSourceData {
                     pos: transform.translation().truncate(),
-                    range_sq: src.range * src.range,
+                    range: src.range,
                     _padding: 0.0,
                 }),
         );
