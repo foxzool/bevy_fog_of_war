@@ -143,7 +143,7 @@ fn setup_fog_resources(
     // Snapshot Texture: Rgba8UnormSrgb (Stores last visible scene)
     // 快照纹理: Rgba8UnormSrgb (存储最后可见的场景)
     let snapshot_initial_data = vec![
-        0u8;
+        255u8;
         (snapshot_texture_size.width
             * snapshot_texture_size.height
             * snapshot_texture_size.depth_or_array_layers

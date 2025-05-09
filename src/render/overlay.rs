@@ -86,8 +86,8 @@ impl FromWorld for FogOverlayPipeline {
             label: Some("fog_overlay_sampler"),
             mag_filter: FilterMode::Linear,
             min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Linear, // No mipmaps / 无 mipmap
-            address_mode_u: AddressMode::ClampToEdge, // Clamp coordinates / 夹紧坐标
+            mipmap_filter: FilterMode::Linear, 
+            address_mode_u: AddressMode::ClampToEdge, 
             address_mode_v: AddressMode::ClampToEdge,
             address_mode_w: AddressMode::ClampToEdge,
             ..Default::default()
