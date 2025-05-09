@@ -3,6 +3,7 @@ use bevy::core_pipeline::fullscreen_vertex_shader::{
     FULLSCREEN_SHADER_HANDLE, fullscreen_shader_vertex_state,
 };
 use bevy::ecs::query::QueryItem;
+use bevy::ecs::system::lifetimeless::Read;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode};
@@ -13,7 +14,7 @@ use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniform
 // Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
 
 use super::extract::{OverlayChunkData, RenderFogTexture, RenderSnapshotTexture};
-use super::prepare::{FogBindGroups, FogUniforms, OverlayChunkMappingBuffer};
+use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
 use super::{FOG_OVERLAY_SHADER_HANDLE, RenderFogMapSettings};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -195,23 +196,17 @@ pub fn queue_fog_overlay_pipelines(
 }
 
 impl ViewNode for FogOverlayNode {
-    // Query ViewTarget and ViewUniformOffset / 查询 ViewTarget 和 ViewUniformOffset
-    type ViewQuery = (
-        &'static ViewTarget,
-        &'static ViewUniformOffset,
-        &'static Msaa,
-    );
+    type ViewQuery = (Read<ViewTarget>, Read<ViewUniformOffset>);
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, view_uniform_offset, msaa): QueryItem<Self::ViewQuery>,
+        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let overlay_pipeline = world.resource::<FogOverlayPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
-
 
         // Get the specialized pipeline for this view / 获取此视图的特化管线
         let Some(pipeline) = pipeline_cache.get_render_pipeline(overlay_pipeline.pipeline_id)

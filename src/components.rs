@@ -81,7 +81,7 @@ impl FogChunk {
     }
     /// 创建一个新的地图区块
     /// Create a new map chunk
-    pub fn new(chunk_coord: ChunkCoord, size: UVec2, tile_size: f32) -> Self {
+    pub fn new(chunk_coord: IVec2, size: UVec2, tile_size: f32) -> Self {
         let min = Vec2::new(
             chunk_coord.x as f32 * size.x as f32 * tile_size,
             chunk_coord.y as f32 * size.y as f32 * tile_size,

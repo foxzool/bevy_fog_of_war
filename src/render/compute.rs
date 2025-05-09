@@ -4,7 +4,11 @@ use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel};
-use bevy::render::render_resource::{BindGroupLayout, BindGroupLayoutEntry, BindingType, BufferBindingType, CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType, StorageTextureAccess, TextureFormat, TextureViewDimension};
+use bevy::render::render_resource::{
+    BindGroupLayout, BindGroupLayoutEntry, BindingType, BufferBindingType, CachedComputePipelineId,
+    ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType,
+    StorageTextureAccess, TextureFormat, TextureViewDimension,
+};
 use bevy::render::renderer::{RenderContext, RenderDevice}; // Import buffer to get chunk count / 导入缓冲区以获取区块数量 // Import shader handle / 导入 shader 句柄
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -15,15 +19,14 @@ pub struct FogComputeNode;
 
 #[derive(Resource)]
 pub struct FogComputePipeline {
-    pipeline_id: CachedComputePipelineId,
-    compute_layout: BindGroupLayout, // Store layout used / 存储使用的布局
+    pub pipeline_id: CachedComputePipelineId,
+    pub compute_layout: BindGroupLayout, // Store layout used / 存储使用的布局
 }
 
 // System to initialize the compute pipeline / 初始化计算管线的系统
 impl FromWorld for FogComputePipeline {
     fn from_world(world: &mut World) -> Self {
         let pipeline_cache = world.resource::<PipelineCache>();
-        let fog_bind_groups = world.resource::<FogBindGroups>();
 
         let render_device = world.resource::<RenderDevice>();
 

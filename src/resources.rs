@@ -3,7 +3,6 @@ use bevy::color::palettes::basic;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::TextureFormat;
-use std::sync::Arc;
 
 /// 快速查找区块坐标对应的 FogChunk 实体
 /// Resource for quickly looking up FogChunk entities by their coordinates
@@ -104,7 +103,6 @@ impl TextureArrayManager {
     /// 为给定的区块坐标分配一对层索引。
     /// 如果没有可用的空闲层，则返回 None。
     pub fn allocate_layer_indices(&mut self, coords: IVec2) -> Option<(u32, u32)> {
-        
         if self.coord_to_layers.contains_key(&coords) {
             // This coord already has layers, should not happen if logic is correct.
             // Or, it means we are re-activating a chunk that somehow wasn't fully cleaned up.
@@ -123,7 +121,10 @@ impl TextureArrayManager {
             self.free_snapshot_indices.pop(),
         ) {
             self.coord_to_layers.insert(coords, (fog_idx, snap_idx));
-            info!("Allocating layers for coord {:?}. F{} S{}", coords, fog_idx, snap_idx);
+            info!(
+                "Allocating layers for coord {:?}. F{} S{}",
+                coords, fog_idx, snap_idx
+            );
             Some((fog_idx, snap_idx))
         } else {
             // Ran out of layers, push back any popped indices if one succeeded but other failed (shouldn't happen with paired pop)
@@ -141,7 +142,10 @@ impl TextureArrayManager {
     /// 释放与给定区块坐标关联的层索引。
     pub fn free_layer_indices_for_coord(&mut self, coords: IVec2) {
         if let Some((fog_idx, snap_idx)) = self.coord_to_layers.remove(&coords) {
-            info!("Freeing layers for coord {:?}. F{} S{}", coords, fog_idx, snap_idx);
+            info!(
+                "Freeing layers for coord {:?}. F{} S{}",
+                coords, fog_idx, snap_idx
+            );
             // It's crucial that an index is not pushed to free_..._indices
             // if it's already there or if it's invalid.
             // 关键是，如果索引已存在或无效，则不要将其推送到 free_..._indices。
@@ -163,7 +167,10 @@ impl TextureArrayManager {
                 );
             }
         } else {
-            warn!("Attempted to free layers for coord {:?} which has no allocated layers.", coords);
+            warn!(
+                "Attempted to free layers for coord {:?} which has no allocated layers.",
+                coords
+            );
         }
     }
 
@@ -256,7 +263,7 @@ impl Default for FogMapSettings {
 }
 
 impl FogMapSettings {
-    pub fn chunk_coord_to_world(&self, chunk_coord: ChunkCoord) -> Vec2 {
+    pub fn chunk_coord_to_world(&self, chunk_coord: IVec2) -> Vec2 {
         Vec2::new(
             chunk_coord.x as f32 * self.chunk_size.x as f32,
             chunk_coord.y as f32 * self.chunk_size.y as f32,

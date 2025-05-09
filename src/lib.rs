@@ -1,20 +1,15 @@
 use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
-use bevy::image::TextureFormatPixelInfo;
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 
-mod chunk;
 mod components;
-mod fog_2d;
 pub mod prelude;
 mod render;
 mod resources;
-mod sync_texture;
-mod vision;
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 enum FogSystemSet {
@@ -79,11 +74,10 @@ impl Plugin for FogOfWarPlugin {
         app.add_systems(
             Update,
             (
-                // --- UpdateChunkState Set ---
-                clear_per_frame_caches, // Run first in the set / 在集合中首先运行
+                clear_per_frame_caches,
                 update_chunk_visibility,
                 update_camera_view_chunks,
-                update_chunk_component_state, // Sync cache state to components / 将缓存状态同步到组件
+                update_chunk_component_state,
             )
                 .chain()
                 .in_set(FogSystemSet::UpdateChunkState),
@@ -318,9 +312,8 @@ fn manage_chunk_entities(
     mut cache: ResMut<ChunkStateCache>,
     mut chunk_manager: ResMut<ChunkEntityManager>,
     mut texture_manager: ResMut<TextureArrayManager>,
-    mut cpu_storage: ResMut<CpuChunkStorage>,
+    cpu_storage: Res<CpuChunkStorage>,
     mut chunk_q: Query<&mut FogChunk>,
-    mut cpu_to_gpu_copy_requests: ResMut<CpuToGpuCopyRequests>,
 ) {
     let chunk_size_f = settings.chunk_size.as_vec2();
 
@@ -397,7 +390,7 @@ fn manage_chunk_entities(
 
                 chunk_manager.map.insert(coords, entity);
                 cache.gpu_resident_chunks.insert(coords);
-               
+
             // info!("Created FogChunk {:?} (Fog: {}, Snap: {}) State: Unexplored/Gpu. Queued initial unexplored data upload.", coords, fog_idx, snap_idx);
             } else {
                 error!(
@@ -409,28 +402,6 @@ fn manage_chunk_entities(
             }
         }
     }
-
-    // // Update state for chunks transitioning from CPU to GPU
-    // // 更新从 CPU 转换到 GPU 的区块状态
-    // for coords in chunks_to_make_gpu {
-    //     if let Some(entity) = chunk_manager.map.get(&coords) {
-    //         if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
-    //             if let Some((fog_idx, snap_idx)) = texture_manager.allocate_layer_indices(coords) {
-    //                 chunk.fog_layer_index = Some(fog_idx);
-    //                 chunk.snapshot_layer_index = Some(snap_idx);
-    //                 // chunk.state.memory_location = ChunkMemoryLocation::Gpu;
-    //                 cache.gpu_resident_chunks.insert(coords); // Mark as GPU resident / 标记为 GPU 驻留
-    //                 // Remove from CPU storage (data transfer happens elsewhere)
-    //                 // 从 CPU 存储中移除 (数据传输在别处发生)
-    //                 // cpu_storage.storage.remove(&coords);
-    //                 // info!("Chunk {:?} marked for GPU residency.", coords);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // TODO: Implement chunk despawning for very distant chunks
-    // TODO: 为非常遥远的区块实现实体销毁
 }
 
 /// Check if a circle intersects with a rectangle
