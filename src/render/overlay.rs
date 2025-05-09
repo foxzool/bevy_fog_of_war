@@ -7,6 +7,9 @@ use bevy::ecs::system::lifetimeless::Read;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode};
+use bevy::render::render_resource::binding_types::{
+    sampler, storage_buffer_read_only, texture_2d_array, uniform_buffer,
+};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
@@ -66,79 +69,24 @@ impl FromWorld for FogOverlayPipeline {
 
         let layout = render_device.create_bind_group_layout(
             "fog_overlay_bind_group_layout",
-            &[
-                // View Uniforms (Standard Bevy Binding) / 视图统一变量 (标准 Bevy 绑定)
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: true, // Important for view uniforms / 对视图统一变量很重要
-                        min_binding_size: Some(ViewUniform::min_size()),
-                    },
-                    count: None,
-                },
-                // Fog Texture (Sampled) / 雾效纹理 (采样)
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: false }, // R8Unorm is not filterable / R8Unorm 不可过滤
-                        view_dimension: TextureViewDimension::D2Array,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // Snapshot Texture (Sampled) / 快照纹理 (采样)
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true }, // RGBA8 is filterable / RGBA8 可过滤
-                        view_dimension: TextureViewDimension::D2Array,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // Sampler / 采样器
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::NonFiltering), // Use filtering for snapshot / 对快照使用过滤
-                    count: None,
-                },
-                // Fog Settings (Uniform Buffer) / 雾设置 (统一缓冲区) - Reuse binding 3 from compute layout? No, use new binding.
-                // 重用计算布局中的绑定 3？不，使用新绑定。
-                BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: ShaderStages::FRAGMENT, // Only fragment needed here / 这里只需要片段
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(RenderFogMapSettings::min_size()),
-                    },
-                    count: None,
-                },
-                // Overlay Chunk Mapping (Storage Buffer) / 覆盖区块映射 (存储缓冲区)
-                BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(OverlayChunkData::min_size()),
-                    },
-                    count: None,
-                },
-            ],
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::FRAGMENT,
+                (
+                    uniform_buffer::<ViewUniform>(true), // 0
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 2
+                    sampler(SamplerBindingType::Filtering), // 3
+                    uniform_buffer::<RenderFogMapSettings>(false), // 4
+                    storage_buffer_read_only::<OverlayChunkData>(false), // 5
+                ),
+            ),
         );
-
         // Create a sampler / 创建采样器
         let sampler = render_device.create_sampler(&SamplerDescriptor {
             label: Some("fog_overlay_sampler"),
-            mag_filter: FilterMode::Nearest,
-            min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest, // No mipmaps / 无 mipmap
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mipmap_filter: FilterMode::Linear, // No mipmaps / 无 mipmap
             address_mode_u: AddressMode::ClampToEdge, // Clamp coordinates / 夹紧坐标
             address_mode_v: AddressMode::ClampToEdge,
             address_mode_w: AddressMode::ClampToEdge,
@@ -254,32 +202,14 @@ impl ViewNode for FogOverlayNode {
         let bind_group = render_context.render_device().create_bind_group(
             "fog_overlay_bind_group",
             &overlay_pipeline.layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: view_uniform_binding,
-                }, // View uniforms / 视图统一变量
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(fog_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::TextureView(snapshot_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::Sampler(&overlay_pipeline.sampler),
-                },
-                BindGroupEntry {
-                    binding: 4,
-                    resource: uniform_buf.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 5,
-                    resource: mapping_buf.as_entire_binding(),
-                },
-            ],
+            &BindGroupEntries::sequential((
+                view_uniform_binding,            // 0
+                fog_texture_view,                // 1
+                snapshot_texture_view,           // 2
+                &overlay_pipeline.sampler,       // 3
+                uniform_buf.as_entire_binding(), // 4
+                mapping_buf.as_entire_binding(), // 5
+            )),
         );
 
         // Begin render pass targeting the view / 开始针对视图的渲染通道

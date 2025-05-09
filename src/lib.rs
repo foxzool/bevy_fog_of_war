@@ -1,6 +1,7 @@
 use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
+use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_resource::ExtractResourcePlugin;
@@ -137,6 +138,7 @@ fn setup_fog_resources(
         | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
         | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
         | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+    fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
     // Snapshot Texture: Rgba8UnormSrgb (Stores last visible scene)
     // 快照纹理: Rgba8UnormSrgb (存储最后可见的场景)
