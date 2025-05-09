@@ -90,7 +90,7 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_systems(
             Update,
-            (manage_chunk_texture_transfer).in_set(FogSystemSet::PrepareTransfers),
+            manage_chunk_texture_transfer.in_set(FogSystemSet::PrepareTransfers),
         );
 
         app.add_plugins(FogOfWarRenderPlugin);
@@ -378,11 +378,8 @@ fn manage_chunk_entities(
                 let entity = commands
                     .spawn(FogChunk {
                         coords,
-                        layer_index: None,
-                        screen_index: None,
                         fog_layer_index: Some(fog_idx),
                         snapshot_layer_index: Some(snap_idx),
-                        loaded: false,
                         state: initial_state,
                         world_bounds,
                     })

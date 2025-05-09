@@ -1,4 +1,3 @@
-use bevy::color::palettes::basic::GREEN;
 use bevy::diagnostic::FrameCount;
 use bevy::{
     color::palettes::css::{GOLD, RED},
@@ -576,11 +575,7 @@ fn debug_draw_chunks(
             gizmos.rect_2d(
                 chunk.world_bounds.center(),
                 chunk.world_bounds.size(),
-                if chunk.loaded {
-                    GREEN.with_alpha(0.3) // Green for loaded chunks
-                } else {
-                    RED.with_alpha(0.3) // Red for potentially unloaded (though usually despawned)
-                },
+                RED.with_alpha(0.3),
             );
             if let Some(mut text) = opt_text {
                 text.0 = format!(

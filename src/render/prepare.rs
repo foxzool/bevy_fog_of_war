@@ -110,8 +110,6 @@ pub fn prepare_overlay_chunk_mapping_buffer(
     buffer_res.capacity = capacity;
 }
 
-// --- Bind Group Preparation ---
-// --- 绑定组准备 ---
 
 pub fn prepare_fog_bind_groups(
     render_device: Res<RenderDevice>,
@@ -119,9 +117,7 @@ pub fn prepare_fog_bind_groups(
     fog_uniforms: Res<FogUniforms>,
     vision_source_buffer: Res<VisionSourceBuffer>,
     gpu_chunk_buffer: Res<GpuChunkInfoBuffer>,
-    overlay_chunk_buffer: Res<OverlayChunkMappingBuffer>,
     fog_texture: Res<RenderFogTexture>,
-    snapshot_texture: Res<RenderSnapshotTexture>,
     images: Res<RenderAssets<GpuImage>>,
     fallback_image: Res<FallbackImage>, // For default textures / 用于默认纹理
     fog_compute_pipeline: Res<FogComputePipeline>, // For view uniform binding / 用于视图统一绑定
