@@ -5,114 +5,147 @@
     position_ndc_to_world,
 }
 
-struct OverlayChunkData {
+struct OverlayChunkData { // Used for mapping world coord to layer index in textures / 用于将世界坐标映射到纹理中的层索引
     coords: vec2<i32>,
-    fog_layer_index: i32,
-    snapshot_layer_index: i32,
+    fog_layer_index: i32,        // Layer index for fog_texture (explored) and visibility_texture / fog_texture (已探索) 和 visibility_texture 的层索引
+    snapshot_layer_index: i32, // Layer index for snapshot_texture / snapshot_texture 的层索引
+    // padding u32,
 };
 
-// Match FogMapSettings struct layout / 匹配 FogMapSettings 结构布局
 struct FogMapSettings {
     chunk_size: vec2<u32>,
     texture_resolution_per_chunk: vec2<u32>,
     fog_color_unexplored: vec4<f32>,
     fog_color_explored: vec4<f32>,
-    vision_clear_color: vec4<f32>, // Often transparent / 通常是透明的
+    vision_clear_color: vec4<f32>, // Usually (0,0,0,0) for full transparency / 通常是 (0,0,0,0) 以实现完全透明
     enabled: u32,
-     _padding2: u32,
-     _padding3: u32,
-     _padding4: u32,
+    _padding2: u32,
+    _padding3: u32,
+    _padding4: u32,
 };
 
 const GFX_INVALID_LAYER: i32 = -1;
 
-// Bindings must match layout in prepare.rs / 绑定必须匹配 prepare.rs 中的布局
-@group(0) @binding(0) var<uniform> view: View; // Bevy view uniforms / Bevy 视图统一变量
-@group(0) @binding(1) var fog_texture: texture_2d_array<f32>; // Sampled fog / 采样的雾效
-@group(0) @binding(2) var snapshot_texture: texture_2d_array<f32>; // Sampled snapshot / 采样的快照
-@group(0) @binding(3) var texture_sampler: sampler; // Sampler for snapshot / 快照的采样器
-@group(0) @binding(4) var<uniform> settings: FogMapSettings; // Global settings / 全局设置
-@group(0) @binding(5) var<storage, read> chunk_mapping: array<OverlayChunkData>; // Chunk coord -> layer index / 区块坐标 -> 层索引
+// --- Bindings for fog_overlay ---
+// --- fog_overlay 的绑定 ---
+@group(0) @binding(0) var<uniform> view: View;
+@group(0) @binding(1) var visibility_texture_sampler: sampler; // Sampler for visibility & fog textures / 可见性与雾效纹理的采样器
+@group(0) @binding(2) var visibility_tex: texture_2d_array<f32>;     // Current frame visibility (smooth 0-1) / 当前帧可见性 (平滑 0-1)
+@group(0) @binding(3) var explored_tex: texture_2d_array<f32>;       // Explored map (0 or 1) / 已探索地图 (0 或 1)
+@group(0) @binding(4) var snapshot_texture_sampler: sampler; // Sampler for snapshot texture / 快照纹理的采样器
+@group(0) @binding(5) var snapshot_tex: texture_2d_array<f32>;       // Snapshot of explored areas / 已探索区域的快照
+@group(0) @binding(6) var<uniform> settings: FogMapSettings;
+@group(0) @binding(7) var<storage, read> chunk_mapping: array<OverlayChunkData>; // Chunk coord -> layer indices / 区块坐标 -> 层索引
 
-// Constants for fog thresholds / 雾阈值常量
-const VISIBLE_THRESHOLD: f32 = 0.1; // Allow slight fog in visible areas / 允许可见区域有轻微雾效
-const EXPLORED_THRESHOLD: f32 = 0.6; // Threshold between explored and unexplored / 已探索和未探索之间的阈值
-const EXPLORED_FOG_INTENSITY: f32 = 1.0; // How much to blend explored fog color / 混合多少已探索雾颜色
+
+// --- Constants for Blending ---
+// --- 混合常量 ---
+const VISIBILITY_THRESHOLD_FULLY_CLEAR: f32 = 0.95; // Visibility above this means almost no fog / 可见性高于此值意味着几乎没有雾
+const VISIBILITY_THRESHOLD_START_CLEARING: f32 = 0.1; // Start fading out fog when visibility is above this / 当可见性高于此值时开始淡出雾效
+
+const EXPLORED_SNAPSHOT_OPACITY: f32 = 0.7; // How opaque the snapshot is in explored areas / 快照在已探索区域的不透明度
+                                          // You might want to make settings.fog_color_explored.a control this.
+                                          // 你可能希望通过 settings.fog_color_explored.a 来控制它。
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (settings.enabled == 0u) {
-       return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+       return vec4<f32>(0.0, 0.0, 0.0, 0.0); // Fully transparent if disabled / 如果禁用则完全透明
     }
-    let uv = in.uv;
-    // Use helper functions to convert UV to world position
-    let ndc = uv_to_ndc(uv);
+
+    let screen_uv = in.uv;
+
+    // Convert screen UV to world position
+    // 将屏幕 UV 转换为世界位置
+    let ndc = uv_to_ndc(screen_uv);
     let ndc_pos = vec3<f32>(ndc, 0.0);
     let world_pos = position_ndc_to_world(ndc_pos);
+    let world_xy = world_pos.xy; // Use only xy for 2D comparison
 
     let chunk_size_f = vec2<f32>(f32(settings.chunk_size.x), f32(settings.chunk_size.y));
-    let tex_res_f = vec2<f32>(f32(settings.texture_resolution_per_chunk.x), f32(settings.texture_resolution_per_chunk.y));
 
-    // Calculate chunk coordinates / 计算区块坐标
-    let chunk_coords_f = floor(world_pos.xy / chunk_size_f);
+    // Calculate which chunk this world position falls into
+    // 计算此世界位置属于哪个区块
+    let chunk_coords_f = floor(world_xy / chunk_size_f);
     let chunk_coords_i = vec2<i32>(i32(chunk_coords_f.x), i32(chunk_coords_f.y));
 
-    // Find layer indices for this chunk using the mapping buffer
-    // 使用映射缓冲区查找此区块的层索引
-    var fog_layer_idx = GFX_INVALID_LAYER; // Use signed int for "not found" / 使用有符号整数表示“未找到”
-    var snapshot_layer_idx = GFX_INVALID_LAYER;
+    // Find layer indices for this chunk
+    // 查找此区块的层索引
+    var active_fog_layer_idx = GFX_INVALID_LAYER;
+    var active_snapshot_layer_idx = GFX_INVALID_LAYER;
     var chunk_found = false;
     for (var i = 0u; i < arrayLength(&chunk_mapping); i = i + 1u) {
-        if (chunk_mapping[i].coords.x == chunk_coords_i.x && chunk_mapping[i].coords.y == chunk_coords_i.y) {
-            fog_layer_idx = chunk_mapping[i].fog_layer_index;
-            snapshot_layer_idx = chunk_mapping[i].snapshot_layer_index;
+        let map_entry = chunk_mapping[i];
+        if (map_entry.coords.x == chunk_coords_i.x && map_entry.coords.y == chunk_coords_i.y) {
+            active_fog_layer_idx = map_entry.fog_layer_index; // Same layer for visibility and explored
+            active_snapshot_layer_idx = map_entry.snapshot_layer_index;
             chunk_found = true;
             break;
         }
     }
 
-    // If chunk data not found (outside GPU resident area), assume unexplored
-    // 如果未找到区块数据 (在 GPU 驻留区域之外)，假设未探索
-    if (!chunk_found || fog_layer_idx == GFX_INVALID_LAYER) {
+    // If chunk data not found (e.g., outside GPU resident area), assume unexplored
+    // 如果未找到区块数据 (例如，在 GPU 驻留区域之外)，则假定为未探索
+    if (!chunk_found || active_fog_layer_idx == GFX_INVALID_LAYER) {
           return settings.fog_color_unexplored;
     }
 
-    // Calculate UV within the chunk's texture / 计算区块纹理内的 UV
-    let uv_in_chunk = fract(world_pos.xy / chunk_size_f);
+    // Calculate UV within the specific chunk's texture
+    // 计算特定区块纹理内的 UV
+    let uv_in_chunk = fract(world_xy / chunk_size_f);
 
-    // Sample fog texture (non-filterable) / 采样雾效纹理 (不可过滤)
-    // Use textureSampleLevel with level 0 and offset (0,0) / 使用 level 0 和偏移 (0,0) 的 textureSampleLevel
-    // Sample fog texture, use integer array index for layer / 采样雾效纹理，层索引用整数
-    let fog_value = textureSampleLevel(fog_texture, texture_sampler, uv_in_chunk, fog_layer_idx, 0.0).r; // Use integer fog_layer_index / 使用整数 fog_layer_index
+    // Sample visibility and explored status
+    // 采样可见性和已探索状态
+    // Ensure visibility_texture_sampler is Linear for smooth results from visibility_tex
+    // 确保 visibility_texture_sampler 是 Linear，以便从 visibility_tex 获得平滑结果
+    let current_visibility = textureSample(visibility_tex, visibility_texture_sampler, uv_in_chunk, active_fog_layer_idx).r;
+    let explored_status = textureSample(explored_tex, visibility_texture_sampler, uv_in_chunk, active_fog_layer_idx).r; // Should be 0.0 or 1.0
 
-    // --- Blending Logic ---
-    // --- 混合逻辑 ---
+    // --- Determine Final Fog Color ---
+    // --- 确定最终雾色 ---
 
-    if (fog_value <= VISIBLE_THRESHOLD) {
-        // Fully visible or almost fully visible - show the underlying scene
-        // 完全可见或几乎完全可见 - 显示底层场景
-        discard; // Discard fragment to show scene below / 丢弃片段以显示下方场景
-        // Alternative: Return clear color if blending on top / 备选: 如果在顶部混合则返回透明颜色
-        // return settings.vision_clear_color;
-    } else if (fog_value <= EXPLORED_THRESHOLD) {
-        if (snapshot_layer_idx == GFX_INVALID_LAYER) { // Check if snapshot is valid before sampling
-            // No valid snapshot, show explored fog only, or a default "no snapshot" color
-            return settings.fog_color_explored; // Example: just explored fog
-        }
-        // Explored but not visible - show snapshot blended with explored fog
-        // 已探索但不可见 - 显示与已探索雾混合的快照
-        let snapshot_color = textureSampleLevel(snapshot_texture, texture_sampler, uv_in_chunk, snapshot_layer_idx, 0.0);
-
-        // Optional: Desaturate or darken snapshot / 可选: 去饱和或调暗快照
-        // let gray = dot(snapshot_color.rgb, vec3<f32>(0.299, 0.587, 0.114));
-        // let desaturated_snapshot = vec4<f32>(vec3<f32>(gray) * 0.8, snapshot_color.a);
-
-        // Blend snapshot with explored fog color / 将快照与已探索雾颜色混合
-        let final_color = mix(snapshot_color, settings.fog_color_explored, EXPLORED_FOG_INTENSITY);
-        return final_color;
-
-    } else {
-        // Unexplored - show solid unexplored fog color / 未探索 - 显示实心未探索雾颜色
+    if (explored_status < 0.5) { // If less than 0.5, consider it unexplored / 如果小于 0.5，则视为未探索
         return settings.fog_color_unexplored;
     }
+
+    // At this point, the area is explored (explored_status >= 0.5)
+    // 此时，该区域已探索 (explored_status >= 0.5)
+
+    // Calculate how "clear" the vision is, for blending
+    // 计算视野的“清晰”程度，用于混合
+    // smoothstep(edge0, edge1, x): 0 if x < edge0, 1 if x > edge1
+    let clear_factor = smoothstep(VISIBILITY_THRESHOLD_START_CLEARING, VISIBILITY_THRESHOLD_FULLY_CLEAR, current_visibility);
+
+    if (clear_factor >= 0.999) { // Almost fully visible
+        // Discarding is usually best for performance if fully clear
+        // 如果完全清晰，丢弃通常对性能最好
+        if (settings.vision_clear_color.a < 0.01) { // If clear color is transparent / 如果清晰颜色是透明的
+             discard;
+        }
+        return settings.vision_clear_color; // Return configured clear color / 返回配置的清晰颜色
+    }
+
+    // Area is explored, but not fully clear. Show snapshot blended with explored fog.
+    // 区域已探索，但未完全清晰。显示与已探索雾混合的快照。
+    var final_color: vec4<f32>;
+    if (active_snapshot_layer_idx != GFX_INVALID_LAYER) {
+        let snapshot_color_sample = textureSample(snapshot_tex, snapshot_texture_sampler, uv_in_chunk, active_snapshot_layer_idx);
+        // Blend snapshot with the general "explored fog" color
+        // 将快照与通用的“已探索雾”颜色混合
+        // fog_color_explored often has some alpha to make it semi-transparent over the snapshot
+        // fog_color_explored 通常具有一些 alpha 值，使其在快照上呈半透明
+        final_color = mix(snapshot_color_sample, settings.fog_color_explored, settings.fog_color_explored.a);
+    } else {
+        // No valid snapshot, just show explored fog
+        // 没有有效的快照，仅显示已探索的雾
+        final_color = settings.fog_color_explored;
+    }
+
+    // Now, fade this "explored view" towards fully clear based on `clear_factor`
+    // 现在，根据 `clear_factor` 将此“已探索视图”淡化至完全清晰
+    // mix(x, y, a): x if a=0, y if a=1
+    // We want final_color when clear_factor=0, and vision_clear_color when clear_factor=1
+    final_color = mix(final_color, settings.vision_clear_color, clear_factor);
+
+    return final_color;
 }

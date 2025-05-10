@@ -16,7 +16,7 @@ use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
 // Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
 
-use super::extract::{OverlayChunkData, RenderFogTexture, RenderSnapshotTexture};
+use super::extract::{OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
 use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
 use super::{FOG_OVERLAY_SHADER_HANDLE, RenderFogMapSettings};
 
@@ -73,9 +73,12 @@ impl FromWorld for FogOverlayPipeline {
                 ShaderStages::FRAGMENT,
                 (
                     uniform_buffer::<ViewUniform>(true), // 0
-                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
-                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 2
                     sampler(SamplerBindingType::Filtering), // 3
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
+                    sampler(SamplerBindingType::Filtering), // 3
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 2
+
                     uniform_buffer::<RenderFogMapSettings>(false), // 4
                     storage_buffer_read_only::<OverlayChunkData>(false), // 5
                 ),
@@ -166,6 +169,7 @@ impl ViewNode for FogOverlayNode {
         // Get other needed resources / 获取其他所需资源
         let fog_uniforms = world.resource::<FogUniforms>();
         let overlay_chunk_buffer = world.resource::<OverlayChunkMappingBuffer>();
+        let visibility_texture = world.resource::<RenderVisibilityTexture>();
         let fog_texture = world.resource::<RenderFogTexture>();
         let snapshot_texture = world.resource::<RenderSnapshotTexture>();
         let images = world.resource::<RenderAssets<GpuImage>>();
@@ -188,6 +192,11 @@ impl ViewNode for FogOverlayNode {
         };
 
         // Get texture views / 获取纹理视图
+        let visibility_texture_view = images
+            .get(&visibility_texture.0)
+            .map(|img| &img.texture_view)
+            .unwrap_or(&fallback_image.d1.texture_view);
+
         let fog_texture_view = images
             .get(&fog_texture.0)
             .map(|img| &img.texture_view)
@@ -204,11 +213,14 @@ impl ViewNode for FogOverlayNode {
             &overlay_pipeline.layout,
             &BindGroupEntries::sequential((
                 view_uniform_binding,            // 0
-                fog_texture_view,                // 1
-                snapshot_texture_view,           // 2
-                &overlay_pipeline.sampler,       // 3
-                uniform_buf.as_entire_binding(), // 4
-                mapping_buf.as_entire_binding(), // 5
+                &overlay_pipeline.sampler,       // 4
+                visibility_texture_view,         // 1
+                fog_texture_view,                // 2
+                &overlay_pipeline.sampler,       // 4
+                snapshot_texture_view,           // 3
+
+                uniform_buf.as_entire_binding(), // 5
+                mapping_buf.as_entire_binding(), // 6
             )),
         );
 
