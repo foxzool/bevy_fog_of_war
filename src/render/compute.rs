@@ -1,15 +1,25 @@
-// fog_render/compute.rs
+// src/render/compute.rs
+
 use super::FOG_COMPUTE_SHADER_HANDLE;
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
-use bevy::prelude::*;
-use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel};
-use bevy::render::render_resource::{
-    BindGroupLayout, BindGroupLayoutEntry, BindingType, BufferBindingType, CachedComputePipelineId,
-    ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType,
-    StorageTextureAccess, TextureFormat, TextureViewDimension,
+use bevy::render::render_resource::StorageTextureAccess::WriteOnly;
+use bevy::{
+    prelude::*,
+    render::{
+        render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
+        render_resource::StorageTextureAccess::ReadWrite,
+        render_resource::binding_types::{
+            storage_buffer_read_only, texture_storage_2d_array, uniform_buffer,
+        },
+        render_resource::{
+            BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId,
+            ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages,
+            TextureFormat,
+        },
+        renderer::{RenderContext, RenderDevice},
+    },
 };
-use bevy::render::renderer::{RenderContext, RenderDevice}; // Import buffer to get chunk count / 导入缓冲区以获取区块数量 // Import shader handle / 导入 shader 句柄
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogComputeNodeLabel;
@@ -32,52 +42,16 @@ impl FromWorld for FogComputePipeline {
 
         let compute_layout = render_device.create_bind_group_layout(
             "fog_compute_bind_group_layout",
-            &[
-                // Fog Texture (Storage) / 雾效纹理 (存储)
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadWrite, // Read and write fog / 读写雾效
-                        format: TextureFormat::R8Unorm, // Must match image format / 必须匹配图像格式
-                        view_dimension: TextureViewDimension::D2Array,
-                    },
-                    count: None,
-                },
-                // Vision Sources (Storage Buffer) / 视野源 (存储缓冲区)
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(VisionSourceData::min_size()),
-                    },
-                    count: None,
-                },
-                // GPU Chunk Info (Storage Buffer) / GPU 区块信息 (存储缓冲区)
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(ChunkComputeData::min_size()),
-                    },
-                    count: None,
-                },
-                // Fog Settings (Uniform Buffer) / 雾设置 (统一缓冲区)
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::COMPUTE | ShaderStages::FRAGMENT, // Also used by overlay / 覆盖也会使用
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(RenderFogMapSettings::min_size()),
-                    },
-                    count: None,
-                },
-            ],
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::COMPUTE,
+                (
+                    texture_storage_2d_array(TextureFormat::R8Unorm, ReadWrite), // 0
+                    texture_storage_2d_array(TextureFormat::R8Unorm, WriteOnly), // 1
+                    storage_buffer_read_only::<VisionSourceData>(false),         // 2
+                    storage_buffer_read_only::<ChunkComputeData>(false),         // 3
+                    uniform_buffer::<RenderFogMapSettings>(false),               // 4
+                ),
+            ),
         );
 
         let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -98,11 +72,6 @@ impl FromWorld for FogComputePipeline {
 }
 
 impl Node for FogComputeNode {
-    // Input dependency (optional, ensures buffers are ready) / 输入依赖 (可选，确保缓冲区准备就绪)
-    // fn input(&self) -> Vec<SlotInfo> { vec![] }
-    // Output dependency (optional) / 输出依赖 (可选)
-    // fn output(&self) -> Vec<SlotInfo> { vec![] }
-
     fn run(
         &self,
         _graph: &mut RenderGraphContext, // Use graph.view_entity() if needed / 如果需要使用 graph.view_entity()
@@ -133,10 +102,6 @@ impl Node for FogComputeNode {
         }
 
         let texture_res = settings.texture_resolution_per_chunk;
-        // Calculate workgroups needed / 计算所需的工作组
-        // Example: One workgroup per chunk, 8x8 threads per workgroup
-        // 示例: 每个区块一个工作组，每个工作组 8x8 线程
-        // Adjust workgroup size in shader and here accordingly! / 相应地调整 shader 和此处的工作组大小！
         let workgroup_size_x = 8;
         let workgroup_size_y = 8;
         let workgroups_x = (texture_res.x + workgroup_size_x - 1) / workgroup_size_x;

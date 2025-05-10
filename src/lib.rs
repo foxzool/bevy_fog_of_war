@@ -110,15 +110,15 @@ fn setup_fog_resources(
 ) {
     // --- Create Texture Arrays ---
     // --- 创建 Texture Arrays ---
-    let array_layers = 64; // Example layer count, adjust as needed / 示例层数，按需调整
-    info!("Setting up Fog of War with {} layers.", array_layers);
+    info!("Setting up Fog of War with {} layers.", settings.max_layers);
 
     let fog_texture_size = Extent3d {
         width: settings.texture_resolution_per_chunk.x,
         height: settings.texture_resolution_per_chunk.y,
-        depth_or_array_layers: array_layers,
+        depth_or_array_layers: settings.max_layers,
     };
     let snapshot_texture_size = fog_texture_size;
+    let visibility_texture_size = fog_texture_size;
 
     // Fog Texture: R8Unorm (0=visible, 1=unexplored)
     // 雾效纹理: R8Unorm (0=可见, 1=未探索)
@@ -139,6 +139,26 @@ fn setup_fog_resources(
         | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
         | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
     fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
+
+    let visibility_initial_data = vec![
+        255u8;
+        (visibility_texture_size.width
+            * visibility_texture_size.height
+            * visibility_texture_size.depth_or_array_layers)
+            as usize
+    ];
+    let mut visibility_image = Image::new(
+        visibility_texture_size,
+        TextureDimension::D2,
+        visibility_initial_data,
+        settings.fog_texture_format, // same format as fog texture
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    visibility_image.texture_descriptor.usage = TextureUsages::STORAGE_BINDING // For compute shader write / 用于 compute shader 写入
+        | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
+        | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
+        | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+    visibility_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
     // Snapshot Texture: Rgba8UnormSrgb (Stores last visible scene)
     // 快照纹理: Rgba8UnormSrgb (存储最后可见的场景)
@@ -162,15 +182,19 @@ fn setup_fog_resources(
         | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
 
     let fog_handle = images.add(fog_image);
+    let visibility_handle = images.add(visibility_image);
     let snapshot_handle = images.add(snapshot_image);
 
     // Insert resources
     // 插入资源
     commands.insert_resource(FogTextureArray { handle: fog_handle });
+    commands.insert_resource(VisibilityTextureArray {
+        handle: visibility_handle,
+    });
     commands.insert_resource(SnapshotTextureArray {
         handle: snapshot_handle,
     });
-    commands.insert_resource(TextureArrayManager::new(array_layers));
+    commands.insert_resource(TextureArrayManager::new(settings.max_layers));
 
     info!("Fog of War resources initialized.");
 }

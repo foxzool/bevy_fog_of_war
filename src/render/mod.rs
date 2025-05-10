@@ -6,19 +6,17 @@ use bevy::render::render_resource::SpecializedRenderPipelines;
 use bevy::render::renderer::render_system;
 use bevy::render::{Render, RenderApp, RenderSet};
 
-// Import submodules for organization / 导入子模块以组织代码
 mod compute;
 mod extract;
 mod overlay;
 mod prepare;
 mod snapshot;
-mod transfer; // Contains snapshot node and related logic / 包含快照节点和相关逻辑
+mod transfer;
 
-// Re-export relevant items / 重新导出相关项
+use crate::render::prepare::ExploredBuffer;
+use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use compute::FogComputeNode;
 pub use extract::RenderFogMapSettings;
-// Make extracted settings accessible / 使提取的设置可访问
-use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use overlay::FogOverlayNode;
 pub use prepare::{
     FogBindGroups, FogUniforms, GpuChunkInfoBuffer, OverlayChunkMappingBuffer, VisionSourceBuffer,
@@ -61,6 +59,7 @@ impl Plugin for FogOfWarRenderPlugin {
             // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
+            .init_resource::<ExploredBuffer>()
             .init_resource::<GpuToCpuActiveCopies>()
             .init_resource::<GpuChunkInfoBuffer>()
             .init_resource::<OverlayChunkMappingBuffer>()

@@ -17,9 +17,10 @@ const GFX_INVALID_LAYER: i32 = -1;
 // Match FogMapSettings struct layout / 匹配 FogMapSettings 结构布局
 // Ensure alignment and types match Rust struct / 确保对齐和类型匹配 Rust 结构
 @group(0) @binding(0) var fog_texture: texture_storage_2d_array<r8unorm, read_write>; // Fog data / 雾效数据
-@group(0) @binding(1) var<storage, read> vision_sources: array<VisionSourceData>; // Vision sources / 视野源
-@group(0) @binding(2) var<storage, read> chunks: array<ChunkComputeData>; // Active GPU chunks / 活动 GPU 区块
-@group(0) @binding(3) var<uniform> settings: FogMapSettings; // Global settings / 全局设置
+@group(0) @binding(1) var visibility_texture: texture_storage_2d_array<r8unorm, write>; // Visibility data / 可见性数据
+@group(0) @binding(2) var<storage, read> vision_sources: array<VisionSourceData>; // Vision sources / 视野源
+@group(0) @binding(3) var<storage, read> chunks: array<ChunkComputeData>; // Active GPU chunks / 活动 GPU 区块
+@group(0) @binding(4) var<uniform> settings: FogMapSettings; // Global settings / 全局设置
 
 // Define FogMapSettings struct matching Rust / 定义匹配 Rust 的 FogMapSettings 结构
 // Make sure fields, types, and alignment match! / 确保字段、类型和对齐匹配！

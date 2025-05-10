@@ -44,6 +44,15 @@ impl ChunkStateCache {
     }
 }
 
+/// 存储可见性数据的 TextureArray 资源句柄
+/// Resource handle for the TextureArray storing visibility data
+#[derive(Resource, Debug, Clone, Reflect)]
+#[reflect(Resource)] // 注册为反射资源 / Register as a reflectable resource
+pub struct VisibilityTextureArray {
+    /// 图像资源的句柄 / Handle to the image asset
+    pub handle: Handle<Image>,
+}
+
 /// 存储雾效数据的 TextureArray 资源句柄
 /// Resource handle for the TextureArray storing fog data
 #[derive(Resource, Debug, Clone, Reflect)]
@@ -242,6 +251,9 @@ pub struct FogMapSettings {
     /// 快照纹理数组的格式
     /// Texture format for the snapshot texture array
     pub snapshot_texture_format: TextureFormat,
+    /// 最大允许的区块数量
+    /// Maximum number of allowed chunks
+    pub max_layers: u32,
 }
 
 impl Default for FogMapSettings {
@@ -258,6 +270,7 @@ impl Default for FogMapSettings {
             fog_texture_format: TextureFormat::R8Unorm,
             // 快照需要颜色和透明度 / Snapshots need color and alpha
             snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
+            max_layers: 64,
         }
     }
 }

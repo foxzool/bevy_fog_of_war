@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
-use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
+use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
 use async_channel::{Receiver, Sender};
 use bevy::image::TextureFormatPixelInfo;
 use bevy::platform::collections::HashMap;
@@ -15,11 +15,11 @@ use bevy::render::texture::GpuImage;
 
 pub fn process_cpu_to_gpu_copies(
     render_queue: Res<RenderQueue>,
-    cpu_upload_requests: Res<CpuToGpuCopyRequests>, // Extracted from MainWorld
-    fog_texture_array_handle: Res<RenderFogTexture>, // Extracted handle
-    snapshot_texture_array_handle: Res<RenderSnapshotTexture>, // Extracted handle
+    cpu_upload_requests: Res<CpuToGpuCopyRequests>,
+    fog_texture_array_handle: Res<RenderFogTexture>,
+    snapshot_texture_array_handle: Res<RenderSnapshotTexture>,
     gpu_images: Res<RenderAssets<GpuImage>>,
-    render_fog_settings: Res<RenderFogMapSettings>, // Extracted settings
+    render_fog_settings: Res<RenderFogMapSettings>,
     mut cpu_to_gpu_requests: ResMut<CpuToGpuRequests>,
 ) {
     if cpu_upload_requests.requests.is_empty() {

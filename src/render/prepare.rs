@@ -7,10 +7,7 @@ use bevy::{
     render::texture::{FallbackImage, GpuImage},
 };
 
-use super::extract::{
-    ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture,
-    RenderSnapshotTexture,
-};
+use super::extract::{ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
 
 // --- Resources to hold GPU buffers and bind groups ---
 // --- 用于保存 GPU 缓冲区和绑定组的资源 ---
@@ -21,6 +18,12 @@ pub struct FogUniforms {
 
 #[derive(Resource, Default)]
 pub struct VisionSourceBuffer {
+    pub buffer: Option<Buffer>,
+    pub capacity: usize,
+}
+
+#[derive(Resource, Default)]
+pub struct ExploredBuffer {
     pub buffer: Option<Buffer>,
     pub capacity: usize,
 }
@@ -40,10 +43,6 @@ pub struct OverlayChunkMappingBuffer {
 #[derive(Resource, Default)]
 pub struct FogBindGroups {
     pub compute: Option<BindGroup>,
-    // Overlay bind group might depend on view, handled in node or pipeline
-    // 覆盖绑定组可能依赖于视图，在节点或管线中处理
-    // pub overlay: Option<BindGroup>,
-    pub overlay_layout: Option<BindGroupLayout>, // Store layout for pipeline / 存储布局用于管线
 }
 
 // --- Buffer Preparation Systems ---
@@ -110,7 +109,6 @@ pub fn prepare_overlay_chunk_mapping_buffer(
     buffer_res.capacity = capacity;
 }
 
-
 pub fn prepare_fog_bind_groups(
     render_device: Res<RenderDevice>,
     mut fog_bind_groups: ResMut<FogBindGroups>,
@@ -118,6 +116,7 @@ pub fn prepare_fog_bind_groups(
     vision_source_buffer: Res<VisionSourceBuffer>,
     gpu_chunk_buffer: Res<GpuChunkInfoBuffer>,
     fog_texture: Res<RenderFogTexture>,
+    visibility_texture: Res<RenderVisibilityTexture>,
     images: Res<RenderAssets<GpuImage>>,
     fallback_image: Res<FallbackImage>, // For default textures / 用于默认纹理
     fog_compute_pipeline: Res<FogComputePipeline>, // For view uniform binding / 用于视图统一绑定
@@ -125,6 +124,11 @@ pub fn prepare_fog_bind_groups(
     // Get texture views, use fallback if not loaded yet / 获取纹理视图，如果尚未加载则使用后备
     let fog_texture_view = images
         .get(&fog_texture.0)
+        .map(|img| &img.texture_view)
+        .unwrap_or(&fallback_image.d1.texture_view);    
+    
+    let visibility_texture_view = images
+        .get(&visibility_texture.0)
         .map(|img| &img.texture_view)
         .unwrap_or(&fallback_image.d1.texture_view);
 
@@ -139,25 +143,15 @@ pub fn prepare_fog_bind_groups(
         let compute_bind_group = render_device.create_bind_group(
             "fog_compute_bind_group",
             &fog_compute_pipeline.compute_layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::TextureView(fog_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: source_buf.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: chunk_buf.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 3,
-                    resource: uniform_buf.as_entire_binding(),
-                },
-            ],
+            &BindGroupEntries::sequential((
+                fog_texture_view,
+                visibility_texture_view,
+                source_buf.as_entire_binding(),
+                chunk_buf.as_entire_binding(),
+                uniform_buf.as_entire_binding(),
+            )),
         );
+
         fog_bind_groups.compute = Some(compute_bind_group);
     }
 }

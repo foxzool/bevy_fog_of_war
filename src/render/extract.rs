@@ -52,6 +52,8 @@ pub struct SnapshotRequestQueue {
 #[derive(Resource, Clone, Deref, DerefMut)]
 pub struct RenderFogTexture(pub Handle<Image>);
 #[derive(Resource, Clone, Deref, DerefMut)]
+pub struct RenderVisibilityTexture(pub Handle<Image>);
+#[derive(Resource, Clone, Deref, DerefMut)]
 pub struct RenderSnapshotTexture(pub Handle<Image>);
 
 // --- Data structures matching shader buffer layouts ---
@@ -107,10 +109,12 @@ pub fn extract_fog_settings(mut commands: Commands, settings: Extract<Res<FogMap
 pub fn extract_texture_handles(
     mut commands: Commands,
     fog_texture: Extract<Res<FogTextureArray>>,
+    visibility_texture: Extract<Res<VisibilityTextureArray>>,
     snapshot_texture: Extract<Res<SnapshotTextureArray>>,
 ) {
     // Ensure the handles exist in the RenderWorld / 确保句柄存在于 RenderWorld 中
     commands.insert_resource(RenderFogTexture(fog_texture.handle.clone()));
+    commands.insert_resource(RenderVisibilityTexture(visibility_texture.handle.clone()));
     commands.insert_resource(RenderSnapshotTexture(snapshot_texture.handle.clone()));
 }
 
