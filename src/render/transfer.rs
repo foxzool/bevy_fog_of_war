@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
-use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
+use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
 use async_channel::{Receiver, Sender};
 use bevy::image::TextureFormatPixelInfo;
 use bevy::platform::collections::HashMap;

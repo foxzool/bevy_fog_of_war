@@ -1,7 +1,7 @@
 use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
-use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
+use bevy::image::{ImageSampler, ImageSamplerDescriptor};
 use bevy::platform::collections::HashSet;
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_resource::ExtractResourcePlugin;

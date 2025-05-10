@@ -1,7 +1,5 @@
 // fog_render/overlay.rs
-use bevy::core_pipeline::fullscreen_vertex_shader::{
-    FULLSCREEN_SHADER_HANDLE, fullscreen_shader_vertex_state,
-};
+use bevy::core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
 use bevy::ecs::query::QueryItem;
 use bevy::ecs::system::lifetimeless::Read;
 use bevy::prelude::*;
@@ -14,11 +12,14 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
-// Import ViewUniform / 导入 ViewUniform // For default texture / 用于默认纹理
 
-use super::extract::{OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
+use super::RenderFogMapSettings;
+use super::extract::{
+    OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
+};
 use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
-use super::{FOG_OVERLAY_SHADER_HANDLE, RenderFogMapSettings};
+
+const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wgsl";
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogOverlayNodeLabel;
@@ -34,35 +35,6 @@ pub struct FogOverlayPipeline {
     pipeline_id: CachedRenderPipelineId,
 }
 
-impl SpecializedRenderPipeline for FogOverlayPipeline {
-    type Key = (); // No specialization needed for this simple overlay / 这个简单的覆盖不需要特化
-
-    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
-        let layout = vec![self.layout.clone()];
-        // Use fullscreen vertex shader and custom fragment shader / 使用全屏顶点着色器和自定义片段着色器
-        RenderPipelineDescriptor {
-            label: Some("fog_overlay_pipeline".into()),
-            layout,
-            vertex: fullscreen_shader_vertex_state(),
-            fragment: Some(FragmentState {
-                shader: FOG_OVERLAY_SHADER_HANDLE, // Our custom fragment shader / 我们的自定义片段着色器
-                shader_defs: vec![],
-                entry_point: "fragment".into(),
-                targets: vec![Some(ColorTargetState {
-                    format: ViewTarget::TEXTURE_FORMAT_HDR, // Target HDR format / 目标 HDR 格式
-                    blend: Some(BlendState::ALPHA_BLENDING), // Enable alpha blending / 启用 alpha 混合
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: PrimitiveState::default(), // Default triangle list / 默认三角形列表
-            depth_stencil: None,                  // No depth testing/writing / 无深度测试/写入
-            multisample: MultisampleState::default(), // No MSAA / 无 MSAA
-            push_constant_ranges: vec![],
-            zero_initialize_workgroup_memory: false,
-        }
-    }
-}
-
 impl FromWorld for FogOverlayPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
@@ -72,7 +44,7 @@ impl FromWorld for FogOverlayPipeline {
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
                 (
-                    uniform_buffer::<ViewUniform>(true), // 0
+                    uniform_buffer::<ViewUniform>(true),    // 0
                     sampler(SamplerBindingType::Filtering), // 1
                     texture_2d_array(TextureSampleType::Float { filterable: true }), // 2
                     texture_2d_array(TextureSampleType::Float { filterable: true }), // 3
@@ -87,13 +59,14 @@ impl FromWorld for FogOverlayPipeline {
             label: Some("fog_overlay_sampler"),
             mag_filter: FilterMode::Linear,
             min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Linear, 
-            address_mode_u: AddressMode::ClampToEdge, 
+            mipmap_filter: FilterMode::Linear,
+            address_mode_u: AddressMode::ClampToEdge,
             address_mode_v: AddressMode::ClampToEdge,
             address_mode_w: AddressMode::ClampToEdge,
             ..Default::default()
         });
 
+        let shader = world.load_asset(SHADER_ASSET_PATH);
         let pipeline_id =
             world
                 .resource_mut::<PipelineCache>()
@@ -107,7 +80,7 @@ impl FromWorld for FogOverlayPipeline {
                         buffers: vec![],
                     },
                     fragment: Some(FragmentState {
-                        shader: FOG_OVERLAY_SHADER_HANDLE,
+                        shader,
                         shader_defs: vec![],
                         entry_point: "fragment".into(),
                         targets: vec![Some(ColorTargetState {
@@ -128,19 +101,6 @@ impl FromWorld for FogOverlayPipeline {
             sampler,
             pipeline_id,
         }
-    }
-}
-
-// System to queue the specialized pipeline instance / 排队特化管线实例的系统
-pub fn queue_fog_overlay_pipelines(
-    mut pipeline_cache: ResMut<PipelineCache>,
-    mut pipelines: ResMut<SpecializedRenderPipelines<FogOverlayPipeline>>,
-    pipeline: Res<FogOverlayPipeline>,
-    views: Query<Entity, With<ViewTarget>>, // Queue for all views with a ViewTarget / 为所有带 ViewTarget 的视图排队
-) {
-    for view_entity in views.iter() {
-        // Queue the pipeline for this view / 为此视图排队管线
-        pipelines.specialize(&mut pipeline_cache, &pipeline, ());
     }
 }
 

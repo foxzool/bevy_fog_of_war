@@ -1,6 +1,5 @@
 // src/render/compute.rs
 
-use super::FOG_COMPUTE_SHADER_HANDLE;
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
 use bevy::render::render_resource::StorageTextureAccess::WriteOnly;
@@ -20,6 +19,8 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
     },
 };
+
+const SHADER_ASSET_PATH: &str = "shaders/fog_compute.wgsl";
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct FogComputeNodeLabel;
@@ -54,10 +55,12 @@ impl FromWorld for FogComputePipeline {
             ),
         );
 
+        let shader = world.load_asset(SHADER_ASSET_PATH);
+
         let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("fog_compute_pipeline".into()),
             layout: vec![compute_layout.clone()], // Use the prepared layout / 使用准备好的布局
-            shader: FOG_COMPUTE_SHADER_HANDLE,
+            shader,
             shader_defs: vec![], // Add shader defs if needed / 如果需要添加 shader defs
             entry_point: "main".into(),
             push_constant_ranges: vec![],

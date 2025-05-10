@@ -1,10 +1,12 @@
 use crate::prelude::*;
-use bevy::asset::weak_handle;
-use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy::render::render_graph::{RenderGraphApp, ViewNodeRunner};
-use bevy::render::render_resource::SpecializedRenderPipelines;
-use bevy::render::renderer::render_system;
-use bevy::render::{Render, RenderApp, RenderSet};
+use bevy::{
+    core_pipeline::core_2d::graph::{Core2d, Node2d},
+    render::{
+        Render, RenderApp, RenderSet,
+        render_graph::{RenderGraphApp, ViewNodeRunner},
+        renderer::render_system,
+    },
+};
 
 mod compute;
 mod extract;
@@ -13,7 +15,6 @@ mod prepare;
 mod snapshot;
 mod transfer;
 
-use crate::render::prepare::ExploredBuffer;
 use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use compute::FogComputeNode;
 pub use extract::RenderFogMapSettings;
@@ -22,29 +23,10 @@ pub use prepare::{
     FogBindGroups, FogUniforms, GpuChunkInfoBuffer, OverlayChunkMappingBuffer, VisionSourceBuffer,
 };
 
-pub const FOG_COMPUTE_SHADER_HANDLE: Handle<Shader> =
-    weak_handle!("c79464f5-7e93-419e-88ec-871c9ad12247");
-pub const FOG_OVERLAY_SHADER_HANDLE: Handle<Shader> =
-    weak_handle!("f40f9e67-6ba7-4277-93cd-718c6ded2786");
-
-pub const SNAPSHOT_SHADER_HANDLE: Handle<Shader> =
-    weak_handle!("32f45b4e-1e98-4e22-a723-caa2f4f22426");
-
 pub struct FogOfWarRenderPlugin;
 
 impl Plugin for FogOfWarRenderPlugin {
     fn build(&self, app: &mut App) {
-        // Load shaders / 加载着色器
-        let mut shaders = app.world_mut().resource_mut::<Assets<Shader>>();
-        shaders.insert(
-            &FOG_COMPUTE_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("shaders/fog_compute.wgsl"), "fog_compute.wgsl"),
-        );
-        shaders.insert(
-            &FOG_OVERLAY_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("shaders/fog_overlay.wgsl"), "fog_overlay.wgsl"),
-        );
-
         // Get Render App / 获取 Render App
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -59,15 +41,14 @@ impl Plugin for FogOfWarRenderPlugin {
             // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
-            .init_resource::<ExploredBuffer>()
             .init_resource::<GpuToCpuActiveCopies>()
             .init_resource::<GpuChunkInfoBuffer>()
             .init_resource::<OverlayChunkMappingBuffer>()
             .init_resource::<FogBindGroups>()
-            .init_resource::<CpuToGpuRequests>()
-            .init_resource::<SpecializedRenderPipelines<overlay::FogOverlayPipeline>>() // For overlay pipeline cache / 用于覆盖管线缓存
-            // .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>() // For snapshot pipeline cache / 用于快照管线缓存
-            // Extraction systems (Main World -> Render World) / 提取系统 (主世界 -> 渲染世界)
+            .init_resource::<CpuToGpuRequests>();
+
+        // Extraction systems (Main World -> Render World) / 提取系统 (主世界 -> 渲染世界)
+        render_app
             .add_systems(
                 ExtractSchedule,
                 (
@@ -112,29 +93,15 @@ impl Plugin for FogOfWarRenderPlugin {
                     prepare::prepare_fog_bind_groups,
                 )
                     .in_set(RenderSet::PrepareBindGroups),
-            )
-            // Queue systems (Prepare pipelines) / 排队系统 (准备管线)
-            .add_systems(
-                Render,
-                (
-                    overlay::queue_fog_overlay_pipelines,
-                    // snapshot::queue_snapshot_pipelines, // Queue snapshot pipelines / 排队快照管线
-                )
-                    .in_set(RenderSet::Queue),
             );
 
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
             .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
-            // .add_render_graph_node::<ViewNodeRunner<snapshot::SnapshotNode>>(
-            //     // Use ViewNode
-            //     Core2d,
-            //     snapshot::SnapshotNodeLabel,
-            // )
             .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
                 Core2d,
                 overlay::FogOverlayNodeLabel,
-            ); // Use ViewNode for camera access / 使用 ViewNode 访问相机
+            );
 
         // Add Render Graph edges (define dependencies) / 添加 Render Graph 边 (定义依赖)
         render_app.add_render_graph_edges(
@@ -157,12 +124,7 @@ impl Plugin for FogOfWarRenderPlugin {
         };
 
         render_app
-            .init_resource::<compute::FogComputePipeline>() // Initialize compute pipeline / 初始化计算管线
-            .init_resource::<overlay::FogOverlayPipeline>(); // Initialize overlay pipeline / 初始化覆盖管线
-        // .init_resource::<snapshot::SnapshotPipeline>(); // Initialize snapshot pipeline / 初始化快照管线
-
-        // render_app
-        //     .init_resource::<snapshot::SnapshotPipeline>()
-        //     .init_resource::<SpecializedRenderPipelines<snapshot::SnapshotPipeline>>();
+            .init_resource::<compute::FogComputePipeline>()
+            .init_resource::<overlay::FogOverlayPipeline>();
     }
 }

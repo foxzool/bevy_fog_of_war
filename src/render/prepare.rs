@@ -7,7 +7,10 @@ use bevy::{
     render::texture::{FallbackImage, GpuImage},
 };
 
-use super::extract::{ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
+use super::extract::{
+    ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture,
+    RenderVisibilityTexture,
+};
 
 // --- Resources to hold GPU buffers and bind groups ---
 // --- 用于保存 GPU 缓冲区和绑定组的资源 ---
@@ -18,12 +21,6 @@ pub struct FogUniforms {
 
 #[derive(Resource, Default)]
 pub struct VisionSourceBuffer {
-    pub buffer: Option<Buffer>,
-    pub capacity: usize,
-}
-
-#[derive(Resource, Default)]
-pub struct ExploredBuffer {
     pub buffer: Option<Buffer>,
     pub capacity: usize,
 }
@@ -125,8 +122,8 @@ pub fn prepare_fog_bind_groups(
     let fog_texture_view = images
         .get(&fog_texture.0)
         .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.d1.texture_view);    
-    
+        .unwrap_or(&fallback_image.d1.texture_view);
+
     let visibility_texture_view = images
         .get(&visibility_texture.0)
         .map(|img| &img.texture_view)
