@@ -143,7 +143,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Transform::from_translation(Vec3::new(-200.0, -0.0, 0.0)),
-        ZIndex(10),
+        Snapshottable,
+        // RenderLayers::layer(SNAPSHOT_RENDER_LAYER)
     ));
 
     // 生成可移动的视野提供者
@@ -160,7 +161,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             enabled: true,
         },
         MovableVision,
-        ZIndex(10),
     ));
 
     // 生成水平来回移动的 Sprite

@@ -154,9 +154,7 @@ pub struct CpuChunkStorage {
 /// Marker component indicating this entity should be included in the fog of war snapshot
 #[derive(Component, Debug, Clone, Default, Reflect)]
 #[reflect(Component, Default)]
-pub struct Snapshottable {
-    pub priority: u8,
-}
+pub struct Snapshottable;
 
 /// Marker component for a camera used to render snapshots.
 /// 用于渲染快照的相机的标记组件。
@@ -174,3 +172,5 @@ pub struct SnapshotCameraTarget {
     pub world_bounds: Rect, // To help with culling or setting projection
                             // 帮助剔除或设置投影
 }
+
+pub const SNAPSHOT_RENDER_LAYER: usize = 101;

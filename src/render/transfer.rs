@@ -361,13 +361,10 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 buffer: &buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    // ***** CHANGE HERE *****
-                    // Use the bytes_per_row calculated for the zero_data buffer
                     bytes_per_row: Some(u32::from(
                         std::num::NonZeroU32::new(clear_padded_bytes_per_row as u32)
                             .expect("Clear buffer row size should not be zero"),
                     )),
-                    // rows_per_image should likely be None when copying to a single 2D layer/slice
                     rows_per_image: None,
                 },
             },
