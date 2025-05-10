@@ -123,7 +123,7 @@ fn setup_fog_resources(
     // Fog Texture: R8Unorm (0=visible, 1=unexplored)
     // 雾效纹理: R8Unorm (0=可见, 1=未探索)
     let fog_initial_data = vec![
-        255u8;
+        0u8;
         (fog_texture_size.width * fog_texture_size.height * fog_texture_size.depth_or_array_layers)
             as usize
     ];
@@ -141,7 +141,7 @@ fn setup_fog_resources(
     fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
     let visibility_initial_data = vec![
-        255u8;
+        0u8;
         (visibility_texture_size.width
             * visibility_texture_size.height
             * visibility_texture_size.depth_or_array_layers)

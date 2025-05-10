@@ -347,7 +347,7 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
         let clear_buffer_size = clear_padded_bytes_per_row * texture_height as usize;
 
-        let zero_data = vec![255u8; clear_buffer_size];
+        let zero_data = vec![0u8; clear_buffer_size];
         let buffer = render_device.create_buffer_with_data(
             &bevy::render::render_resource::BufferInitDescriptor {
                 label: Some("clear_fog_layer_buffer"),

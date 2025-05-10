@@ -261,7 +261,7 @@ impl Default for FogMapSettings {
         Self {
             enabled: true,
             chunk_size: UVec2::splat(256),
-            texture_resolution_per_chunk: UVec2::new(128, 128), // 示例分辨率 / Example resolution
+            texture_resolution_per_chunk: UVec2::new(512, 512), // 示例分辨率 / Example resolution
             fog_color_unexplored: Color::BLACK,
             fog_color_explored: basic::GRAY.into(),
             vision_clear_color: Color::NONE,

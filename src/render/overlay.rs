@@ -73,14 +73,12 @@ impl FromWorld for FogOverlayPipeline {
                 ShaderStages::FRAGMENT,
                 (
                     uniform_buffer::<ViewUniform>(true), // 0
-                    sampler(SamplerBindingType::Filtering), // 3
-                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
-                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 1
-                    sampler(SamplerBindingType::Filtering), // 3
+                    sampler(SamplerBindingType::Filtering), // 1
                     texture_2d_array(TextureSampleType::Float { filterable: true }), // 2
-
-                    uniform_buffer::<RenderFogMapSettings>(false), // 4
-                    storage_buffer_read_only::<OverlayChunkData>(false), // 5
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 3
+                    texture_2d_array(TextureSampleType::Float { filterable: true }), // 4
+                    uniform_buffer::<RenderFogMapSettings>(false), // 5
+                    storage_buffer_read_only::<OverlayChunkData>(false), // 6
                 ),
             ),
         );
@@ -213,12 +211,10 @@ impl ViewNode for FogOverlayNode {
             &overlay_pipeline.layout,
             &BindGroupEntries::sequential((
                 view_uniform_binding,            // 0
-                &overlay_pipeline.sampler,       // 4
-                visibility_texture_view,         // 1
-                fog_texture_view,                // 2
-                &overlay_pipeline.sampler,       // 4
-                snapshot_texture_view,           // 3
-
+                &overlay_pipeline.sampler,       // 1
+                visibility_texture_view,         // 2
+                fog_texture_view,                // 3
+                snapshot_texture_view,           // 4
                 uniform_buf.as_entire_binding(), // 5
                 mapping_buf.as_entire_binding(), // 6
             )),
