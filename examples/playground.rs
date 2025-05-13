@@ -129,10 +129,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             custom_size: Some(Vec2::new(80.0, 80.0)),
             ..default()
         },
-        Transform::from_translation(Vec3::new(200.0, 200.0, 0.0)),
+        Transform::from_translation(Vec3::new(-10.0, -50.0, 0.0)),
         VisionSource {
             range: 40.0,
-            enabled: false,
+            enabled: true,
+            shape: VisionShape::Square,
+            direction: 0.0,
+            angle: std::f32::consts::FRAC_PI_2,
+            intensity: 1.0,
+            transition_ratio: 0.2,
         },
     ));
 
@@ -159,6 +164,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         VisionSource {
             range: 100.0,
             enabled: true,
+            shape: VisionShape::Circle,
+            direction: 0.0,
+            angle: std::f32::consts::FRAC_PI_2,
+            intensity: 1.0,
+            transition_ratio: 0.2,
+        
         },
         MovableVision,
     ));
@@ -196,8 +207,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         // Add vision provider to blocks with even indices
         if i % 2 == 0 {
             entity_commands.insert(VisionSource {
-                range: 30.0 + (i as f32 * 15.0), // 不同范围的视野 / Different vision ranges
+                range: 30.0 + (i as f32 * 15.0),
                 enabled: true,
+                shape: VisionShape::Cone,
+                direction: (i as f32 * 25.0),
+                angle: std::f32::consts::FRAC_PI_2,
+                intensity: 1.0,
+                transition_ratio: 0.2,
             });
         }
     }

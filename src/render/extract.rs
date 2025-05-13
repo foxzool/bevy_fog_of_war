@@ -63,9 +63,13 @@ pub struct RenderSnapshotTexture(pub Handle<Image>);
 #[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct VisionSourceData {
-    pub pos: Vec2,     // World position / 世界位置
-    pub range: f32,    // Vision range / 视野范围
-    pub _padding: f32, // WGSL vec2/f32 alignment / WGSL vec2/f32 对齐
+    pub pos: Vec2,             // World position / 世界位置
+    pub range: f32,           // Vision range / 视野范围
+    pub shape_type: u32,      // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形
+    pub direction: f32,       // Direction in radians / 方向（弧度）
+    pub angle: f32,          // Angle in radians (for cone) / 角度（弧度，用于扇形）
+    pub intensity: f32,      // Vision intensity / 视野强度
+    pub transition_ratio: f32, // Transition ratio / 过渡比例
 }
 
 #[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
@@ -129,12 +133,38 @@ pub fn extract_vision_sources(
             vision_sources
                 .iter()
                 .filter(|(_, src)| src.enabled)
-                .map(|(transform, src)| VisionSourceData {
-                    pos: transform.translation().truncate(),
-                    range: src.range,
-                    _padding: 0.0,
+                .map(|(transform, src)| {
+                    // 将形状枚举转换为数值
+                    // Convert shape enum to numeric value
+                    let shape_type = match src.shape {
+                        VisionShape::Circle => 0u32,
+                        VisionShape::Cone => 1u32,
+                        VisionShape::Square => 2u32,
+                    };
+
+                    VisionSourceData {
+                        pos: transform.translation().truncate(),
+                        range: src.range,
+                        shape_type,
+                        direction: src.direction,
+                        angle: src.angle,
+                        intensity: src.intensity,
+                        transition_ratio: src.transition_ratio,
+                    }
                 }),
         );
+
+    if sources_res.sources.is_empty() {
+        sources_res.sources.push(VisionSourceData {
+            pos: Default::default(),
+            range: 0.0,
+            shape_type: 0,
+            direction: 0.0,
+            angle: 0.0,
+            intensity: 0.0,
+            transition_ratio: 0.0,
+        });
+    }
 }
 
 const GFX_INVALID_LAYER: i32 = -1;

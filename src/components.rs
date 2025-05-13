@@ -14,6 +14,43 @@ pub struct VisionSource {
     /// 是否启用
     /// Enabled
     pub enabled: bool,
+    /// 视野形状（默认为圆形）
+    /// Vision shape (default is circle)
+    pub shape: VisionShape,
+    /// 视野方向（弧度，仅在扇形视野时使用）
+    /// Vision direction (radians, only used for cone vision)
+    pub direction: f32,
+    /// 视野角度（弧度，仅在扇形视野时使用）
+    /// Vision angle (radians, only used for cone vision)
+    pub angle: f32,
+    /// 视野强度（影响可见性计算）
+    /// Vision intensity (affects visibility calculation)
+    pub intensity: f32,
+    /// 视野过渡比例（从完全可见到不可见的过渡区域占总半径的比例）
+    /// Vision transition ratio (ratio of total radius for transition from fully visible to not visible)
+    pub transition_ratio: f32,
+}
+
+/// 视野形状
+/// Vision shape
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Default)]
+pub enum VisionShape {
+    /// 圆形视野（全方向）
+    /// Circular vision (omnidirectional)
+    Circle,
+    /// 扇形视野（有方向和角度）
+    /// Cone vision (with direction and angle)
+    Cone,
+    /// 正方形视野
+    /// Square vision
+    Square,
+}
+
+impl Default for VisionShape {
+    fn default() -> Self {
+        VisionShape::Circle
+    }
 }
 
 impl Default for VisionSource {
@@ -21,6 +58,11 @@ impl Default for VisionSource {
         Self {
             range: 100.0,
             enabled: true,
+            shape: VisionShape::default(),
+            direction: 0.0,
+            angle: std::f32::consts::FRAC_PI_2, // 默认90度扇形 / Default 90 degree cone
+            intensity: 1.0,
+            transition_ratio: 0.2, // 默认20%的过渡区域 / Default 20% transition area
         }
     }
 }
