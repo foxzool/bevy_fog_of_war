@@ -2,16 +2,19 @@ use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
 use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
 use async_channel::{Receiver, Sender};
-use bevy::image::TextureFormatPixelInfo;
-use bevy::platform::collections::HashMap;
-use bevy::render::MainWorld;
-use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_resource::{
-    Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode, Origin3d,
-    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureFormat,
+use bevy::{
+    image::TextureFormatPixelInfo,
+    platform::collections::HashMap,
+    render::MainWorld,
+    render::render_asset::RenderAssets,
+    render::render_resource::{
+        Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
+        Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+        TextureFormat,
+    },
+    render::renderer::{RenderDevice, RenderQueue},
+    render::texture::GpuImage,
 };
-use bevy::render::renderer::{RenderDevice, RenderQueue};
-use bevy::render::texture::GpuImage;
 
 pub fn process_cpu_to_gpu_copies(
     render_queue: Res<RenderQueue>,
@@ -19,8 +22,8 @@ pub fn process_cpu_to_gpu_copies(
     fog_texture_array_handle: Res<RenderFogTexture>,
     snapshot_texture_array_handle: Res<RenderSnapshotTexture>,
     gpu_images: Res<RenderAssets<GpuImage>>,
-    render_fog_settings: Res<RenderFogMapSettings>,
     mut cpu_to_gpu_requests: ResMut<CpuToGpuRequests>,
+    render_device: Res<RenderDevice>,
 ) {
     if cpu_upload_requests.requests.is_empty() {
         return;
@@ -34,143 +37,57 @@ pub fn process_cpu_to_gpu_copies(
         return;
     };
 
-    // 从设置中获取纹理参数
-    // Get texture parameters from settings
-    let texture_width = render_fog_settings.texture_resolution_per_chunk.x;
-    let texture_height = render_fog_settings.texture_resolution_per_chunk.y;
-    let fog_format = fog_gpu_image.texture_format; // Should match settings.fog_texture_format
-    let snapshot_format = snapshot_gpu_image.texture_format; // Should match settings.snapshot_texture_format
-
     for request in &cpu_upload_requests.requests {
+        let mut command_encoder = render_device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("fog of war cpu_to_gpu_copy"),
+        });
         // --- 上传雾效纹理数据 ---
         // --- Upload Fog Texture Data ---
-        if !request.fog_data.is_empty() {
-            let bytes_per_row_fog =
-                calculate_bytes_per_row(texture_width, fog_format).unwrap_or_else(|| {
-                    error!(
-                        "Failed to calculate bytes_per_row for fog texture format: {:?}. Skipping upload for chunk {:?}.",
-                        fog_format, request.chunk_coords
-                    );
-                    0 // Return 0 to skip this upload attempt
-                });
-
-            if bytes_per_row_fog > 0 {
-                // 验证数据大小是否匹配
-                // Verify data size matches
-                let expected_fog_data_size = (bytes_per_row_fog * texture_height) as usize;
-                if request.fog_data.len() != expected_fog_data_size {
-                    error!(
-                        "Fog data size mismatch for chunk {:?}. Expected {}, got {}. Format: {:?}, Res: {}x{}. Skipping upload.",
-                        request.chunk_coords,
-                        expected_fog_data_size,
-                        request.fog_data.len(),
-                        fog_format,
-                        texture_width,
-                        texture_height
-                    );
-                } else {
-                    render_queue.write_texture(
-                        TexelCopyTextureInfo {
-                            texture: &fog_gpu_image.texture,
-                            mip_level: 0,
-                            origin: Origin3d {
-                                x: 0,
-                                y: 0,
-                                z: request.fog_layer_index, // 目标层索引 Target layer index
-                            },
-                            aspect: TextureAspect::All, // 通常是 All，除非是深度/模板纹理 Specific to depth/stencil if they are separate
-                        },
-                        &request.fog_data,
-                        TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(bytes_per_row_fog),
-                            rows_per_image: Some(texture_height), // 对于2D纹理数组，这应该是纹理的高度 For 2D texture arrays, this should be the texture height
-                        },
-                        Extent3d {
-                            width: texture_width,
-                            height: texture_height,
-                            depth_or_array_layers: 1, // 我们一次只写入一个层 We are writing to a single layer at a time
-                        },
-                    );
-                    // trace!(
-                    //     "Queued fog texture write for chunk {:?}, layer {}, size {}",
-                    //     request.chunk_coords,
-                    //     request.fog_layer_index,
-                    //     request.fog_data.len()
-                    // );
-                }
-            }
-        } else {
-            warn!(
-                "Fog data for chunk {:?} is empty, skipping fog upload.",
-                request.chunk_coords
+        if let Some(upload_fog_image) = gpu_images.get(&request.fog_image_handle) {
+            command_encoder.copy_texture_to_texture(
+                upload_fog_image.texture.as_image_copy(),
+                TexelCopyTextureInfo {
+                    texture: &fog_gpu_image.texture,
+                    mip_level: 0,
+                    origin: Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: request.fog_layer_index,
+                    },
+                    aspect: TextureAspect::All,
+                },
+                Extent3d {
+                    width: upload_fog_image.size.width,
+                    height: upload_fog_image.size.height,
+                    depth_or_array_layers: 1,
+                },
             );
         }
 
         // --- 上传快照纹理数据 ---
         // --- Upload Snapshot Texture Data ---
-        if !request.snapshot_data.is_empty() {
-            let bytes_per_row_snapshot =
-                calculate_bytes_per_row(texture_width, snapshot_format).unwrap_or_else(|| {
-                    error!(
-                        "Failed to calculate bytes_per_row for snapshot texture format: {:?}. Skipping upload for chunk {:?}.",
-                        snapshot_format, request.chunk_coords
-                    );
-                    0
-                });
-
-            if bytes_per_row_snapshot > 0 {
-                let expected_snapshot_data_size =
-                    (bytes_per_row_snapshot * texture_height) as usize;
-                if request.snapshot_data.len() != expected_snapshot_data_size {
-                    error!(
-                        "Snapshot data size mismatch for chunk {:?}. Expected {}, got {}. Format: {:?}, Res: {}x{}. Skipping upload.",
-                        request.chunk_coords,
-                        expected_snapshot_data_size,
-                        request.snapshot_data.len(),
-                        snapshot_format,
-                        texture_width,
-                        texture_height
-                    );
-                } else {
-                    render_queue.write_texture(
-                        TexelCopyTextureInfo {
-                            texture: &snapshot_gpu_image.texture,
-                            mip_level: 0,
-                            origin: Origin3d {
-                                x: 0,
-                                y: 0,
-                                z: request.snapshot_layer_index, // 目标层索引 Target layer index
-                            },
-                            aspect: TextureAspect::All,
-                        },
-                        &request.snapshot_data,
-                        TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(bytes_per_row_snapshot),
-                            rows_per_image: Some(texture_height),
-                        },
-                        Extent3d {
-                            width: texture_width,
-                            height: texture_height,
-                            depth_or_array_layers: 1, // 我们一次只写入一个层 We are writing to a single layer at a time
-                        },
-                    );
-                    // trace!(
-                    //     "Queued snapshot texture write for chunk {:?}, layer {}, size {}",
-                    //     request.chunk_coords,
-                    //     request.snapshot_layer_index,
-                    //     request.snapshot_data.len()
-                    // );
-                }
-            }
-        } else {
-            warn!(
-                "Snapshot data for chunk {:?} is empty, skipping snapshot upload.",
-                request.chunk_coords
+        if let Some(upload_snapshot_image) = gpu_images.get(&request.snapshot_image_handle) {
+            command_encoder.copy_texture_to_texture(
+                upload_snapshot_image.texture.as_image_copy(),
+                TexelCopyTextureInfo {
+                    texture: &snapshot_gpu_image.texture,
+                    mip_level: 0,
+                    origin: Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: request.snapshot_layer_index,
+                    },
+                    aspect: TextureAspect::All,
+                },
+                Extent3d {
+                    width: upload_snapshot_image.size.width,
+                    height: upload_snapshot_image.size.height,
+                    depth_or_array_layers: 1,
+                },
             );
         }
 
+        render_queue.submit(std::iter::once(command_encoder.finish()));
         cpu_to_gpu_requests.requests.push(request.chunk_coords);
     }
 }

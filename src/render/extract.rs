@@ -22,7 +22,7 @@ pub struct RenderFogMapSettings {
     /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
     /// Fog color for explored but not currently visible areas (usually semi-transparent)
     pub fog_color_explored: Vec4,
-    /// 视野完全清晰区域的"颜色"（通常用于混合或阈值，可能完全透明）
+    /// 视野完全清晰区域的颜色（通常用于混合或阈值，可能完全透明）
     /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
     pub vision_clear_color: Vec4,
     pub enabled: u32, // 0 for false, 1 for true

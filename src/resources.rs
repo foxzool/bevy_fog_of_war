@@ -330,8 +330,8 @@ pub struct CpuToGpuCopyRequest {
     pub chunk_coords: IVec2,
     pub fog_layer_index: u32,
     pub snapshot_layer_index: u32,
-    pub fog_data: Vec<u8>,      // Raw texture data for fog / 雾效的原始纹理数据
-    pub snapshot_data: Vec<u8>, // Raw texture data for snapshot / 快照的原始纹理数据
+    pub fog_image_handle: Handle<Image>,      
+    pub snapshot_image_handle: Handle<Image>,
 }
 
 /// 事件：当 GPU 数据成功复制到 CPU 并可供主世界使用时，由 RenderApp 发送。

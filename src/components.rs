@@ -1,7 +1,9 @@
 use crate::prelude::*;
-use bevy::platform::collections::HashMap;
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_component::ExtractComponent;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 
 /// 视野源组件
 /// Vision source component
@@ -141,6 +143,55 @@ impl FogChunk {
     }
 }
 
+#[derive(Component, Reflect, Debug, Clone)]
+pub struct FogChunkImage {
+    pub fog_image_handle: Handle<Image>,
+    pub snapshot_image_handle: Handle<Image>,
+}
+
+impl FogChunkImage {
+    pub fn from_setting(images: &mut ResMut<Assets<Image>>, setting: &FogMapSettings) -> Self {
+        let data = vec![0u8; setting.fog_texture_format.pixel_size()];
+        let mut fog_image = Image::new_fill(
+            Extent3d {
+                width: setting.texture_resolution_per_chunk.x,
+                height: setting.texture_resolution_per_chunk.y,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            &data,
+            setting.fog_texture_format,
+            RenderAssetUsages::default(),
+        );
+        fog_image.texture_descriptor.usage = TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
+            | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+        fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
+        let fog_image_handle = images.add(fog_image);
+
+        let data = vec![0u8; setting.snapshot_texture_format.pixel_size()];
+        let mut snapshot_image = Image::new_fill(
+            Extent3d {
+                width: setting.texture_resolution_per_chunk.x,
+                height: setting.texture_resolution_per_chunk.y,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            &data,
+            setting.snapshot_texture_format,
+            RenderAssetUsages::default(),
+        );
+        snapshot_image.texture_descriptor.usage = TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
+            | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+        snapshot_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
+        let snapshot_image_handle = images.add(snapshot_image);
+
+        Self {
+            fog_image_handle,
+            snapshot_image_handle,
+        }
+    }
+}
+
 // 区块纹理数据的存储位置
 /// Storage location of the chunk's texture data
 /// 区块纹理数据的存储位置
@@ -178,18 +229,6 @@ pub struct ChunkState {
     pub visibility: ChunkVisibility,
     /// 内存存储位置 / Memory storage location
     pub memory_location: ChunkMemoryLocation,
-}
-
-/// 在 CPU 内存中存储已卸载的区块纹理数据
-/// Resource for storing unloaded chunk texture data in CPU memory
-#[derive(Resource, Debug, Clone, Default, Reflect)]
-#[reflect(Resource, Default)] // 注册为反射资源, 并提供默认值反射 / Register as reflectable resource with default reflection
-pub struct CpuChunkStorage {
-    /// 从区块坐标到 (雾效原始数据, 快照原始数据) 的映射
-    /// Map from chunk coordinates to (raw fog data, raw snapshot data)
-    /// Vec<u8> 存储了对应纹理格式的字节数据
-    /// Vec<u8> stores the byte data for the corresponding texture format
-    pub storage: HashMap<IVec2, (Vec<u8>, Vec<u8>)>,
 }
 
 /// 标记组件，指示该实体应被包含在战争迷雾的快照中
