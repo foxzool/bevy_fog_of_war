@@ -130,7 +130,7 @@ impl TextureArrayManager {
             self.free_snapshot_indices.pop(),
         ) {
             self.coord_to_layers.insert(coords, (fog_idx, snap_idx));
-            info!(
+            debug!(
                 "Allocating layers for coord {:?}. F{} S{}",
                 coords, fog_idx, snap_idx
             );

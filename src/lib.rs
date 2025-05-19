@@ -2,10 +2,13 @@ use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor};
+use bevy::math::FloatOrd;
 use bevy::platform::collections::HashSet;
-use bevy::render::camera::RenderTarget;
+use bevy::render::camera::{ImageRenderTarget, RenderTarget};
+use bevy::render::extract_component::ExtractComponentPlugin;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use bevy::render::view::RenderLayers;
 
 mod components;
 pub mod prelude;
@@ -58,7 +61,8 @@ impl Plugin for FogOfWarPlugin {
             .add_event::<ChunkCpuDataUploadedEvent>();
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
-            .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default());
+            .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
+            .add_plugins(ExtractComponentPlugin::<SnapshotCamera>::default());
 
         app.configure_sets(
             Update,
@@ -86,7 +90,8 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_systems(
             Update,
-            manage_chunk_entities.in_set(FogSystemSet::ManageEntities),
+            (request_snapshots_for_visible_chunks, manage_chunk_entities)
+                .in_set(FogSystemSet::ManageEntities),
         );
 
         app.add_systems(
@@ -192,11 +197,30 @@ fn setup_fog_resources(
         handle: visibility_handle,
     });
     commands.insert_resource(SnapshotTextureArray {
-        handle: snapshot_handle,
+        handle: snapshot_handle.clone(),
     });
     commands.insert_resource(TextureArrayManager::new(settings.max_layers));
 
-    info!("Fog of War resources initialized.");
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: -1,        // Render before the main camera, or as needed by graph
+            is_active: false, // Initially inactive
+            hdr: false,       // Snapshots likely don't need HDR
+            // Target will be set to the snapshot_texture_array,
+            // but the SnapshotNode will override the render pass target view.
+            target: RenderTarget::Image(ImageRenderTarget {
+                handle: snapshot_handle.clone(),
+                scale_factor: FloatOrd(1.0),
+            }),
+
+            ..default()
+        },
+        SnapshotCamera, // Mark it as our snapshot camera
+        RenderLayers::layer(SNAPSHOT_RENDER_LAYER_ID),
+    ));
+
+    info!("Fog of War resources initialized, including SnapshotCamera.");
 }
 
 /// Clears caches that are rebuilt each frame.
@@ -583,7 +607,7 @@ pub fn manage_chunk_texture_transfer(
 
     // --- 3. 遍历所有区块，确定是否需要传输 ---
     // --- 3. Iterate all chunks to determine if transfer is needed ---
-    for (entity, mut chunk, mut chunk_image) in chunk_query.iter_mut() {
+    for (entity, mut chunk, chunk_image) in chunk_query.iter_mut() {
         let should_be_on_gpu = target_gpu_chunks.contains(&chunk.coords);
 
         match chunk.state.memory_location {
@@ -670,6 +694,47 @@ pub fn manage_chunk_texture_transfer(
             ChunkMemoryLocation::PendingCopyToCpu | ChunkMemoryLocation::PendingCopyToGpu => {
                 // 正在传输中，等待事件
                 // In transit, waiting for event
+            }
+        }
+    }
+}
+
+/// System to request snapshots for chunks that are visible and on the GPU.
+/// 为可见且在 GPU 上的区块请求快照的系统。
+fn request_snapshots_for_visible_chunks(
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
+    chunk_query: Query<&FogChunk>,
+    // Potentially add a Cooldown/Dirty flag per chunk to avoid requesting every frame
+) {
+    for chunk in chunk_query.iter() {
+        if chunk.state.visibility == ChunkVisibility::Visible &&
+            (chunk.state.memory_location == ChunkMemoryLocation::Gpu || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu) && // Must be on GPU or becoming GPU
+            chunk.snapshot_layer_index.is_some()
+        {
+            // Simple strategy: request snapshot if visible and on GPU.
+            // More complex: check if content changed, or if snapshot is "stale".
+            // 此处可以添加逻辑判断是否真的需要更新快照，例如检查区块内的 SnapshotVisible 物体是否有变化。
+            // For now, let's assume we always request if visible.
+            // To prevent spamming, you might add a component to FogChunk like `SnapshotDirty(bool)`
+            // or a timer.
+
+            // Check if a request for this chunk is already pending to avoid duplicates in a single frame.
+            // (MainWorldSnapshotRequestQueue is cleared each frame in extract, so this check is for multi-system adds)
+            if !snapshot_requests
+                .requests
+                .iter()
+                .any(|req| req.chunk_coords == chunk.coords)
+            {
+                debug!(
+                    "Requesting snapshot for visible chunk {:?} on layer {}",
+                    chunk.coords,
+                    chunk.snapshot_layer_index.unwrap()
+                );
+                snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                    chunk_coords: chunk.coords,
+                    snapshot_layer_index: chunk.snapshot_layer_index.unwrap(),
+                    world_bounds: chunk.world_bounds,
+                });
             }
         }
     }

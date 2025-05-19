@@ -12,9 +12,11 @@ mod compute;
 mod extract;
 mod overlay;
 mod prepare;
-mod snapshot;
+mod snapshot_pass; // 新模块
+
 mod transfer;
 
+use crate::render::snapshot_pass::{SnapshotNode, SnapshotNodeLabel};
 use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use compute::FogComputeNode;
 pub use extract::RenderFogMapSettings;
@@ -38,7 +40,7 @@ impl Plugin for FogOfWarRenderPlugin {
             .init_resource::<extract::ExtractedVisionSources>()
             .init_resource::<extract::ExtractedGpuChunkData>()
             .init_resource::<extract::SnapshotRequestQueue>()
-            // Resources for prepared GPU data / 用于准备好的 GPU 数据的资源
+            .init_resource::<snapshot_pass::SnapshotCameraState>()
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
             .init_resource::<GpuToCpuActiveCopies>()
@@ -55,11 +57,16 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_fog_settings,
                     extract::extract_vision_sources,
                     extract::extract_gpu_chunk_data,
-                    extract::extract_snapshot_requests,
+                    extract::extract_snapshot_requests_to_queue,
                     extract::extract_texture_handles,
+                    extract::extract_snapshot_visible_entities,
                     transfer::check_and_process_mapped_buffers,
                     transfer::check_cpu_to_gpu_request,
                 ),
+            )
+            .add_systems(
+                Render,
+                snapshot_pass::prepare_snapshot_camera.in_set(RenderSet::PrepareResources),
             )
             .add_systems(
                 Render,
@@ -93,11 +100,17 @@ impl Plugin for FogOfWarRenderPlugin {
                     prepare::prepare_fog_bind_groups,
                 )
                     .in_set(RenderSet::PrepareBindGroups),
-            );
+            )
+            .add_systems(
+                Render,
+                snapshot_pass::cleanup_snapshot_camera.in_set(RenderSet::Cleanup),
+            )
+        ;
 
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
             .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
+            .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(Core2d, SnapshotNodeLabel)
             .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
                 Core2d,
                 overlay::FogOverlayNodeLabel,
@@ -108,6 +121,7 @@ impl Plugin for FogOfWarRenderPlugin {
             Core2d,
             (
                 Node2d::MainTransparentPass,
+                snapshot_pass::SnapshotNodeLabel,
                 // snapshot::SnapshotNodeLabel,
                 compute::FogComputeNodeLabel,
                 overlay::FogOverlayNodeLabel,

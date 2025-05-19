@@ -4,6 +4,7 @@ use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use bevy::render::view::RenderLayers;
 
 /// 视野源组件
 /// Vision source component
@@ -239,19 +240,16 @@ pub struct Snapshottable;
 
 /// Marker component for a camera used to render snapshots.
 /// 用于渲染快照的相机的标记组件。
-#[derive(Component, Default, Reflect)]
+#[derive(Component, ExtractComponent, Clone, Default, Reflect)]
 #[reflect(Component)]
 pub struct SnapshotCamera;
 
-/// Stores the current target for a snapshot camera during rendering.
-/// Not an ExtractComponent, managed internally in RenderApp.
-/// 在渲染期间存储快照相机的当前目标。
-/// 不是 ExtractComponent，在 RenderApp 内部管理。
 #[derive(Component)]
-pub struct SnapshotCameraTarget {
-    pub render_target: RenderTarget,
-    pub world_bounds: Rect, // To help with culling or setting projection
-                            // 帮助剔除或设置投影
+pub struct ActiveSnapshotTarget {
+    pub snapshot_layer_index: u32,
+    pub world_bounds: Rect, // For reference, projection is set based on this
 }
 
-pub const SNAPSHOT_RENDER_LAYER: usize = 101;
+pub const SNAPSHOT_RENDER_LAYER_ID: usize = 7;
+
+pub const SNAPSHOT_RENDER_LAYER: RenderLayers = RenderLayers::layer(SNAPSHOT_RENDER_LAYER_ID);

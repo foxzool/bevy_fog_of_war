@@ -149,7 +149,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-200.0, -0.0, 0.0)),
         Snapshottable,
-        // RenderLayers::layer(SNAPSHOT_RENDER_LAYER)
+        SNAPSHOT_RENDER_LAYER.with(0),
     ));
 
     // 生成可移动的视野提供者
@@ -169,7 +169,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             angle: std::f32::consts::FRAC_PI_2,
             intensity: 1.0,
             transition_ratio: 0.2,
-        
         },
         MovableVision,
     ));

@@ -3,7 +3,9 @@ use crate::resources::*;
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
+use bevy::render::view::RenderLayers;
 use bytemuck::{Pod, Zeroable};
+use crate::render::snapshot_pass::RenderWorldSnapshotVisible;
 // --- Resources in RenderWorld to hold extracted data ---
 // --- RenderWorld 中用于保存提取数据的资源 ---
 
@@ -45,7 +47,7 @@ pub struct ExtractedGpuChunkData {
 #[derive(Resource, Debug, Clone, Default)]
 pub struct SnapshotRequestQueue {
     // Chunks needing snapshot this frame / 本帧需要快照的区块
-    pub requests: Vec<SnapshotRequest>,
+    pub requests: Vec<RenderWorldSnapshotRequest>,
 }
 
 // Store handles in RenderWorld too / 同样在 RenderWorld 中存储句柄
@@ -64,11 +66,11 @@ pub struct RenderSnapshotTexture(pub Handle<Image>);
 #[repr(C)]
 pub struct VisionSourceData {
     pub pos: Vec2,             // World position / 世界位置
-    pub range: f32,           // Vision range / 视野范围
-    pub shape_type: u32,      // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形
-    pub direction: f32,       // Direction in radians / 方向（弧度）
-    pub angle: f32,          // Angle in radians (for cone) / 角度（弧度，用于扇形）
-    pub intensity: f32,      // Vision intensity / 视野强度
+    pub range: f32,            // Vision range / 视野范围
+    pub shape_type: u32,       // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形
+    pub direction: f32,        // Direction in radians / 方向（弧度）
+    pub angle: f32,            // Angle in radians (for cone) / 角度（弧度，用于扇形）
+    pub intensity: f32,        // Vision intensity / 视野强度
     pub transition_ratio: f32, // Transition ratio / 过渡比例
 }
 
@@ -89,10 +91,9 @@ pub struct OverlayChunkData {
 }
 
 #[derive(Debug, Clone)]
-pub struct SnapshotRequest {
+pub struct RenderWorldSnapshotRequest {
     pub snapshot_layer_index: u32,
     pub world_bounds: Rect,
-    pub chunk_coords: IVec2, // Needed for filtering entities / 用于过滤实体
 }
 
 // --- Extraction Systems ---
@@ -218,37 +219,51 @@ pub fn extract_gpu_chunk_data(
     }
 }
 
-// This system simulates the result of `prepare_snapshot_render_data`
-// It should ideally run *after* that system in the main world schedule
-// or directly extract the resource populated by it.
-// 这个系统模拟 `prepare_snapshot_render_data` 的结果
-// 理想情况下，它应该在主世界调度中的那个系统 *之后* 运行
-// 或者直接提取由它填充的资源。
-pub fn extract_snapshot_requests(
-    mut queue_res: ResMut<SnapshotRequestQueue>,
-    // Assuming a resource `MainWorldSnapshotQueue` is populated in the main world
-    // main_world_queue: Extract<Res<MainWorldSnapshotQueue>>,
-    // OR recalculate based on cache (less ideal)
-    // 或基于缓存重新计算 (不太理想)
-    cache: Extract<Res<ChunkStateCache>>,
-    chunk_manager: Extract<Res<ChunkEntityManager>>,
-    chunk_q: Extract<Query<&FogChunk>>,
+
+/// Extracts snapshot requests from the main world to the render world.
+/// 将快照请求从主世界提取到渲染世界。
+pub fn extract_snapshot_requests_to_queue(
+    mut commands: Commands,
+    main_world_requests: Extract<Res<MainWorldSnapshotRequestQueue>>,
 ) {
-    queue_res.requests.clear();
-    // Strategy: Snapshot visible chunks currently on GPU / 策略: 快照当前在 GPU 上的可见区块
-    for coords in &cache.visible_chunks {
-        if cache.gpu_resident_chunks.contains(coords) {
-            if let Some(entity) = chunk_manager.map.get(coords) {
-                if let Ok(chunk) = chunk_q.get(*entity) {
-                    if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
-                        queue_res.requests.push(SnapshotRequest {
-                            snapshot_layer_index,
-                            world_bounds: chunk.world_bounds,
-                            chunk_coords: chunk.coords,
-                        });
-                    }
-                }
-            }
+    // We clone the requests. If there are many, consider a more efficient transfer.
+    let render_requests = main_world_requests.requests.iter().map(|req| {
+        RenderWorldSnapshotRequest {
+            snapshot_layer_index: req.snapshot_layer_index,
+            world_bounds: req.world_bounds,
+            // chunk_coords: req.chunk_coords,
         }
+    }).collect::<Vec<_>>();
+
+    if !render_requests.is_empty() {
+        // info!("Extracted {} snapshot requests to RenderWorld.", render_requests.len());
+    }
+
+    commands.insert_resource(SnapshotRequestQueue {
+        requests: render_requests,
+    });
+}
+
+/// Extracts entities with SnapshotVisible and adds RenderWorldSnapshotVisible
+/// and the SNAPSHOT_RENDER_LAYER to them in the RenderWorld.
+/// 提取带有 SnapshotVisible 的实体，并在 RenderWorld 中为它们添加
+/// RenderWorldSnapshotVisible 和 SNAPSHOT_RENDER_LAYER。
+pub fn extract_snapshot_visible_entities(
+    mut commands: Commands,
+    // Query for entities in the main world that have SnapshotVisible
+    // Optionally include their current RenderLayers if you need to merge
+    snapshot_visible_query: Extract<Query<(Entity, Option<&RenderLayers>), With<Snapshottable>>>,
+) {
+    for (entity, existing_layers) in snapshot_visible_query.iter() {
+        let snapshot_layer = SNAPSHOT_RENDER_LAYER.clone();
+        let combined_layers = match existing_layers {
+            Some(layers) => layers.union(&snapshot_layer),
+            None => snapshot_layer,
+        };
+
+        commands.entity(entity).insert((
+            RenderWorldSnapshotVisible, // Marker for RenderWorld systems
+            combined_layers,            // Ensure it's on the snapshot layer
+        ));
     }
 }
