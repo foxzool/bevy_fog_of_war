@@ -1,11 +1,10 @@
 use bevy::diagnostic::FrameCount;
+use bevy::render::view::RenderLayers;
 use bevy::{
     color::palettes::css::{GOLD, RED},
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
-// use bevy_inspector_egui::bevy_egui::EguiPlugin;
-// use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_fog_of_war::prelude::*;
 
 /// 移动目标位置资源
@@ -33,7 +32,7 @@ fn main() {
             // bevy_render::diagnostic::RenderDiagnosticsPlugin,
         ))
         .init_gizmo_group::<MyRoundGizmos>()
-        // .add_plugins(EguiPlugin {
+        // .add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin {
         //     enable_multipass_for_primary_context: true,
         // })
         // .add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new())

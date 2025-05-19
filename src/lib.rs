@@ -190,6 +190,26 @@ fn setup_fog_resources(
     let visibility_handle = images.add(visibility_image);
     let snapshot_handle = images.add(snapshot_image);
 
+    let snapshot_initial_data =
+        vec![255u8; (snapshot_texture_size.width * snapshot_texture_size.height * 4) as usize]; // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+    let mut snapshot_temp_image = Image::new(
+        Extent3d {
+            width: settings.texture_resolution_per_chunk.x,
+            height: settings.texture_resolution_per_chunk.y,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        snapshot_initial_data,
+        settings.snapshot_texture_format,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    snapshot_temp_image.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT // To render snapshots into / 用于渲染快照
+        | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
+        | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
+        | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+
+    let snapshot_temp_handle = images.add(snapshot_temp_image);
+
     // Insert resources
     // 插入资源
     commands.insert_resource(FogTextureArray { handle: fog_handle });
@@ -200,20 +220,17 @@ fn setup_fog_resources(
         handle: snapshot_handle.clone(),
     });
     commands.insert_resource(TextureArrayManager::new(settings.max_layers));
+    commands.insert_resource(SnapshotTempTexture {
+        handle: snapshot_temp_handle.clone(),
+    });
 
     commands.spawn((
         Camera2d,
         Camera {
-            order: -1,        // Render before the main camera, or as needed by graph
+            order: -1,       // Render before the main camera, or as needed by graph
             is_active: false, // Initially inactive
-            hdr: false,       // Snapshots likely don't need HDR
-            // Target will be set to the snapshot_texture_array,
-            // but the SnapshotNode will override the render pass target view.
-            target: RenderTarget::Image(ImageRenderTarget {
-                handle: snapshot_handle.clone(),
-                scale_factor: FloatOrd(1.0),
-            }),
-
+            hdr: false,      // Snapshots likely don't need HDR
+            target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
             ..default()
         },
         SnapshotCamera, // Mark it as our snapshot camera
@@ -499,6 +516,7 @@ pub fn manage_chunk_texture_transfer(
     mut cpu_to_gpu_requests: ResMut<CpuToGpuCopyRequests>,
     mut gpu_data_ready_reader: EventReader<ChunkGpuDataReadyEvent>,
     mut cpu_data_uploaded_reader: EventReader<ChunkCpuDataUploadedEvent>,
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>
 ) {
     for event in gpu_data_ready_reader.read() {
         if let Some((_entity, mut chunk, chunk_image)) = chunk_query
@@ -622,6 +640,12 @@ pub fn manage_chunk_texture_transfer(
                             "Chunk {:?}: Requesting GPU -> CPU transfer (is Explored, not target GPU). Layers F{}, S{}",
                             chunk.coords, fog_idx_val, snap_idx_val
                         );
+                        snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                            chunk_coords: chunk.coords,
+                            snapshot_layer_index: snap_idx_val,
+                            world_bounds: chunk.world_bounds,
+                        });
+
                         chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToCpu;
                         gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
                             chunk_coords: chunk.coords,
@@ -707,6 +731,7 @@ fn request_snapshots_for_visible_chunks(
     // Potentially add a Cooldown/Dirty flag per chunk to avoid requesting every frame
 ) {
     for chunk in chunk_query.iter() {
+        return;
         if chunk.state.visibility == ChunkVisibility::Visible &&
             (chunk.state.memory_location == ChunkMemoryLocation::Gpu || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu) && // Must be on GPU or becoming GPU
             chunk.snapshot_layer_index.is_some()

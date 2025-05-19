@@ -71,6 +71,15 @@ pub struct SnapshotTextureArray {
     pub handle: Handle<Image>,
 }
 
+/// 存储快照数据的 TextureArray 资源句柄
+/// Resource handle for the TextureArray storing snapshot data
+#[derive(Resource, Debug, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct SnapshotTempTexture {
+    /// 图像资源的句柄 / Handle to the image asset
+    pub handle: Handle<Image>,
+}
+
 #[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct TextureArrayManager {

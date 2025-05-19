@@ -1,14 +1,20 @@
 // src/render/snapshot_pass.rs
 
 use crate::components::{ActiveSnapshotTarget, SnapshotCamera}; // SNAPSHOT_RENDER_LAYER_ID
-use crate::render::extract::{RenderSnapshotTexture, SnapshotRequestQueue};
+use crate::render::extract::{
+    RenderSnapshotTempTexture, RenderSnapshotTexture, SnapshotRequestQueue,
+};
 use bevy::core_pipeline::core_2d::AlphaMask2d;
 use bevy::ecs::query::QueryItem;
 use bevy::ecs::system::lifetimeless::Read;
 use bevy::math::FloatOrd;
 use bevy::render::camera::{ImageRenderTarget, RenderTarget};
 use bevy::render::render_phase::ViewBinnedRenderPhases;
-use bevy::render::render_resource::StoreOp;
+use bevy::render::render_resource::{
+    CommandEncoderDescriptor, Extent3d, Origin3d, StoreOp, TexelCopyBufferInfo,
+    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::sprite::SpriteViewBindGroup;
 use bevy::{
     core_pipeline::core_2d::{Camera2d, Opaque2d},
@@ -27,10 +33,7 @@ use bevy::{
         view::{ExtractedView, ViewTarget, ViewUniformOffset, ViewUniforms},
     },
 };
-use std::num::NonZeroU32;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct SnapshotNodeLabel;
 
 /// Marker component for entities in the RenderWorld that should be part of snapshots.
 /// RenderWorld 中应包含在快照中的实体的标记组件。
@@ -42,7 +45,8 @@ pub struct RenderWorldSnapshotVisible;
 #[derive(Resource, Default)]
 pub struct SnapshotCameraState {
     pub entity: Option<Entity>,
-    pub is_active_this_frame: bool, // Was it activated for the current frame's snapshot?
+    pub is_active_this_frame: bool,
+    pub snapshot_layer_index: Option<u32>,
 }
 
 /// Prepares and configures the single SnapshotCamera entity for the current frame's snapshot request (if any).
@@ -53,7 +57,7 @@ pub fn prepare_snapshot_camera(
     mut snapshot_requests: ResMut<SnapshotRequestQueue>, // Extracted requests
     // Query to find the existing SnapshotCamera entity
     snapshot_camera_query: Query<Entity, With<SnapshotCamera>>,
-    render_snapshot_texture: Res<RenderSnapshotTexture>, // To set the nominal target
+    render_snapshot_texture: Res<RenderSnapshotTempTexture>, // To set the nominal target
 ) {
     // Find or create the snapshot camera entity if not already stored
     if camera_state.entity.is_none() {
@@ -115,7 +119,9 @@ pub fn prepare_snapshot_camera(
             crate::components::SNAPSHOT_RENDER_LAYER.clone(),
         ));
         camera_state.is_active_this_frame = true;
+        camera_state.snapshot_layer_index = Some(request.snapshot_layer_index);
     } else {
+        // debug!("No snapshot requests for this frame");
         // No requests, ensure camera is inactive
         commands.entity(camera_entity).insert(Camera {
             is_active: false, // Deactivate
@@ -150,145 +156,48 @@ pub fn cleanup_snapshot_camera(
     }
 }
 
-pub struct SnapshotNode {
-    query: QueryState<
-        (
-            Read<ViewUniformOffset>,
-            Read<ExtractedView>,
-            Read<ActiveSnapshotTarget>,
-            // Read<ViewTarget>,
-        ),
-        // With<SnapshotCamera>,
-    >,
-}
+pub fn copy_temp_texture_to_snapshot_texture(
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    mut camera_state: ResMut<SnapshotCameraState>,
+    render_snapshot_temp_texture: Res<RenderSnapshotTempTexture>,
+    render_snapshot_texture: Res<RenderSnapshotTexture>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+) {
+    if let Some(layer_index) = camera_state.snapshot_layer_index {
+        let mut command_encoder =
+            render_device.create_command_encoder(&CommandEncoderDescriptor::default());
 
-impl FromWorld for SnapshotNode {
-    fn from_world(world: &mut World) -> Self {
-        SnapshotNode {
-            query: QueryState::new(world),
-        }
-    }
-}
-
-impl ViewNode for SnapshotNode {
-    // We need to query for the camera entity that has our ActiveSnapshotTarget
-    // and its associated render phases.
-    type ViewQuery = ();
-
-    fn update(&mut self, world: &mut World) {
-        self.query.update_archetypes(world);
-        
-
-        for (view_uniform_offset, view, active_target) in self.query.iter_manual(world) {
-            println!("active_target: {}", active_target.snapshot_layer_index);
-        }
-    }
-
-    fn run(
-        &self,
-        graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let (Some(opaque_phases), Some(alpha_mask_phases)) = (
-            world.get_resource::<ViewBinnedRenderPhases<Opaque2d>>(),
-            world.get_resource::<ViewBinnedRenderPhases<AlphaMask2d>>(),
-        ) else {
-            return Ok(());
-        };
-        let Some(camera_state) = world.get_resource::<SnapshotCameraState>() else {
-            return Ok(());
+        let Some(snapshot_temp_image) = gpu_images.get(&render_snapshot_temp_texture.0) else {
+            return;
         };
 
-        let Some(view_entity) = camera_state.entity else {
-            return Ok(());
+        let Some(snapshot_images) = gpu_images.get(&render_snapshot_texture.0) else {
+            return;
         };
 
-        debug!("SnapshotNode running for view entity: {}", view_entity);
-        let Ok((view_uniform_offset, view, active_target)) =
-            self.query.get_manual(world, view_entity)
-        else {
-            return Ok(());
-        };
-        debug!(
-            "SnapshotNode running for layer: {}",
-            active_target.snapshot_layer_index
-        );
-
-        let (Some(opaque_phase), Some(alpha_mask_phase)) = (
-            opaque_phases.get(&view.retained_view_entity),
-            alpha_mask_phases.get(&view.retained_view_entity),
-        ) else {
-            return Ok(());
-        };
-        info!(
-            "SnapshotNode running for layer: {}",
-            active_target.snapshot_layer_index
-        );
-
-        let snapshot_texture_array_handle = world.resource::<RenderSnapshotTexture>();
-        let gpu_images = world.resource::<RenderAssets<GpuImage>>();
-
-        let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture_array_handle.0) else {
-            error!("SnapshotNode: SnapshotTextureArray GpuImage not found.");
-            return Ok(());
-        };
-
-        let label = format!("snapshot_layer_{}", active_target.snapshot_layer_index);
-        println!(
-            "SnapshotNode: Creating view for layer {}",
-            active_target.snapshot_layer_index
-        );
-        // Create a texture view for the specific layer
-        let layer_view_descriptor = TextureViewDescriptor {
-            label: Some(&label),
-            format: Some(snapshot_gpu_image.texture_format),
-            dimension: Some(bevy::render::render_resource::TextureViewDimension::D2),
-            usage: None,
-            aspect: bevy::render::render_resource::TextureAspect::All,
-            base_mip_level: 0,
-            mip_level_count: Some(1),
-            base_array_layer: active_target.snapshot_layer_index,
-            array_layer_count: Some(1),
-        };
-        let target_layer_view = snapshot_gpu_image
-            .texture
-            .create_view(&layer_view_descriptor);
-
-        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-            label: Some("snapshot_pass"),
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: &target_layer_view,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(default()), // Clear to transparent
-                    store: StoreOp::Store,
+        command_encoder.copy_texture_to_texture(
+            snapshot_temp_image.texture.as_image_copy(),
+            TexelCopyTextureInfo {
+                texture: &snapshot_images.texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer_index,
                 },
-            })],
-            depth_stencil_attachment: None, // No depth for 2D snapshots usually
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-        //
-        // let view_uniforms = world.resource::<ViewUniforms>();
-        // let view_uniforms_resource = world.resource::<ViewUniforms>();
-        // let view_bind_group = render_context.render_device().create_bind_group(
-        //     "snapshot_node_view_bind_group",
-        //     &view_uniforms_resource.layout,    // 使用 ViewUniforms 自带的布局
-        //     &BindGroupEntries::single(view_uniform_binding), // 创建 BindGroupEntries
-        // );
-        // render_pass.set_bind_group(0, &view_bind_group.value, &[view_uniform_offset.offset]);
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                width: snapshot_temp_image.size.width,
+                height: snapshot_temp_image.size.height,
+                depth_or_array_layers: 1,
+            },
+        );
 
-        if !opaque_phase.is_empty() {
-            // trace!("SnapshotNode: Rendering {} opaque items for layer {}", opaque_phase.items.len(), active_target.snapshot_layer_index);
-            let _ = opaque_phase.render(&mut render_pass, world, view_entity);
-        }
-        if !alpha_mask_phase.is_empty() {
-            // trace!("SnapshotNode: Rendering {} transparent items for layer {}", transparent_phase.items.len(), active_target.snapshot_layer_index);
-            let _ = alpha_mask_phase.render(&mut render_pass, world, view_entity);
-        }
+        info!("Copied layer {} to snapshot texture", layer_index);
 
-        Ok(())
+        render_queue.submit(std::iter::once(command_encoder.finish()));
+        camera_state.snapshot_layer_index = None;
     }
 }

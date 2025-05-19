@@ -12,11 +12,9 @@ mod compute;
 mod extract;
 mod overlay;
 mod prepare;
-mod snapshot_pass; // 新模块
-
+mod snapshot_pass;
 mod transfer;
 
-use crate::render::snapshot_pass::{SnapshotNode, SnapshotNodeLabel};
 use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 pub use compute::FogComputeNode;
 pub use extract::RenderFogMapSettings;
@@ -79,6 +77,7 @@ impl Plugin for FogOfWarRenderPlugin {
                     (
                         transfer::initiate_gpu_to_cpu_copies_and_request_map,
                         transfer::map_buffers,
+                        snapshot_pass::copy_temp_texture_to_snapshot_texture,
                     )
                         .after(render_system)
                         .in_set(RenderSet::Render),
@@ -104,13 +103,12 @@ impl Plugin for FogOfWarRenderPlugin {
             .add_systems(
                 Render,
                 snapshot_pass::cleanup_snapshot_camera.in_set(RenderSet::Cleanup),
-            )
-        ;
+            );
 
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
             .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
-            .add_render_graph_node::<ViewNodeRunner<SnapshotNode>>(Core2d, SnapshotNodeLabel)
+            // .add_render_graph_node::<SnapshotNode>(Core2d, SnapshotNodeLabel)
             .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
                 Core2d,
                 overlay::FogOverlayNodeLabel,
@@ -121,7 +119,7 @@ impl Plugin for FogOfWarRenderPlugin {
             Core2d,
             (
                 Node2d::MainTransparentPass,
-                snapshot_pass::SnapshotNodeLabel,
+                // snapshot_pass::SnapshotNodeLabel,
                 // snapshot::SnapshotNodeLabel,
                 compute::FogComputeNodeLabel,
                 overlay::FogOverlayNodeLabel,

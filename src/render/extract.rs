@@ -1,11 +1,11 @@
 use crate::components::*;
+use crate::render::snapshot_pass::RenderWorldSnapshotVisible;
 use crate::resources::*;
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
 use bevy::render::view::RenderLayers;
 use bytemuck::{Pod, Zeroable};
-use crate::render::snapshot_pass::RenderWorldSnapshotVisible;
 // --- Resources in RenderWorld to hold extracted data ---
 // --- RenderWorld 中用于保存提取数据的资源 ---
 
@@ -57,6 +57,9 @@ pub struct RenderFogTexture(pub Handle<Image>);
 pub struct RenderVisibilityTexture(pub Handle<Image>);
 #[derive(Resource, Clone, Deref, DerefMut)]
 pub struct RenderSnapshotTexture(pub Handle<Image>);
+
+#[derive(Resource, Clone, Deref, DerefMut)]
+pub struct RenderSnapshotTempTexture(pub Handle<Image>);
 
 // --- Data structures matching shader buffer layouts ---
 // --- 与 shader 缓冲区布局匹配的数据结构 ---
@@ -116,11 +119,15 @@ pub fn extract_texture_handles(
     fog_texture: Extract<Res<FogTextureArray>>,
     visibility_texture: Extract<Res<VisibilityTextureArray>>,
     snapshot_texture: Extract<Res<SnapshotTextureArray>>,
+    snapshot_temp_texture: Extract<Res<SnapshotTempTexture>>,
 ) {
     // Ensure the handles exist in the RenderWorld / 确保句柄存在于 RenderWorld 中
     commands.insert_resource(RenderFogTexture(fog_texture.handle.clone()));
     commands.insert_resource(RenderVisibilityTexture(visibility_texture.handle.clone()));
     commands.insert_resource(RenderSnapshotTexture(snapshot_texture.handle.clone()));
+    commands.insert_resource(RenderSnapshotTempTexture(
+        snapshot_temp_texture.handle.clone(),
+    ));
 }
 
 pub fn extract_vision_sources(
@@ -219,7 +226,6 @@ pub fn extract_gpu_chunk_data(
     }
 }
 
-
 /// Extracts snapshot requests from the main world to the render world.
 /// 将快照请求从主世界提取到渲染世界。
 pub fn extract_snapshot_requests_to_queue(
@@ -227,13 +233,17 @@ pub fn extract_snapshot_requests_to_queue(
     main_world_requests: Extract<Res<MainWorldSnapshotRequestQueue>>,
 ) {
     // We clone the requests. If there are many, consider a more efficient transfer.
-    let render_requests = main_world_requests.requests.iter().map(|req| {
-        RenderWorldSnapshotRequest {
-            snapshot_layer_index: req.snapshot_layer_index,
-            world_bounds: req.world_bounds,
-            // chunk_coords: req.chunk_coords,
-        }
-    }).collect::<Vec<_>>();
+    let render_requests = main_world_requests
+        .requests
+        .iter()
+        .map(|req| {
+            RenderWorldSnapshotRequest {
+                snapshot_layer_index: req.snapshot_layer_index,
+                world_bounds: req.world_bounds,
+                // chunk_coords: req.chunk_coords,
+            }
+        })
+        .collect::<Vec<_>>();
 
     if !render_requests.is_empty() {
         // info!("Extracted {} snapshot requests to RenderWorld.", render_requests.len());
