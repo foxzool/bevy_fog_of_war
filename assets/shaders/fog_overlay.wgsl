@@ -124,12 +124,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (active_snapshot_layer_idx != GFX_INVALID_LAYER) {
         let flipped_uv_y = 1.0 - uv_in_chunk.y;
         let snapshot_color_sample = textureSample(snapshot_tex, fog_sampler, vec2(uv_in_chunk.x, flipped_uv_y), active_snapshot_layer_idx);
-        // Conditionally mix based on snapshot alpha
-        // 根据快照 alpha 条件性混合
         if (snapshot_color_sample.a > 0.0) {
-            // Mix snapshot with the semi-transparent explored fog color
-            // 将快照与半透明的已探索雾色混合
-            explored_content_color = mix(snapshot_color_sample, settings.fog_color_explored, 0.5);
+            explored_content_color = snapshot_color_sample;
         } else {
             explored_content_color = settings.fog_color_explored;
         }

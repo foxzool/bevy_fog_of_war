@@ -3,10 +3,7 @@ use crate::resources::*;
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
-use bevy::render::view::RenderLayers;
 use bytemuck::{Pod, Zeroable};
-// --- Resources in RenderWorld to hold extracted data ---
-// --- RenderWorld 中用于保存提取数据的资源 ---
 
 #[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
 #[repr(C)]
@@ -210,28 +207,5 @@ pub fn extract_gpu_chunk_data(
             fog_layer_index: -1,
             snapshot_layer_index: -1,
         });
-    }
-}
-
-/// Extracts entities with SnapshotVisible and adds RenderWorldSnapshotVisible
-/// and the SNAPSHOT_RENDER_LAYER to them in the RenderWorld.
-/// 提取带有 SnapshotVisible 的实体，并在 RenderWorld 中为它们添加
-/// RenderWorldSnapshotVisible 和 SNAPSHOT_RENDER_LAYER。
-pub fn extract_snapshot_visible_entities(
-    mut commands: Commands,
-    // Query for entities in the main world that have SnapshotVisible
-    // Optionally include their current RenderLayers if you need to merge
-    snapshot_visible_query: Extract<Query<(Entity, Option<&RenderLayers>), With<Snapshottable>>>,
-) {
-    for (entity, existing_layers) in snapshot_visible_query.iter() {
-        let snapshot_layer = SNAPSHOT_RENDER_LAYER.clone();
-        let combined_layers = match existing_layers {
-            Some(layers) => layers.union(&snapshot_layer),
-            None => snapshot_layer,
-        };
-
-        commands.entity(entity).insert((
-            combined_layers, // Ensure it's on the snapshot layer
-        ));
     }
 }

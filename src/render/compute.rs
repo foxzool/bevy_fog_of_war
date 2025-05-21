@@ -19,7 +19,7 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
     },
 };
-use crate::components::SnapshotCamera;
+use crate::snapshot::SnapshotCamera;
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_compute.wgsl";
 

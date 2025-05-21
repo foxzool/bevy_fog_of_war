@@ -12,7 +12,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
-use crate::components::SnapshotCamera;
+use crate::snapshot::SnapshotCamera;
 use super::RenderFogMapSettings;
 use super::extract::{
     OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,

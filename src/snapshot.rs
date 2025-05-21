@@ -2,8 +2,8 @@ use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
 use bevy::asset::RenderAssetUsages;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy::render::RenderApp;
 use bevy::render::camera::RenderTarget;
+use bevy::render::extract_component::ExtractComponent;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
@@ -13,6 +13,8 @@ use bevy::render::render_resource::{
 };
 use bevy::render::renderer::RenderContext;
 use bevy::render::texture::GpuImage;
+use bevy::render::view::RenderLayers;
+use bevy::render::{Extract, RenderApp};
 
 pub struct SnapshotPlugin;
 
@@ -22,6 +24,7 @@ impl Plugin for SnapshotPlugin {
         app.init_resource::<SnapshotCameraState>();
         app.add_systems(Startup, setup_snapshot_camera)
             .add_systems(PostUpdate, prepare_snapshot_camera)
+            .add_systems(Update, ensure_snapshot_render_layer)
             .add_systems(Last, check_snapshot_image_ready);
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -43,6 +46,28 @@ impl Plugin for SnapshotPlugin {
         );
     }
 }
+
+/// 标记组件，指示该实体应被包含在战争迷雾的快照中
+/// Marker component indicating this entity should be included in the fog of war snapshot
+#[derive(Component, Debug, Clone, Default, Reflect)]
+#[reflect(Component, Default)]
+pub struct Capturable;
+
+/// Marker component for a camera used to render snapshots.
+/// 用于渲染快照的相机的标记组件。
+#[derive(Component, ExtractComponent, Clone, Default, Reflect)]
+#[reflect(Component)]
+pub struct SnapshotCamera;
+
+#[derive(Component)]
+pub struct ActiveSnapshotTarget {
+    pub snapshot_layer_index: u32,
+    pub world_bounds: Rect, // For reference, projection is set based on this
+}
+
+pub const SNAPSHOT_RENDER_LAYER_ID: usize = 7;
+
+pub const SNAPSHOT_RENDER_LAYER: RenderLayers = RenderLayers::layer(SNAPSHOT_RENDER_LAYER_ID);
 
 /// Prepares and configures the single SnapshotCamera entity for the current frame's snapshot request (if any).
 /// 为当前帧的快照请求（如果有）准备和配置单个 SnapshotCamera 实体。
@@ -206,7 +231,7 @@ impl Node for SnapshotNode {
                 },
             );
 
-            info!(
+            trace!(
                 "Copying temp texture to snapshot layer {}. Temp texture size: {}x{}, format: {:?}",
                 layer_index,
                 snapshot_temp_image.size.width,
@@ -216,5 +241,22 @@ impl Node for SnapshotNode {
         }
 
         Ok(())
+    }
+}
+
+pub fn ensure_snapshot_render_layer(
+    mut commands: Commands,
+    snapshot_visible_query: Query<(Entity, Option<&RenderLayers>), With<Capturable>>,
+) {
+    for (entity, existing_layers) in snapshot_visible_query.iter() {
+        let snapshot_layer = SNAPSHOT_RENDER_LAYER.clone();
+        let combined_layers = match existing_layers {
+            Some(layers) => layers.union(&snapshot_layer),
+            None => snapshot_layer,
+        };
+
+        commands.entity(entity).insert((
+            combined_layers, // Ensure it's on the snapshot layer
+        ));
     }
 }

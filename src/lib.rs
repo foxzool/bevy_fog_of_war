@@ -35,7 +35,7 @@ impl Plugin for FogOfWarPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<VisionSource>()
             .register_type::<FogChunk>()
-            .register_type::<Snapshottable>()
+            .register_type::<Capturable>()
             .register_type::<ChunkVisibility>()
             .register_type::<ChunkMemoryLocation>()
             .register_type::<ChunkState>()
@@ -315,6 +315,7 @@ fn update_chunk_component_state(
     cache: Res<ChunkStateCache>,
     chunk_manager: Res<ChunkEntityManager>,
     mut chunk_q: Query<&mut FogChunk>,
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>, // Added to trigger snapshots / 添加以触发快照
 ) {
     for (coords, entity) in chunk_manager.map.iter() {
         if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
@@ -329,9 +330,37 @@ fn update_chunk_component_state(
                 ChunkVisibility::Unexplored // Should not happen if explored_chunks is managed correctly / 如果 explored_chunks 管理正确则不应发生
             };
 
-            if chunk.state.visibility != new_visibility {
-                // info!("Chunk {:?} visibility changed to {:?}", coords, new_visibility);
+            let old_visibility = chunk.state.visibility;
+            if old_visibility != new_visibility {
+                // info!("Chunk {:?} visibility changed from {:?} to {:?}", coords, old_visibility, new_visibility);
                 chunk.state.visibility = new_visibility;
+
+                // If the chunk was unexplored and is now explored or visible, request a snapshot
+                // 如果区块之前是未探索状态，现在变为已探索或可见状态，则请求快照
+                if old_visibility == ChunkVisibility::Unexplored
+                    && (new_visibility == ChunkVisibility::Explored || new_visibility == ChunkVisibility::Visible)
+                {
+                    if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
+                        info!(
+                            "Chunk {:?} ({}) became explored ({} -> {}). Requesting snapshot for layer {}.",
+                            *coords,
+                            entity.index(),
+                            old_visibility,
+                            new_visibility,
+                            snapshot_layer_index
+                        );
+                        snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                            chunk_coords: *coords,
+                            snapshot_layer_index,
+                            world_bounds: chunk.world_bounds,
+                        });
+                    } else {
+                        warn!(
+                            "Chunk {:?} ({}) became explored ({} -> {}), but has no snapshot_layer_index. Cannot request snapshot.",
+                            *coords, entity.index(), old_visibility, new_visibility
+                        );
+                    }
+                }
             }
         }
     }

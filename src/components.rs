@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use crate::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
@@ -89,6 +90,16 @@ pub enum ChunkVisibility {
 impl Default for ChunkVisibility {
     fn default() -> Self {
         ChunkVisibility::Unexplored
+    }
+}
+
+impl Display for ChunkVisibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChunkVisibility::Unexplored => write!(f, "Unexplored"),
+            ChunkVisibility::Explored => write!(f, "Explored"),
+            ChunkVisibility::Visible => write!(f, "Visible"),
+        }
     }
 }
 
@@ -231,25 +242,3 @@ pub struct ChunkState {
     /// 内存存储位置 / Memory storage location
     pub memory_location: ChunkMemoryLocation,
 }
-
-/// 标记组件，指示该实体应被包含在战争迷雾的快照中
-/// Marker component indicating this entity should be included in the fog of war snapshot
-#[derive(Component, Debug, Clone, Default, Reflect)]
-#[reflect(Component, Default)]
-pub struct Snapshottable;
-
-/// Marker component for a camera used to render snapshots.
-/// 用于渲染快照的相机的标记组件。
-#[derive(Component, ExtractComponent, Clone, Default, Reflect)]
-#[reflect(Component)]
-pub struct SnapshotCamera;
-
-#[derive(Component)]
-pub struct ActiveSnapshotTarget {
-    pub snapshot_layer_index: u32,
-    pub world_bounds: Rect, // For reference, projection is set based on this
-}
-
-pub const SNAPSHOT_RENDER_LAYER_ID: usize = 7;
-
-pub const SNAPSHOT_RENDER_LAYER: RenderLayers = RenderLayers::layer(SNAPSHOT_RENDER_LAYER_ID);

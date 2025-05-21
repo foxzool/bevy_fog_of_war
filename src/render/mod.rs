@@ -53,7 +53,6 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_vision_sources,
                     extract::extract_gpu_chunk_data,
                     extract::extract_texture_handles,
-                    extract::extract_snapshot_visible_entities,
                     transfer::check_and_process_mapped_buffers,
                     transfer::check_cpu_to_gpu_request,
                 ),
