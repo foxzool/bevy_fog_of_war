@@ -1,12 +1,16 @@
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
+use bevy::asset::RenderAssetUsages;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::render::RenderApp;
+use bevy::render::camera::RenderTarget;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
 use bevy::render::render_graph::{RenderGraphApp, RenderLabel};
-use bevy::render::render_resource::{Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect};
+use bevy::render::render_resource::{
+    Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages,
+};
 use bevy::render::renderer::RenderContext;
 use bevy::render::texture::GpuImage;
 
@@ -16,7 +20,8 @@ impl Plugin for SnapshotPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractResourcePlugin::<SnapshotCameraState>::default());
         app.init_resource::<SnapshotCameraState>();
-        app.add_systems(PostUpdate, prepare_snapshot_camera);
+        app.add_systems(Startup, setup_snapshot_camera)
+            .add_systems(PostUpdate, prepare_snapshot_camera);
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -59,17 +64,59 @@ fn prepare_snapshot_camera(
         *global_transform = GlobalTransform::from(transform);
         camera.is_active = true;
         snapshot_camera_state.snapshot_layer_index = Some(request.snapshot_layer_index);
-        // *projection = Projection::Orthographic(OrthographicProjection {
-        //     area: Rect {
-        //         min: Vec2::ZERO,
-        //         max: Vec2::splat(512.0),
-        //     },
-        //     ..OrthographicProjection::default_2d()
-        // });
     } else {
         camera.is_active = false;
         snapshot_camera_state.snapshot_layer_index = None;
     }
+}
+
+fn setup_snapshot_camera(
+    mut commands: Commands,
+    settings: Res<FogMapSettings>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    let mut snapshot_temp_image = Image::new_fill(
+        Extent3d {
+            width: settings.texture_resolution_per_chunk.x,
+            height: settings.texture_resolution_per_chunk.y,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[0; 4],
+        settings.snapshot_texture_format,
+        RenderAssetUsages::default(),
+    );
+    snapshot_temp_image.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT // To render snapshots into / 用于渲染快照
+        | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
+        | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
+        | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+
+    let snapshot_temp_handle = images.add(snapshot_temp_image);
+
+    commands.insert_resource(SnapshotTempTexture {
+        handle: snapshot_temp_handle.clone(),
+    });
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scale: settings.chunk_size.x as f32 / settings.texture_resolution_per_chunk.x as f32,
+            scaling_mode: bevy::render::camera::ScalingMode::Fixed {
+                width: settings.texture_resolution_per_chunk.x as f32,
+                height: settings.texture_resolution_per_chunk.y as f32,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
+        Camera {
+            clear_color: ClearColorConfig::Custom(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+            order: -1,       // Render before the main camera, or as needed by graph
+            is_active: true, // Initially inactive
+            hdr: false,      // Snapshots likely don't need HDR
+            target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
+            ..default()
+        },
+        SnapshotCamera, // Mark it as our snapshot camera
+        SNAPSHOT_RENDER_LAYER,
+    ));
 }
 
 /// Resource to manage the state of the snapshot camera entity in the RenderWorld.

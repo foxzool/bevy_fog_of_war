@@ -187,25 +187,7 @@ fn setup_fog_resources(
     let visibility_handle = images.add(visibility_image);
     let snapshot_handle = images.add(snapshot_image);
 
-    let snapshot_initial_data =
-        vec![0u8; (snapshot_texture_size.width * snapshot_texture_size.height * 4) as usize]; // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
-    let mut snapshot_temp_image = Image::new(
-        Extent3d {
-            width: settings.texture_resolution_per_chunk.x,
-            height: settings.texture_resolution_per_chunk.y,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        snapshot_initial_data,
-        settings.snapshot_texture_format,
-        RenderAssetUsages::default(),
-    );
-    snapshot_temp_image.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT // To render snapshots into / 用于渲染快照
-        | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
-        | TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
-        | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
-
-    let snapshot_temp_handle = images.add(snapshot_temp_image);
+   
 
     // Insert resources
     // 插入资源
@@ -217,31 +199,9 @@ fn setup_fog_resources(
         handle: snapshot_handle.clone(),
     });
     commands.insert_resource(TextureArrayManager::new(settings.max_layers));
-    commands.insert_resource(SnapshotTempTexture {
-        handle: snapshot_temp_handle.clone(),
-    });
 
-    commands.spawn((
-        Camera2d,
-        Projection::Orthographic(OrthographicProjection {
-            scale: settings.chunk_size.x as f32 / settings.texture_resolution_per_chunk.x as f32,
-            scaling_mode: bevy::render::camera::ScalingMode::Fixed {
-                width: settings.texture_resolution_per_chunk.x as f32,
-                height: settings.texture_resolution_per_chunk.y as f32,
-            },
-            ..OrthographicProjection::default_2d()
-        }),
-        Camera {
-            clear_color: ClearColorConfig::Custom(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-            order: -1,       // Render before the main camera, or as needed by graph
-            is_active: true, // Initially inactive
-            hdr: false,      // Snapshots likely don't need HDR
-            target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
-            ..default()
-        },
-        SnapshotCamera, // Mark it as our snapshot camera
-        SNAPSHOT_RENDER_LAYER,
-    ));
+
+   
 
     info!("Fog of War resources initialized, including SnapshotCamera.");
 }
