@@ -149,7 +149,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-200.0, -50.0, 0.0)),
         Snapshottable,
-        SNAPSHOT_RENDER_LAYER.with(0),
+        SNAPSHOT_RENDER_LAYER,
     ));
 
     // 生成可移动的视野提供者

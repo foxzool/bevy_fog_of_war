@@ -131,8 +131,6 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             // 将快照与半透明的已探索雾色混合
             explored_content_color = mix(snapshot_color_sample, settings.fog_color_explored, 0.5);
         } else {
-            // If snapshot alpha is 0 (or less), just use the explored fog color
-            // 如果快照 alpha 为 0 (或更小)，则仅使用已探索的雾色
             explored_content_color = settings.fog_color_explored;
         }
     } else {

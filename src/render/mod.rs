@@ -12,13 +12,12 @@ mod compute;
 mod extract;
 mod overlay;
 mod prepare;
-mod snapshot_pass;
 mod transfer;
 
 use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
-pub use compute::FogComputeNode;
-pub use extract::RenderFogMapSettings;
-pub use overlay::FogOverlayNode;
+pub use compute::{FogComputeNode, FogComputeNodeLabel};
+pub use extract::{RenderFogMapSettings, RenderSnapshotTempTexture, RenderSnapshotTexture};
+pub use overlay::{FogOverlayNode, FogOverlayNodeLabel};
 pub use prepare::{
     FogBindGroups, FogUniforms, GpuChunkInfoBuffer, OverlayChunkMappingBuffer, VisionSourceBuffer,
 };
@@ -70,7 +69,6 @@ impl Plugin for FogOfWarRenderPlugin {
                     (
                         transfer::initiate_gpu_to_cpu_copies_and_request_map,
                         transfer::map_buffers,
-                        snapshot_pass::copy_temp_texture_to_snapshot_texture,
                     )
                         .after(render_system)
                         .in_set(RenderSet::Render),
@@ -92,28 +90,21 @@ impl Plugin for FogOfWarRenderPlugin {
                     prepare::prepare_fog_bind_groups,
                 )
                     .in_set(RenderSet::PrepareBindGroups),
-            )
-        ;
+            );
 
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app
-            .add_render_graph_node::<FogComputeNode>(Core2d, compute::FogComputeNodeLabel)
-            // .add_render_graph_node::<SnapshotNode>(Core2d, SnapshotNodeLabel)
-            .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(
-                Core2d,
-                overlay::FogOverlayNodeLabel,
-            );
+            .add_render_graph_node::<FogComputeNode>(Core2d, FogComputeNodeLabel)
+            .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(Core2d, FogOverlayNodeLabel);
 
         // Add Render Graph edges (define dependencies) / 添加 Render Graph 边 (定义依赖)
         render_app.add_render_graph_edges(
             Core2d,
             (
-                Node2d::MainTransparentPass,
-                // snapshot_pass::SnapshotNodeLabel,
-                // snapshot::SnapshotNodeLabel,
-                compute::FogComputeNodeLabel,
-                overlay::FogOverlayNodeLabel,
                 Node2d::EndMainPass,
+                FogComputeNodeLabel,
+                FogOverlayNodeLabel,
+                Node2d::EndMainPassPostProcessing,
             ),
         );
     }

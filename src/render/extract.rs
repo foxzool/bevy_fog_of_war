@@ -1,5 +1,4 @@
 use crate::components::*;
-use crate::render::snapshot_pass::RenderWorldSnapshotVisible;
 use crate::resources::*;
 use bevy::prelude::*;
 use bevy::render::Extract;
@@ -239,7 +238,6 @@ pub fn extract_snapshot_visible_entities(
         };
 
         commands.entity(entity).insert((
-            RenderWorldSnapshotVisible, // Marker for RenderWorld systems
             combined_layers,            // Ensure it's on the snapshot layer
         ));
     }

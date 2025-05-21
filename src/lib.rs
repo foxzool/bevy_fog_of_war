@@ -100,6 +100,8 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(snapshot::SnapshotPlugin);
+
+
     }
 }
 
@@ -152,7 +154,7 @@ fn setup_fog_resources(
         TextureDimension::D2,
         visibility_initial_data,
         settings.fog_texture_format, // same format as fog texture
-        RenderAssetUsages::RENDER_WORLD,
+        RenderAssetUsages::default(),
     );
     visibility_image.texture_descriptor.usage = TextureUsages::STORAGE_BINDING // For compute shader write / 用于 compute shader 写入
         | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
@@ -174,7 +176,7 @@ fn setup_fog_resources(
         TextureDimension::D2,
         snapshot_initial_data,
         settings.snapshot_texture_format,
-        RenderAssetUsages::RENDER_WORLD,
+        RenderAssetUsages::default(),
     );
     snapshot_image.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT // To render snapshots into / 用于渲染快照
         | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
@@ -238,7 +240,7 @@ fn setup_fog_resources(
             ..default()
         },
         SnapshotCamera, // Mark it as our snapshot camera
-        RenderLayers::layer(SNAPSHOT_RENDER_LAYER_ID),
+        SNAPSHOT_RENDER_LAYER,
     ));
 
     info!("Fog of War resources initialized, including SnapshotCamera.");
