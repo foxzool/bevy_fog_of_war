@@ -20,6 +20,7 @@ mod snapshot;
 #[derive(Event, Debug, Clone, Copy)]
 pub struct RequestChunkSnapshotEvent(pub IVec2);
 
+
 /// Component to define the bounding box of a capturable entity.
 /// 用于定义可捕获实体边界框的组件。
 #[derive(Component, Reflect, Clone, Debug)]
@@ -132,33 +133,7 @@ impl Plugin for FogOfWarPlugin {
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(snapshot::SnapshotPlugin);
 
-        // Register components and system for capturable movement
-        // 注册可捕获物移动相关的组件和系统
-        app.register_type::<CapturableBounds>();
-        app.register_type::<LastKnownOccupiedChunks>();
-        app.add_systems(
-            Update,
-            auto_add_capturable_bounds_from_sprite // Add this system first /首先添加此系统
-                .after(FogSystemSet::UpdateChunkState), // After chunk states are updated / 在区块状态更新后
-        );
-        app.add_systems(
-            Update,
-            trigger_snapshot_remake_on_capturable_move_multi_chunk
-                .after(FogSystemSet::UpdateChunkState) // Ensure chunk states are up-to-date / 确保区块状态是最新的
-                .after(auto_add_capturable_bounds_from_sprite) // After bounds are potentially added / 在边界可能被添加后
-                // Consider running after Bevy's transform propagation and before event handling
-                // 考虑在 Bevy 的变换传播之后，事件处理之前运行
-                .before(handle_request_chunk_snapshot_events), // Process before general event handling / 在通用事件处理前处理
-        );
-
-        // System to handle explicit snapshot remake requests
-        // 处理显式快照重制请求的系统
-        app.add_systems(
-            Update,
-            handle_request_chunk_snapshot_events
-                .after(FogSystemSet::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
-                .before(FogSystemSet::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
-        );
+        
     }
 }
 
@@ -829,62 +804,7 @@ pub fn manage_chunk_texture_transfer(
     }
 }
 
-/// System to handle `RequestChunkSnapshotEvent` and queue snapshot remakes.
-/// 处理 `RequestChunkSnapshotEvent` 事件并对快照重制进行排队的系统。
-fn handle_request_chunk_snapshot_events(
-    mut events: EventReader<RequestChunkSnapshotEvent>,
-    chunk_manager: Res<ChunkEntityManager>,
-    chunk_query: Query<&FogChunk>, // Query for FogChunk to get its details / 查询 FogChunk 以获取其详细信息
-    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
-) {
-    for event in events.read() {
-        let chunk_coords = event.0;
-        if let Some(entity) = chunk_manager.map.get(&chunk_coords) {
-            if let Ok(chunk) = chunk_query.get(*entity) {
-                if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
-                    // Check if a snapshot for this chunk is already pending
-                    // 检查此区块的快照是否已在等待队列中
-                    let already_pending = snapshot_requests
-                        .requests
-                        .iter()
-                        .any(|req| req.chunk_coords == chunk_coords);
 
-                    if !already_pending {
-                        info!(
-                            "Received RequestChunkSnapshotEvent for {:?}. Queuing snapshot remake for layer {}.",
-                            chunk_coords, snapshot_layer_index
-                        );
-                        snapshot_requests.requests.push(MainWorldSnapshotRequest {
-                            chunk_coords,
-                            snapshot_layer_index,
-                            world_bounds: chunk.world_bounds,
-                        });
-                    } else {
-                        debug!(
-                            "Received RequestChunkSnapshotEvent for {:?}, but snapshot remake is already pending. Skipping.",
-                            chunk_coords
-                        );
-                    }
-                } else {
-                    warn!(
-                        "Received RequestChunkSnapshotEvent for {:?}, but chunk has no snapshot_layer_index. Cannot request snapshot.",
-                        chunk_coords
-                    );
-                }
-            } else {
-                warn!(
-                    "Received RequestChunkSnapshotEvent for {:?}, but failed to get FogChunk component.",
-                    chunk_coords
-                );
-            }
-        } else {
-            warn!(
-                "Received RequestChunkSnapshotEvent for {:?}, but chunk entity not found in manager.",
-                chunk_coords
-            );
-        }
-    }
-}
 
 /// System to detect movement of Capturable entities and request snapshot remakes for affected chunks.
 /// It considers the bounds of the capturable, potentially affecting multiple chunks.
