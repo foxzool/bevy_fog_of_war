@@ -2,9 +2,8 @@ use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor};
-use bevy::math::FloatOrd;
 use bevy::platform::collections::HashSet;
-use bevy::render::camera::{ImageRenderTarget, RenderTarget, Viewport};
+use bevy::render::camera::{RenderTarget, Viewport};
 use bevy::render::extract_component::ExtractComponentPlugin;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::{Extent3d, ShaderType, TextureDimension, TextureUsages};
@@ -21,6 +20,31 @@ mod snapshot;
 #[derive(Event, Debug, Clone, Copy)]
 pub struct RequestChunkSnapshotEvent(pub IVec2);
 
+/// Component to define the bounding box of a capturable entity.
+/// 用于定义可捕获实体边界框的组件。
+#[derive(Component, Reflect, Clone, Debug)]
+#[reflect(Component)]
+pub struct CapturableBounds {
+    /// Half-extents of the bounding box relative to the entity's transform.
+    /// 相对于实体变换的边界框半区。
+    pub half_extents: Vec2,
+}
+
+impl Default for CapturableBounds {
+    fn default() -> Self {
+        // Default to a small size, e.g., 16x16. Adjust as needed.
+        // 默认为一个小尺寸，例如 16x16。根据需要调整。
+        Self {
+            half_extents: Vec2::splat(8.0),
+        }
+    }
+}
+
+/// Component to store the last known chunk coordinates occupied by a capturable entity.
+/// 用于存储可捕获实体最后占据的区块坐标的组件。
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+struct LastKnownOccupiedChunks(Vec<IVec2>);
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 enum FogSystemSet {
@@ -108,6 +132,25 @@ impl Plugin for FogOfWarPlugin {
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(snapshot::SnapshotPlugin);
 
+        // Register components and system for capturable movement
+        // 注册可捕获物移动相关的组件和系统
+        app.register_type::<CapturableBounds>();
+        app.register_type::<LastKnownOccupiedChunks>();
+        app.add_systems(
+            Update,
+            auto_add_capturable_bounds_from_sprite // Add this system first /首先添加此系统
+                .after(FogSystemSet::UpdateChunkState), // After chunk states are updated / 在区块状态更新后
+        );
+        app.add_systems(
+            Update,
+            trigger_snapshot_remake_on_capturable_move_multi_chunk
+                .after(FogSystemSet::UpdateChunkState) // Ensure chunk states are up-to-date / 确保区块状态是最新的
+                .after(auto_add_capturable_bounds_from_sprite) // After bounds are potentially added / 在边界可能被添加后
+                // Consider running after Bevy's transform propagation and before event handling
+                // 考虑在 Bevy 的变换传播之后，事件处理之前运行
+                .before(handle_request_chunk_snapshot_events), // Process before general event handling / 在通用事件处理前处理
+        );
+
         // System to handle explicit snapshot remake requests
         // 处理显式快照重制请求的系统
         app.add_systems(
@@ -116,6 +159,56 @@ impl Plugin for FogOfWarPlugin {
                 .after(FogSystemSet::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
                 .before(FogSystemSet::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
         );
+    }
+}
+
+fn auto_add_capturable_bounds_from_sprite(
+    mut commands: Commands,
+    query: Query<(Entity, &Sprite), (With<Capturable>, Without<CapturableBounds>)>,
+    images: Res<Assets<Image>>,
+    texture_atlas_layouts: Res<Assets<TextureAtlasLayout>>,
+) {
+    for (entity, sprite) in query.iter() {
+        let mut entity_size: Option<Vec2> = None;
+
+        if let Some(custom_size) = sprite.custom_size {
+            entity_size = Some(custom_size);
+        } else if let Some(image) = images.get(&sprite.image) {
+            entity_size = Some(image.size_f32());
+        }
+
+        if entity_size.is_none() {
+            if let Some(atlas_sprite) = &sprite.texture_atlas {
+                if let Some(layout) = texture_atlas_layouts.get(&atlas_sprite.layout) {
+                    if let Some(rect) = layout.textures.get(atlas_sprite.index) {
+                        entity_size = Some(rect.size().as_vec2());
+                    }
+                }
+            }
+        }
+
+        if let Some(size) = entity_size {
+            if size.x > 0.0 && size.y > 0.0 {
+                let half_extents = size / 2.0;
+                commands
+                    .entity(entity)
+                    .insert(CapturableBounds { half_extents });
+                info!(
+                    "Automatically added CapturableBounds {{ half_extents: {:?} }} to entity {:?} based on sprite/atlas size {:?}",
+                    half_extents, entity, size
+                );
+            } else {
+                warn!(
+                    "Entity {:?} has Capturable but its sprite/atlas size is zero or negative: {:?}. CapturableBounds not added.",
+                    entity, size
+                );
+            }
+        } else {
+            warn!(
+                "Entity {:?} has Capturable but no Sprite/TextureAtlas or size could not be determined. CapturableBounds not added.",
+                entity
+            );
+        }
     }
 }
 
@@ -201,8 +294,6 @@ fn setup_fog_resources(
     let visibility_handle = images.add(visibility_image);
     let snapshot_handle = images.add(snapshot_image);
 
-   
-
     // Insert resources
     // 插入资源
     commands.insert_resource(FogTextureArray { handle: fog_handle });
@@ -213,9 +304,6 @@ fn setup_fog_resources(
         handle: snapshot_handle.clone(),
     });
     commands.insert_resource(TextureArrayManager::new(settings.max_layers));
-
-
-   
 
     info!("Fog of War resources initialized, including SnapshotCamera.");
 }
@@ -329,7 +417,7 @@ fn update_chunk_component_state(
     cache: Res<ChunkStateCache>,
     chunk_manager: Res<ChunkEntityManager>,
     mut chunk_q: Query<&mut FogChunk>,
-    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>, // Added to trigger snapshots / 添加以触发快照
+    mut snapshot_event_writer: EventWriter<RequestChunkSnapshotEvent>, // Changed to EventWriter / 更改为 EventWriter
 ) {
     for (coords, entity) in chunk_manager.map.iter() {
         if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
@@ -349,29 +437,38 @@ fn update_chunk_component_state(
                 // info!("Chunk {:?} visibility changed from {:?} to {:?}", coords, old_visibility, new_visibility);
                 chunk.state.visibility = new_visibility;
 
-                // If the chunk was unexplored and is now explored or visible, request a snapshot
-                // 如果区块之前是未探索状态，现在变为已探索或可见状态，则请求快照
-                if old_visibility == ChunkVisibility::Unexplored
-                    && (new_visibility == ChunkVisibility::Explored || new_visibility == ChunkVisibility::Visible)
-                {
-                    if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
+                // If the chunk was unexplored and is now explored/visible, OR if it was explored and is now visible, send a snapshot request event.
+                // 如果区块之前是未探索状态，现在变为已探索/可见状态，或者之前是已探索状态，现在变为可见状态，则发送快照请求事件。
+                let should_request_snapshot = (old_visibility == ChunkVisibility::Unexplored
+                    && (new_visibility == ChunkVisibility::Explored
+                        || new_visibility == ChunkVisibility::Visible))
+                    || (old_visibility == ChunkVisibility::Explored
+                        && new_visibility == ChunkVisibility::Visible);
+
+                if should_request_snapshot {
+                    if chunk.snapshot_layer_index.is_some() {
+                        // Check if index exists before unwrapping or logging
+                        let reason = if old_visibility == ChunkVisibility::Unexplored {
+                            "became explored/visible"
+                        } else {
+                            "re-entered visibility"
+                        };
                         info!(
-                            "Chunk {:?} ({}) became explored ({} -> {}). Requesting snapshot for layer {}.",
+                            "Chunk {:?} ({}) {} ({} -> {}). Sending RequestChunkSnapshotEvent.",
+                            *coords,
+                            entity.index(),
+                            reason,
+                            old_visibility,
+                            new_visibility
+                        );
+                        snapshot_event_writer.write(RequestChunkSnapshotEvent(*coords));
+                    } else {
+                        warn!(
+                            "Chunk {:?} ({}) changed visibility ({} -> {}), but has no snapshot_layer_index. Cannot request snapshot via event.",
                             *coords,
                             entity.index(),
                             old_visibility,
-                            new_visibility,
-                            snapshot_layer_index
-                        );
-                        snapshot_requests.requests.push(MainWorldSnapshotRequest {
-                            chunk_coords: *coords,
-                            snapshot_layer_index,
-                            world_bounds: chunk.world_bounds,
-                        });
-                    } else {
-                        warn!(
-                            "Chunk {:?} ({}) became explored ({} -> {}), but has no snapshot_layer_index. Cannot request snapshot.",
-                            *coords, entity.index(), old_visibility, new_visibility
+                            new_visibility
                         );
                     }
                 }
@@ -785,6 +882,98 @@ fn handle_request_chunk_snapshot_events(
                 "Received RequestChunkSnapshotEvent for {:?}, but chunk entity not found in manager.",
                 chunk_coords
             );
+        }
+    }
+}
+
+/// System to detect movement of Capturable entities and request snapshot remakes for affected chunks.
+/// It considers the bounds of the capturable, potentially affecting multiple chunks.
+/// 检测 Capturable 实体移动并为受影响区块请求快照重制的系统。
+/// 它会考虑可捕获对象的边界，可能影响多个区块。
+fn trigger_snapshot_remake_on_capturable_move_multi_chunk(
+    mut query: Query<
+        (
+            Entity,
+            &GlobalTransform,
+            &CapturableBounds,
+            Option<&mut LastKnownOccupiedChunks>,
+        ),
+        (With<Capturable>, Changed<GlobalTransform>),
+    >,
+    settings: Res<FogMapSettings>,
+    mut snapshot_event_writer: EventWriter<RequestChunkSnapshotEvent>,
+    mut commands: Commands,
+) {
+    for (entity, global_transform, bounds, mut last_known_chunks_opt) in query.iter_mut() {
+        let current_center_pos = global_transform.translation().truncate();
+
+        // Calculate AABB (Axis-Aligned Bounding Box) in world space
+        // 计算世界空间中的 AABB（轴对齐边界框）
+        let min_world = current_center_pos - bounds.half_extents;
+        let max_world = current_center_pos + bounds.half_extents;
+
+        // Convert AABB to min/max chunk coordinates
+        // 将 AABB 转换为最小/最大区块坐标
+        let min_chunk_coords = settings.world_to_chunk_coords(min_world);
+        let max_chunk_coords = settings.world_to_chunk_coords(max_world);
+
+        let mut current_occupied_chunks = HashSet::new();
+        for x in min_chunk_coords.x..=max_chunk_coords.x {
+            for y in min_chunk_coords.y..=max_chunk_coords.y {
+                current_occupied_chunks.insert(IVec2::new(x, y));
+            }
+        }
+
+        let mut chunks_to_update = HashSet::new();
+
+        if let Some(ref mut last_known) = last_known_chunks_opt {
+            let last_occupied_set: HashSet<IVec2> = last_known.0.iter().cloned().collect();
+
+            // Chunks the entity entered (present in current, not in last)
+            // 实体进入的区块 (存在于当前，但不存在于上一次)
+            for &new_chunk in current_occupied_chunks.difference(&last_occupied_set) {
+                chunks_to_update.insert(new_chunk);
+            }
+            // Chunks the entity exited (present in last, not in current)
+            // 实体离开的区块 (存在于上一次，但不存在于当前)
+            for &old_chunk in last_occupied_set.difference(&current_occupied_chunks) {
+                chunks_to_update.insert(old_chunk);
+            }
+
+            // Update the component with the new set of occupied chunks
+            // 使用新的已占据区块集合更新组件
+            last_known.0 = current_occupied_chunks.iter().cloned().collect();
+        } else {
+            // This is the first time we've processed this entity after a move (or it was just added with Changed<GlobalTransform>)
+            // 这是我们第一次处理该实体的移动（或者它刚刚被添加并带有 Changed<GlobalTransform>）
+            // or the LastKnownOccupiedChunks component was missing.
+            // 或者 LastKnownOccupiedChunks 组件缺失。
+            // Consider all currently occupied chunks as needing an update and add the component.
+            // 将所有当前占据的区块视为需要更新，并添加组件。
+            for &chunk in current_occupied_chunks.iter() {
+                chunks_to_update.insert(chunk);
+            }
+            commands.entity(entity).insert(LastKnownOccupiedChunks(
+                current_occupied_chunks.iter().cloned().collect(),
+            ));
+        }
+
+        if !chunks_to_update.is_empty() {
+            // Log specific chunks being updated due to movement / 记录由于移动而更新的特定区块
+            for coords_to_update_single in chunks_to_update.iter() {
+                info!(
+                    "Capturable entity {:?} movement. Requesting snapshot for chunk: {:?}. Center: {:?}, Bounds: {:?}, Min/Max Chunks: ({:?},{:?})",
+                    entity,
+                    coords_to_update_single,
+                    current_center_pos,
+                    bounds.half_extents,
+                    min_chunk_coords,
+                    max_chunk_coords
+                );
+            }
+            for coords in chunks_to_update {
+                snapshot_event_writer.send(RequestChunkSnapshotEvent(coords));
+            }
         }
     }
 }

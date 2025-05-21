@@ -291,6 +291,14 @@ impl FogMapSettings {
             chunk_coord.y as f32 * self.chunk_size.y as f32,
         )
     }
+
+    /// Converts world coordinates (Vec2) to chunk coordinates (IVec2).
+    /// 将世界坐标 (Vec2) 转换为区块坐标 (IVec2)。
+    pub fn world_to_chunk_coords(&self, world_pos: Vec2) -> IVec2 {
+        let chunk_x = (world_pos.x / self.chunk_size.x as f32).floor() as i32;
+        let chunk_y = (world_pos.y / self.chunk_size.y as f32).floor() as i32;
+        IVec2::new(chunk_x, chunk_y)
+    }
 }
 
 /// Information for a single snapshot request, generated in the main world.
