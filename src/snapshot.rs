@@ -23,18 +23,18 @@ impl Plugin for SnapshotPlugin {
         };
 
         render_app.add_render_graph_node::<SnapshotNode>(Core2d, SnapshotNodeLabel);
-        render_app.add_render_graph_edge(Core2d, SnapshotNodeLabel, Node2d::StartMainPass);
+        // render_app.add_render_graph_edge(Core2d, SnapshotNodeLabel, Node2d::MainTransparentPass);
 
-        // render_app.add_render_graph_edges(
-        //     Core2d,
-        //     (
-        //         Node2d::MainTransparentPass,
-        //         SnapshotNodeLabel,
-        //         crate::render::FogComputeNodeLabel,
-        //         crate::render::FogOverlayNodeLabel,
-        //         Node2d::EndMainPass,
-        //     ),
-        // );
+        render_app.add_render_graph_edges(
+            Core2d,
+            (
+                Node2d::MainTransparentPass,
+                SnapshotNodeLabel,
+                crate::render::FogComputeNodeLabel,
+                crate::render::FogOverlayNodeLabel,
+                Node2d::EndMainPass,
+            ),
+        );
     }
 }
 
@@ -88,10 +88,16 @@ pub struct SnapshotNode;
 impl Node for SnapshotNode {
     fn run<'w>(
         &self,
-        _graph: &mut RenderGraphContext,
+        graph: &mut RenderGraphContext,
         render_context: &mut RenderContext<'w>,
         world: &'w World,
     ) -> Result<(), NodeRunError> {
+        let view_entity = graph.view_entity();
+
+        if world.get::<SnapshotCamera>(view_entity).is_none() {
+            return Ok(());
+        }
+
         let camera_state = world.resource::<SnapshotCameraState>();
         if let Some(layer_index) = camera_state.snapshot_layer_index {
             let gpu_images = world.resource::<RenderAssets<GpuImage>>();

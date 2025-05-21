@@ -12,7 +12,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
-
+use crate::components::SnapshotCamera;
 use super::RenderFogMapSettings;
 use super::extract::{
     OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
@@ -109,11 +109,16 @@ impl ViewNode for FogOverlayNode {
 
     fn run(
         &self,
-        _graph: &mut RenderGraphContext,
+        graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
         (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        let view_entity = graph.view_entity();
+
+        if world.get::<SnapshotCamera>(view_entity).is_some() {
+            return Ok(());
+        }
         let overlay_pipeline = world.resource::<FogOverlayPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 

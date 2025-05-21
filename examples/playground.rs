@@ -1,5 +1,4 @@
 use bevy::diagnostic::FrameCount;
-use bevy::render::view::RenderLayers;
 use bevy::{
     color::palettes::css::{GOLD, RED},
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -648,7 +647,6 @@ fn send_snapshot(
                     world_bounds: chunk.world_bounds,
                 });
             }
-
         }
     }
 }

@@ -101,10 +101,10 @@ impl Plugin for FogOfWarRenderPlugin {
         render_app.add_render_graph_edges(
             Core2d,
             (
-                Node2d::EndMainPass,
+                Node2d::MainTransparentPass,
                 FogComputeNodeLabel,
                 FogOverlayNodeLabel,
-                Node2d::EndMainPassPostProcessing,
+                Node2d::EndMainPass,
             ),
         );
     }
