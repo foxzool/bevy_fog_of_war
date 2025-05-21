@@ -124,7 +124,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (active_snapshot_layer_idx != GFX_INVALID_LAYER) {
         let flipped_uv_y = 1.0 - uv_in_chunk.y;
         let snapshot_color_sample = textureSample(snapshot_tex, fog_sampler, vec2(uv_in_chunk.x, flipped_uv_y), active_snapshot_layer_idx);
-        if (snapshot_color_sample.a > 0.0) {
+        if (snapshot_color_sample.a > 0.99) { // Threshold increased to reduce transparent edge pixels - 阈值提高以减少边缘透明像素
             explored_content_color = snapshot_color_sample;
         } else {
             explored_content_color = settings.fog_color_explored;
