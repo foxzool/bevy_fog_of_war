@@ -138,7 +138,7 @@ fn setup_snapshot_camera(
         Camera {
             clear_color: ClearColorConfig::Custom(Color::srgba(0.0, 0.0, 0.0, 0.0)),
             order: -1,       // Render before the main camera, or as needed by graph
-            is_active: true, // Initially inactive
+            is_active: false, // Initially inactive
             hdr: false,      // Snapshots likely don't need HDR
             target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
             ..default()
@@ -252,7 +252,7 @@ pub fn ensure_snapshot_render_layer(
         let snapshot_layer = SNAPSHOT_RENDER_LAYER.clone();
         let combined_layers = match existing_layers {
             Some(layers) => layers.union(&snapshot_layer),
-            None => snapshot_layer,
+            None => snapshot_layer.with(0),
         };
 
         commands.entity(entity).insert((

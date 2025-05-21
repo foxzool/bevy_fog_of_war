@@ -181,6 +181,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-400.0, -100.0, 0.0)), // 初始位置 / Initial position
         HorizontalMover { direction: 1.0 }, // 初始向右移动 / Initially move right
+        Capturable
     ));
 
     // 颜色渐变条作为参考，并添加视野提供者组件到部分方块

@@ -16,6 +16,12 @@ mod render;
 mod resources;
 mod snapshot;
 
+/// Event to request a snapshot for a specific chunk.
+/// 请求为特定区块生成快照的事件。
+#[derive(Event, Debug, Clone, Copy)]
+pub struct RequestChunkSnapshotEvent(pub IVec2);
+
+
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 enum FogSystemSet {
     /// Update chunk states based on vision and camera
@@ -58,7 +64,8 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<MainWorldSnapshotRequestQueue>();
 
         app.add_event::<ChunkGpuDataReadyEvent>()
-            .add_event::<ChunkCpuDataUploadedEvent>();
+            .add_event::<ChunkCpuDataUploadedEvent>()
+            .add_event::<RequestChunkSnapshotEvent>(); // Added event for remaking snapshots / 添加用于重制快照的事件
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
             .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
@@ -101,7 +108,14 @@ impl Plugin for FogOfWarPlugin {
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(snapshot::SnapshotPlugin);
 
-
+        // System to handle explicit snapshot remake requests
+        // 处理显式快照重制请求的系统
+        app.add_systems(
+            Update,
+            handle_request_chunk_snapshot_events
+                .after(FogSystemSet::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
+                .before(FogSystemSet::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
+        );
     }
 }
 
@@ -714,6 +728,63 @@ pub fn manage_chunk_texture_transfer(
                 // 正在传输中，等待事件
                 // In transit, waiting for event
             }
+        }
+    }
+}
+
+/// System to handle `RequestChunkSnapshotEvent` and queue snapshot remakes.
+/// 处理 `RequestChunkSnapshotEvent` 事件并对快照重制进行排队的系统。
+fn handle_request_chunk_snapshot_events(
+    mut events: EventReader<RequestChunkSnapshotEvent>,
+    chunk_manager: Res<ChunkEntityManager>,
+    chunk_query: Query<&FogChunk>, // Query for FogChunk to get its details / 查询 FogChunk 以获取其详细信息
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
+) {
+    for event in events.read() {
+        let chunk_coords = event.0;
+        if let Some(entity) = chunk_manager.map.get(&chunk_coords) {
+            if let Ok(chunk) = chunk_query.get(*entity) {
+                if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
+                    // Check if a snapshot for this chunk is already pending
+                    // 检查此区块的快照是否已在等待队列中
+                    let already_pending = snapshot_requests
+                        .requests
+                        .iter()
+                        .any(|req| req.chunk_coords == chunk_coords);
+
+                    if !already_pending {
+                        info!(
+                            "Received RequestChunkSnapshotEvent for {:?}. Queuing snapshot remake for layer {}.",
+                            chunk_coords, snapshot_layer_index
+                        );
+                        snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                            chunk_coords,
+                            snapshot_layer_index,
+                            world_bounds: chunk.world_bounds,
+                        });
+                    } else {
+                        debug!(
+                            "Received RequestChunkSnapshotEvent for {:?}, but snapshot remake is already pending. Skipping.",
+                            chunk_coords
+                        );
+                    }
+                } else {
+                    warn!(
+                        "Received RequestChunkSnapshotEvent for {:?}, but chunk has no snapshot_layer_index. Cannot request snapshot.",
+                        chunk_coords
+                    );
+                }
+            } else {
+                warn!(
+                    "Received RequestChunkSnapshotEvent for {:?}, but failed to get FogChunk component.",
+                    chunk_coords
+                );
+            }
+        } else {
+            warn!(
+                "Received RequestChunkSnapshotEvent for {:?}, but chunk entity not found in manager.",
+                chunk_coords
+            );
         }
     }
 }
