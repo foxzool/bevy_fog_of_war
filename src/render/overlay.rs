@@ -153,17 +153,17 @@ impl ViewNode for FogOverlayNode {
         let visibility_texture_view = images
             .get(&visibility_texture.0)
             .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d1.texture_view);
+            .unwrap_or(&fallback_image.d2.texture_view);
 
         let fog_texture_view = images
             .get(&fog_texture.0)
             .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d1.texture_view);
+            .unwrap_or(&fallback_image.d2.texture_view);
 
         let snapshot_texture_view = images
             .get(&snapshot_texture.0)
             .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d1.texture_view);
+            .unwrap_or(&fallback_image.d2.texture_view);
 
         // Create the bind group for this specific view / 为此特定视图创建绑定组
         let bind_group = render_context.render_device().create_bind_group(

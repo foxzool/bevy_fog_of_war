@@ -4,10 +4,10 @@ use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor};
 use bevy::math::FloatOrd;
 use bevy::platform::collections::HashSet;
-use bevy::render::camera::{ImageRenderTarget, RenderTarget};
+use bevy::render::camera::{ImageRenderTarget, RenderTarget, Viewport};
 use bevy::render::extract_component::ExtractComponentPlugin;
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use bevy::render::render_resource::{Extent3d, ShaderType, TextureDimension, TextureUsages};
 use bevy::render::view::RenderLayers;
 
 mod components;
@@ -90,8 +90,7 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_systems(
             Update,
-            (request_snapshots_for_visible_chunks, manage_chunk_entities)
-                .in_set(FogSystemSet::ManageEntities),
+            (manage_chunk_entities).in_set(FogSystemSet::ManageEntities),
         );
 
         app.add_systems(
@@ -100,11 +99,7 @@ impl Plugin for FogOfWarPlugin {
         );
 
         app.add_plugins(FogOfWarRenderPlugin);
-
-        // app.add_plugins(ChunkManagerPlugin)
-        //     .add_plugins(vision::VisionComputePlugin)
-        //     .add_plugins(fog_2d::Fog2DRenderPlugin)
-        //     .add_plugins(sync_texture::GpuSyncTexturePlugin);
+        app.add_plugins(snapshot::SnapshotPlugin);
     }
 }
 
@@ -168,7 +163,7 @@ fn setup_fog_resources(
     // Snapshot Texture: Rgba8UnormSrgb (Stores last visible scene)
     // 快照纹理: Rgba8UnormSrgb (存储最后可见的场景)
     let snapshot_initial_data = vec![
-        255u8;
+        0u8;
         (snapshot_texture_size.width
             * snapshot_texture_size.height
             * snapshot_texture_size.depth_or_array_layers
@@ -191,7 +186,7 @@ fn setup_fog_resources(
     let snapshot_handle = images.add(snapshot_image);
 
     let snapshot_initial_data =
-        vec![255u8; (snapshot_texture_size.width * snapshot_texture_size.height * 4) as usize]; // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+        vec![0u8; (snapshot_texture_size.width * snapshot_texture_size.height * 4) as usize]; // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
     let mut snapshot_temp_image = Image::new(
         Extent3d {
             width: settings.texture_resolution_per_chunk.x,
@@ -201,7 +196,7 @@ fn setup_fog_resources(
         TextureDimension::D2,
         snapshot_initial_data,
         settings.snapshot_texture_format,
-        RenderAssetUsages::RENDER_WORLD,
+        RenderAssetUsages::default(),
     );
     snapshot_temp_image.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT // To render snapshots into / 用于渲染快照
         | TextureUsages::TEXTURE_BINDING // For sampling in overlay shader / 用于在覆盖 shader 中采样
@@ -226,9 +221,18 @@ fn setup_fog_resources(
 
     commands.spawn((
         Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scale: settings.chunk_size.x as f32 / settings.texture_resolution_per_chunk.x as f32,
+            scaling_mode: bevy::render::camera::ScalingMode::Fixed {
+                width: settings.texture_resolution_per_chunk.x as f32,
+                height: settings.texture_resolution_per_chunk.y as f32,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
         Camera {
+            clear_color: ClearColorConfig::Custom(Color::srgba(0.0, 0.0, 0.0, 0.0)),
             order: -1,       // Render before the main camera, or as needed by graph
-            is_active: false, // Initially inactive
+            is_active: true, // Initially inactive
             hdr: false,      // Snapshots likely don't need HDR
             target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
             ..default()
@@ -516,7 +520,7 @@ pub fn manage_chunk_texture_transfer(
     mut cpu_to_gpu_requests: ResMut<CpuToGpuCopyRequests>,
     mut gpu_data_ready_reader: EventReader<ChunkGpuDataReadyEvent>,
     mut cpu_data_uploaded_reader: EventReader<ChunkCpuDataUploadedEvent>,
-    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
 ) {
     for event in gpu_data_ready_reader.read() {
         if let Some((_entity, mut chunk, chunk_image)) = chunk_query
@@ -718,48 +722,6 @@ pub fn manage_chunk_texture_transfer(
             ChunkMemoryLocation::PendingCopyToCpu | ChunkMemoryLocation::PendingCopyToGpu => {
                 // 正在传输中，等待事件
                 // In transit, waiting for event
-            }
-        }
-    }
-}
-
-/// System to request snapshots for chunks that are visible and on the GPU.
-/// 为可见且在 GPU 上的区块请求快照的系统。
-fn request_snapshots_for_visible_chunks(
-    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
-    chunk_query: Query<&FogChunk>,
-    // Potentially add a Cooldown/Dirty flag per chunk to avoid requesting every frame
-) {
-    for chunk in chunk_query.iter() {
-        return;
-        if chunk.state.visibility == ChunkVisibility::Visible &&
-            (chunk.state.memory_location == ChunkMemoryLocation::Gpu || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu) && // Must be on GPU or becoming GPU
-            chunk.snapshot_layer_index.is_some()
-        {
-            // Simple strategy: request snapshot if visible and on GPU.
-            // More complex: check if content changed, or if snapshot is "stale".
-            // 此处可以添加逻辑判断是否真的需要更新快照，例如检查区块内的 SnapshotVisible 物体是否有变化。
-            // For now, let's assume we always request if visible.
-            // To prevent spamming, you might add a component to FogChunk like `SnapshotDirty(bool)`
-            // or a timer.
-
-            // Check if a request for this chunk is already pending to avoid duplicates in a single frame.
-            // (MainWorldSnapshotRequestQueue is cleared each frame in extract, so this check is for multi-system adds)
-            if !snapshot_requests
-                .requests
-                .iter()
-                .any(|req| req.chunk_coords == chunk.coords)
-            {
-                debug!(
-                    "Requesting snapshot for visible chunk {:?} on layer {}",
-                    chunk.coords,
-                    chunk.snapshot_layer_index.unwrap()
-                );
-                snapshot_requests.requests.push(MainWorldSnapshotRequest {
-                    chunk_coords: chunk.coords,
-                    snapshot_layer_index: chunk.snapshot_layer_index.unwrap(),
-                    world_bounds: chunk.world_bounds,
-                });
             }
         }
     }

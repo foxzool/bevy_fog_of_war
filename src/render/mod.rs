@@ -37,8 +37,6 @@ impl Plugin for FogOfWarRenderPlugin {
             // Resources for extracted data / 用于提取数据的资源
             .init_resource::<extract::ExtractedVisionSources>()
             .init_resource::<extract::ExtractedGpuChunkData>()
-            .init_resource::<extract::SnapshotRequestQueue>()
-            .init_resource::<snapshot_pass::SnapshotCameraState>()
             .init_resource::<FogUniforms>()
             .init_resource::<VisionSourceBuffer>()
             .init_resource::<GpuToCpuActiveCopies>()
@@ -55,16 +53,11 @@ impl Plugin for FogOfWarRenderPlugin {
                     extract::extract_fog_settings,
                     extract::extract_vision_sources,
                     extract::extract_gpu_chunk_data,
-                    extract::extract_snapshot_requests_to_queue,
                     extract::extract_texture_handles,
                     extract::extract_snapshot_visible_entities,
                     transfer::check_and_process_mapped_buffers,
                     transfer::check_cpu_to_gpu_request,
                 ),
-            )
-            .add_systems(
-                Render,
-                snapshot_pass::prepare_snapshot_camera.in_set(RenderSet::PrepareResources),
             )
             .add_systems(
                 Render,
@@ -100,10 +93,7 @@ impl Plugin for FogOfWarRenderPlugin {
                 )
                     .in_set(RenderSet::PrepareBindGroups),
             )
-            .add_systems(
-                Render,
-                snapshot_pass::cleanup_snapshot_camera.in_set(RenderSet::Cleanup),
-            );
+        ;
 
         // Add Render Graph nodes / 添加 Render Graph 节点
         render_app

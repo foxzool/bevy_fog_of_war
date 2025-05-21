@@ -50,6 +50,7 @@ fn main() {
                 horizontal_movement_system,
             ),
         )
+        .add_systems(PostUpdate, send_snapshot)
         .run();
 }
 
@@ -128,7 +129,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             custom_size: Some(Vec2::new(80.0, 80.0)),
             ..default()
         },
-        Transform::from_translation(Vec3::new(-10.0, -50.0, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
         VisionSource {
             range: 40.0,
             enabled: true,
@@ -146,7 +147,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             custom_size: Some(Vec2::new(60.0, 60.0)),
             ..default()
         },
-        Transform::from_translation(Vec3::new(-200.0, -0.0, 0.0)),
+        Transform::from_translation(Vec3::new(-200.0, -50.0, 0.0)),
         Snapshottable,
         SNAPSHOT_RENDER_LAYER.with(0),
     ));
@@ -624,6 +625,30 @@ fn debug_draw_chunks(
                     Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
                 ));
             }
+        }
+    }
+}
+
+fn send_snapshot(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
+    chunk_q: Query<&FogChunk>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        for chunk in chunk_q.iter() {
+            if chunk.coords == IVec2::new(-1, -1) {
+                println!(
+                    "Requesting snapshot for chunk {:?} on layer {}",
+                    chunk.coords,
+                    chunk.snapshot_layer_index.unwrap()
+                );
+                snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                    chunk_coords: chunk.coords,
+                    snapshot_layer_index: chunk.snapshot_layer_index.unwrap(),
+                    world_bounds: chunk.world_bounds,
+                });
+            }
+
         }
     }
 }

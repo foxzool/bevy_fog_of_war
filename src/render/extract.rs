@@ -44,11 +44,6 @@ pub struct ExtractedGpuChunkData {
     pub overlay_mapping: Vec<OverlayChunkData>, // For overlay lookup / 用于覆盖查找
 }
 
-#[derive(Resource, Debug, Clone, Default)]
-pub struct SnapshotRequestQueue {
-    // Chunks needing snapshot this frame / 本帧需要快照的区块
-    pub requests: Vec<RenderWorldSnapshotRequest>,
-}
 
 // Store handles in RenderWorld too / 同样在 RenderWorld 中存储句柄
 #[derive(Resource, Clone, Deref, DerefMut)]
@@ -224,34 +219,6 @@ pub fn extract_gpu_chunk_data(
             snapshot_layer_index: -1,
         });
     }
-}
-
-/// Extracts snapshot requests from the main world to the render world.
-/// 将快照请求从主世界提取到渲染世界。
-pub fn extract_snapshot_requests_to_queue(
-    mut commands: Commands,
-    main_world_requests: Extract<Res<MainWorldSnapshotRequestQueue>>,
-) {
-    // We clone the requests. If there are many, consider a more efficient transfer.
-    let render_requests = main_world_requests
-        .requests
-        .iter()
-        .map(|req| {
-            RenderWorldSnapshotRequest {
-                snapshot_layer_index: req.snapshot_layer_index,
-                world_bounds: req.world_bounds,
-                // chunk_coords: req.chunk_coords,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if !render_requests.is_empty() {
-        // info!("Extracted {} snapshot requests to RenderWorld.", render_requests.len());
-    }
-
-    commands.insert_resource(SnapshotRequestQueue {
-        requests: render_requests,
-    });
 }
 
 /// Extracts entities with SnapshotVisible and adds RenderWorldSnapshotVisible
