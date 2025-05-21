@@ -2,10 +2,8 @@ use std::fmt::Display;
 use crate::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
-use bevy::render::camera::RenderTarget;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
-use bevy::render::view::RenderLayers;
 
 /// 视野源组件
 /// Vision source component

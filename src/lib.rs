@@ -1,13 +1,15 @@
 use self::prelude::*;
 use crate::render::FogOfWarRenderPlugin;
-use bevy::asset::RenderAssetUsages;
-use bevy::image::{ImageSampler, ImageSamplerDescriptor};
-use bevy::platform::collections::HashSet;
-use bevy::render::camera::{RenderTarget, Viewport};
-use bevy::render::extract_component::ExtractComponentPlugin;
-use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::render::render_resource::{Extent3d, ShaderType, TextureDimension, TextureUsages};
-use bevy::render::view::RenderLayers;
+use bevy::{
+    asset::RenderAssetUsages,
+    image::{ImageSampler, ImageSamplerDescriptor},
+    platform::collections::HashSet,
+    render::{
+        camera::RenderTarget, extract_component::ExtractComponentPlugin,
+        extract_resource::ExtractResourcePlugin, render_resource::Extent3d,
+        render_resource::TextureDimension, render_resource::TextureUsages,
+    },
+};
 
 mod components;
 pub mod prelude;
@@ -887,7 +889,7 @@ fn trigger_snapshot_remake_on_capturable_move_multi_chunk(
                 );
             }
             for coords in chunks_to_update {
-                snapshot_event_writer.send(RequestChunkSnapshotEvent(coords));
+                snapshot_event_writer.write(RequestChunkSnapshotEvent(coords));
             }
         }
     }

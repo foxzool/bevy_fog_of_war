@@ -1,7 +1,12 @@
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
+use crate::{
+    CapturableBounds, FogSystemSet, LastKnownOccupiedChunks, RequestChunkSnapshotEvent,
+    auto_add_capturable_bounds_from_sprite, trigger_snapshot_remake_on_capturable_move_multi_chunk,
+};
 use bevy::asset::RenderAssetUsages;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::render::RenderApp;
 use bevy::render::camera::RenderTarget;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
@@ -14,8 +19,6 @@ use bevy::render::render_resource::{
 use bevy::render::renderer::RenderContext;
 use bevy::render::texture::GpuImage;
 use bevy::render::view::RenderLayers;
-use bevy::render::{Extract, RenderApp};
-use crate::{auto_add_capturable_bounds_from_sprite, trigger_snapshot_remake_on_capturable_move_multi_chunk, CapturableBounds, FogSystemSet, LastKnownOccupiedChunks, RequestChunkSnapshotEvent};
 
 pub struct SnapshotPlugin;
 
@@ -28,7 +31,6 @@ impl Plugin for SnapshotPlugin {
             .add_systems(PostUpdate, prepare_snapshot_camera)
             .add_systems(Update, ensure_snapshot_render_layer)
             .add_systems(Last, check_snapshot_image_ready);
-
 
         // Register components and system for capturable movement
         // 注册可捕获物移动相关的组件和系统
@@ -305,7 +307,6 @@ pub fn ensure_snapshot_render_layer(
         ));
     }
 }
-
 
 /// System to handle `RequestChunkSnapshotEvent` and queue snapshot remakes.
 /// 处理 `RequestChunkSnapshotEvent` 事件并对快照重制进行排队的系统。
