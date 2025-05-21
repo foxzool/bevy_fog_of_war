@@ -47,9 +47,9 @@ fn main() {
                 movable_vision_control,
                 debug_draw_chunks,
                 horizontal_movement_system,
+                rotate_entities_system,
             ),
         )
-        .add_systems(PostUpdate, send_snapshot)
         .run();
 }
 
@@ -85,6 +85,9 @@ struct CountText;
 /// Movable vision provider marker
 #[derive(Component)]
 struct MovableVision;
+
+#[derive(Component)]
+struct RotationAble;
 
 /// 水平来回移动的 Sprite 标记
 /// Marker for the horizontally moving sprite
@@ -148,6 +151,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-200.0, -50.0, 0.0)),
         Capturable,
+        RotationAble
     ));
 
     // 生成可移动的视野提供者
@@ -181,7 +185,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-400.0, -100.0, 0.0)), // 初始位置 / Initial position
         HorizontalMover { direction: 1.0 }, // 初始向右移动 / Initially move right
-        Capturable
     ));
 
     // 颜色渐变条作为参考，并添加视野提供者组件到部分方块
@@ -558,6 +561,15 @@ fn horizontal_movement_system(
     }
 }
 
+
+/// Rotates entities with the `RotationAble` component.
+/// 旋转带有 `RotationAble` 组件的实体。
+fn rotate_entities_system(time: Res<Time>, mut query: Query<&mut Transform, With<RotationAble>>) {
+    for mut transform in query.iter_mut() {
+        transform.rotate_z(std::f32::consts::FRAC_PI_2 * time.delta_secs()); // 90 degrees per second / 每秒旋转90度
+    }
+}
+
 /// 在屏幕上绘制区块边界和状态的调试信息
 /// System to draw chunk boundaries and status for debugging
 fn debug_draw_chunks(
@@ -623,24 +635,6 @@ fn debug_draw_chunks(
                     TextColor(RED.into()),
                     Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
                 ));
-            }
-        }
-    }
-}
-
-fn send_snapshot(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
-    chunk_q: Query<&FogChunk>,
-) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        for chunk in chunk_q.iter() {
-            if chunk.coords == IVec2::new(-1, -1) {
-                snapshot_requests.requests.push(MainWorldSnapshotRequest {
-                    chunk_coords: chunk.coords,
-                    snapshot_layer_index: chunk.snapshot_layer_index.unwrap(),
-                    world_bounds: chunk.world_bounds,
-                });
             }
         }
     }

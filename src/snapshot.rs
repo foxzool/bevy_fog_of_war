@@ -78,6 +78,14 @@ impl Plugin for SnapshotPlugin {
     }
 }
 
+/// Resource in the main world to queue chunks that need a snapshot.
+/// 主世界中的资源，用于对需要快照的区块进行排队。
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource, Default)]
+pub struct MainWorldSnapshotRequestQueue {
+    pub requests: Vec<MainWorldSnapshotRequest>,
+}
+
 /// Event to request clean a snapshot for a specific chunk.
 /// 请求为特定区块清理快照的事件。
 #[derive(Event, Debug, Clone, Copy)]

@@ -20,7 +20,6 @@ mod snapshot;
 #[derive(Event, Debug, Clone, Copy)]
 pub struct RequestChunkSnapshotEvent(pub IVec2);
 
-
 /// Component to define the bounding box of a capturable entity.
 /// 用于定义可捕获实体边界框的组件。
 #[derive(Component, Reflect, Clone, Debug)]
@@ -132,8 +131,6 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(snapshot::SnapshotPlugin);
-
-        
     }
 }
 
@@ -164,7 +161,7 @@ fn auto_add_capturable_bounds_from_sprite(
 
         if let Some(size) = entity_size {
             if size.x > 0.0 && size.y > 0.0 {
-                let half_extents = size / 2.0;
+                let half_extents = size * 1.2 / 2.0;
                 commands
                     .entity(entity)
                     .insert(CapturableBounds { half_extents });
@@ -803,8 +800,6 @@ pub fn manage_chunk_texture_transfer(
         }
     }
 }
-
-
 
 /// System to detect movement of Capturable entities and request snapshot remakes for affected chunks.
 /// It considers the bounds of the capturable, potentially affecting multiple chunks.

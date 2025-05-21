@@ -310,13 +310,7 @@ pub struct MainWorldSnapshotRequest {
     pub world_bounds: Rect,
 }
 
-/// Resource in the main world to queue chunks that need a snapshot.
-/// 主世界中的资源，用于对需要快照的区块进行排队。
-#[derive(Resource, Debug, Clone, Default, Reflect)]
-#[reflect(Resource, Default)]
-pub struct MainWorldSnapshotRequestQueue {
-    pub requests: Vec<MainWorldSnapshotRequest>,
-}
+
 
 /// 由主世界填充，请求渲染世界将 GPU 纹理数据复制到 CPU。
 /// Populated by the main world to request the render world to copy GPU texture data to CPU.
