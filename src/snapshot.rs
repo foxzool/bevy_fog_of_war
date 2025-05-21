@@ -21,7 +21,8 @@ impl Plugin for SnapshotPlugin {
         app.add_plugins(ExtractResourcePlugin::<SnapshotCameraState>::default());
         app.init_resource::<SnapshotCameraState>();
         app.add_systems(Startup, setup_snapshot_camera)
-            .add_systems(PostUpdate, prepare_snapshot_camera);
+            .add_systems(PostUpdate, prepare_snapshot_camera)
+            .add_systems(Last, check_snapshot_image_ready);
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -50,8 +51,12 @@ fn prepare_snapshot_camera(
     snapshot_camera_query: Single<(&mut Camera, &mut GlobalTransform), With<SnapshotCamera>>,
     mut snapshot_camera_state: ResMut<SnapshotCameraState>,
 ) {
+    if snapshot_camera_state.capturing {
+        return;
+    }
     // Process one request per frame for simplicity
     let (mut camera, mut global_transform) = snapshot_camera_query.into_inner();
+
     if let Some(request) = snapshot_requests.requests.pop() {
         // Take one request
         debug!(
@@ -64,9 +69,8 @@ fn prepare_snapshot_camera(
         *global_transform = GlobalTransform::from(transform);
         camera.is_active = true;
         snapshot_camera_state.snapshot_layer_index = Some(request.snapshot_layer_index);
-    } else {
-        camera.is_active = false;
-        snapshot_camera_state.snapshot_layer_index = None;
+        snapshot_camera_state.capturing = true;
+        snapshot_camera_state.frame_to_wait = 2;
     }
 }
 
@@ -119,10 +123,31 @@ fn setup_snapshot_camera(
     ));
 }
 
+fn check_snapshot_image_ready(
+    mut snapshot_camera_state: ResMut<SnapshotCameraState>,
+    snapshot_camera_query: Single<&mut Camera, With<SnapshotCamera>>,
+) {
+    if snapshot_camera_state.capturing {
+        if snapshot_camera_state.frame_to_wait > 0 {
+            snapshot_camera_state.frame_to_wait -= 1;
+            return;
+        }
+
+        if snapshot_camera_state.frame_to_wait == 0 {
+            let mut camera = snapshot_camera_query.into_inner();
+            camera.is_active = false;
+            snapshot_camera_state.snapshot_layer_index = None;
+            snapshot_camera_state.capturing = false;
+        }
+    }
+}
+
 /// Resource to manage the state of the snapshot camera entity in the RenderWorld.
 /// 用于管理 RenderWorld 中快照相机实体状态的资源。
 #[derive(Resource, ExtractResource, Clone, Default)]
 pub struct SnapshotCameraState {
+    pub capturing: bool,
+    pub frame_to_wait: u8,
     pub snapshot_layer_index: Option<u32>,
 }
 
@@ -147,6 +172,9 @@ impl Node for SnapshotNode {
 
         let camera_state = world.resource::<SnapshotCameraState>();
         if let Some(layer_index) = camera_state.snapshot_layer_index {
+            if camera_state.frame_to_wait > 0 {
+                return Ok(());
+            }
             let gpu_images = world.resource::<RenderAssets<GpuImage>>();
             let render_snapshot_temp_texture = world.resource::<RenderSnapshotTempTexture>();
             let render_snapshot_texture = world.resource::<RenderSnapshotTexture>();

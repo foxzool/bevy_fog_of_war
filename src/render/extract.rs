@@ -43,7 +43,6 @@ pub struct ExtractedGpuChunkData {
     pub overlay_mapping: Vec<OverlayChunkData>, // For overlay lookup / 用于覆盖查找
 }
 
-
 // Store handles in RenderWorld too / 同样在 RenderWorld 中存储句柄
 #[derive(Resource, Clone, Deref, DerefMut)]
 pub struct RenderFogTexture(pub Handle<Image>);
@@ -85,12 +84,6 @@ pub struct OverlayChunkData {
     pub coords: IVec2,             // Chunk coordinates / 区块坐标
     pub fog_layer_index: i32,      // Layer index in fog texture / 雾效纹理中的层索引
     pub snapshot_layer_index: i32, // Layer index in snapshot texture / 快照纹理中的层索引
-}
-
-#[derive(Debug, Clone)]
-pub struct RenderWorldSnapshotRequest {
-    pub snapshot_layer_index: u32,
-    pub world_bounds: Rect,
 }
 
 // --- Extraction Systems ---
@@ -238,7 +231,7 @@ pub fn extract_snapshot_visible_entities(
         };
 
         commands.entity(entity).insert((
-            combined_layers,            // Ensure it's on the snapshot layer
+            combined_layers, // Ensure it's on the snapshot layer
         ));
     }
 }

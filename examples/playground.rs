@@ -636,11 +636,6 @@ fn send_snapshot(
     if keyboard.just_pressed(KeyCode::Space) {
         for chunk in chunk_q.iter() {
             if chunk.coords == IVec2::new(-1, -1) {
-                println!(
-                    "Requesting snapshot for chunk {:?} on layer {}",
-                    chunk.coords,
-                    chunk.snapshot_layer_index.unwrap()
-                );
                 snapshot_requests.requests.push(MainWorldSnapshotRequest {
                     chunk_coords: chunk.coords,
                     snapshot_layer_index: chunk.snapshot_layer_index.unwrap(),
