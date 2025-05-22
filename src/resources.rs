@@ -160,7 +160,7 @@ impl TextureArrayManager {
     /// 释放与给定区块坐标关联的层索引。
     pub fn free_layer_indices_for_coord(&mut self, coords: IVec2) {
         if let Some((fog_idx, snap_idx)) = self.coord_to_layers.remove(&coords) {
-            info!(
+            trace!(
                 "Freeing layers for coord {:?}. F{} S{}",
                 coords, fog_idx, snap_idx
             );

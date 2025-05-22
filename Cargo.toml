@@ -51,8 +51,11 @@ async-channel = "2.3.1"
 
 [dev-dependencies]
 bevy = { version = "0.16" }
-bevy-inspector-egui = { version = "0.31" }
+#bevy-inspector-egui = { version = "0.31" }
 
 
 [[example]]
 name = "playground"
+
+[[example]]
+name = "simple_2d"

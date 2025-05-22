@@ -96,8 +96,6 @@ struct HorizontalMover {
     direction: f32, // 1.0 for right, -1.0 for left
 }
 
-#[derive(Component)]
-struct FogOfWarCamera;
 
 const X_EXTENT: f32 = 900.;
 

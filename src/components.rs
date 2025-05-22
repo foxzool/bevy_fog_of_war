@@ -1,9 +1,15 @@
-use std::fmt::Display;
 use crate::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use std::fmt::Display;
+
+/// 摄像机组件
+/// Fog of war camera component
+#[derive(Component)]
+pub struct FogOfWarCamera;
+
 
 /// 视野源组件
 /// Vision source component
@@ -31,6 +37,44 @@ pub struct VisionSource {
     /// 视野过渡比例（从完全可见到不可见的过渡区域占总半径的比例）
     /// Vision transition ratio (ratio of total radius for transition from fully visible to not visible)
     pub transition_ratio: f32,
+}
+
+impl VisionSource {
+    pub fn circle(range: f32) -> Self {
+        Self {
+            range,
+            enabled: true,
+            shape: VisionShape::Circle,
+            direction: 0.0,
+            angle: std::f32::consts::FRAC_PI_2,
+            intensity: 1.0,
+            transition_ratio: 0.2,
+        }
+    }
+
+    pub fn cone(range: f32, direction: f32, angle: f32) -> Self {
+        Self {
+            range,
+            enabled: true,
+            shape: VisionShape::Cone,
+            direction,
+            angle,
+            intensity: 1.0,
+            transition_ratio: 0.2,
+        }
+    }
+
+    pub fn square(range: f32) -> Self {
+        Self {
+            range,
+            enabled: true,
+            shape: VisionShape::Square,
+            direction: 0.0,
+            angle: std::f32::consts::FRAC_PI_2,
+            intensity: 1.0,
+            transition_ratio: 0.2,
+        }
+    }
 }
 
 /// 视野形状

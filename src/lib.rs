@@ -351,7 +351,7 @@ fn update_chunk_component_state(
                         } else {
                             "re-entered visibility"
                         };
-                        info!(
+                        trace!(
                             "Chunk {:?} ({}) {} ({} -> {}). Sending RequestChunkSnapshotEvent.",
                             *coords,
                             entity.index(),

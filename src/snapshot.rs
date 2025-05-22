@@ -311,7 +311,7 @@ fn handle_request_chunk_snapshot_events(
                         .any(|req| req.chunk_coords == chunk_coords);
 
                     if !already_pending {
-                        info!(
+                        trace!(
                             "Received RequestChunkSnapshotEvent for {:?}. Queuing snapshot remake for layer {}.",
                             chunk_coords, snapshot_layer_index
                         );
