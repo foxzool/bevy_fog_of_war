@@ -99,7 +99,14 @@ struct HorizontalMover {
 #[derive(Component)]
 struct FogOfWarCamera;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+const X_EXTENT: f32 = 900.;
+
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");
     // 生成相机
     // Spawn camera
@@ -151,7 +158,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_translation(Vec3::new(-200.0, -50.0, 0.0)),
         Capturable,
-        RotationAble
+        RotationAble,
     ));
 
     // 生成可移动的视野提供者
@@ -187,31 +194,50 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         HorizontalMover { direction: 1.0 }, // 初始向右移动 / Initially move right
     ));
 
-    // 颜色渐变条作为参考，并添加视野提供者组件到部分方块
-    // Color gradient bar as reference, and add vision provider to some blocks
-    for i in 0..10 {
-        let position = Vec3::new(-500.0 + i as f32 * 100.0, 200.0, 0.0);
-        let color = Color::hsl(i as f32 * 36.0, 0.8, 0.5);
+    let shapes = [
+        meshes.add(Circle::new(50.0)),
+        meshes.add(CircularSector::new(50.0, 1.0)),
+        meshes.add(CircularSegment::new(50.0, 1.25)),
+        meshes.add(Ellipse::new(25.0, 50.0)),
+        meshes.add(Annulus::new(25.0, 50.0)),
+        meshes.add(Capsule2d::new(25.0, 50.0)),
+        meshes.add(Rhombus::new(75.0, 100.0)),
+        meshes.add(Rectangle::new(50.0, 100.0)),
+        meshes.add(RegularPolygon::new(50.0, 6)),
+        meshes.add(Triangle2d::new(
+            Vec2::Y * 50.0,
+            Vec2::new(-50.0, -50.0),
+            Vec2::new(50.0, -50.0),
+        )),
+    ];
+    let num_shapes = shapes.len();
 
-        // 只给偶数索引的方块添加视野提供者组件
-        // Only add vision provider to blocks with even indices
+    for (i, shape) in shapes.into_iter().enumerate() {
+        // Distribute colors evenly across the rainbow.
+        let color = Color::hsl(360. * i as f32 / num_shapes as f32, 0.95, 0.7);
+
         let mut entity_commands = commands.spawn((
-            Sprite {
-                color,
-                custom_size: Some(Vec2::new(80.0, 80.0)),
-                ..default()
-            },
-            Transform::from_translation(position),
+            Mesh2d(shape),
+            MeshMaterial2d(materials.add(color)),
+            Transform::from_xyz(
+                // Distribute shapes from -X_EXTENT/2 to +X_EXTENT/2.
+                -X_EXTENT / 2. + i as f32 / (num_shapes - 1) as f32 * X_EXTENT,
+                100.0,
+                0.0,
+            ),
         ));
 
         // 为偶数索引的方块添加视野提供者
         // Add vision provider to blocks with even indices
         if i % 2 == 0 {
+            entity_commands.insert(Capturable);
+           
+        } else {
             entity_commands.insert(VisionSource {
                 range: 30.0 + (i as f32 * 15.0),
                 enabled: true,
                 shape: VisionShape::Cone,
-                direction: (i as f32 * 25.0),
+                direction: (i as f32 * 75.0),
                 angle: std::f32::consts::FRAC_PI_2,
                 intensity: 1.0,
                 transition_ratio: 0.2,
@@ -560,7 +586,6 @@ fn horizontal_movement_system(
         }
     }
 }
-
 
 /// Rotates entities with the `RotationAble` component.
 /// 旋转带有 `RotationAble` 组件的实体。
