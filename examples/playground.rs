@@ -231,17 +231,19 @@ fn setup(
         // Add vision provider to blocks with even indices
         if i % 2 == 0 {
             entity_commands.insert(Capturable);
-           
         } else {
-            entity_commands.insert(VisionSource {
-                range: 30.0 + (i as f32 * 15.0),
-                enabled: true,
-                shape: VisionShape::Cone,
-                direction: (i as f32 * 75.0),
-                angle: std::f32::consts::FRAC_PI_2,
-                intensity: 1.0,
-                transition_ratio: 0.2,
-            });
+            entity_commands.insert((
+                VisionSource {
+                    range: 30.0 + (i as f32 * 15.0),
+                    enabled: true,
+                    shape: VisionShape::Cone,
+                    direction: (i as f32 * 75.0),
+                    angle: std::f32::consts::FRAC_PI_2,
+                    intensity: 1.0,
+                    transition_ratio: 0.2,
+                },
+                RotationAble,
+            ));
         }
     }
 }

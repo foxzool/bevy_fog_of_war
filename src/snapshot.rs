@@ -1,24 +1,25 @@
+use crate::{FogSystemSet, RequestChunkSnapshotEvent};
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
-use crate::{
-    CapturableBounds, FogSystemSet, LastKnownOccupiedChunks, RequestChunkSnapshotEvent,
-    auto_add_capturable_bounds_from_sprite, trigger_snapshot_remake_on_capturable_move_multi_chunk,
+use bevy::{
+    asset::RenderAssetUsages,
+    core_pipeline::core_2d::graph::{Core2d, Node2d},
+    render::{
+        RenderApp,
+        camera::RenderTarget,
+        extract_component::ExtractComponent,
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        render_asset::RenderAssets,
+        render_graph::{Node, NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel},
+        render_resource::{
+            Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension,
+            TextureUsages,
+        },
+        renderer::RenderContext,
+        texture::GpuImage,
+        view::RenderLayers,
+    },
 };
-use bevy::asset::RenderAssetUsages;
-use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy::render::RenderApp;
-use bevy::render::camera::RenderTarget;
-use bevy::render::extract_component::ExtractComponent;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
-use bevy::render::render_graph::{RenderGraphApp, RenderLabel};
-use bevy::render::render_resource::{
-    Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages,
-};
-use bevy::render::renderer::RenderContext;
-use bevy::render::texture::GpuImage;
-use bevy::render::view::RenderLayers;
 
 pub struct SnapshotPlugin;
 
@@ -31,25 +32,6 @@ impl Plugin for SnapshotPlugin {
             .add_systems(PostUpdate, prepare_snapshot_camera)
             .add_systems(Update, ensure_snapshot_render_layer)
             .add_systems(Last, check_snapshot_image_ready);
-
-        // Register components and system for capturable movement
-        // 注册可捕获物移动相关的组件和系统
-        app.register_type::<CapturableBounds>();
-        app.register_type::<LastKnownOccupiedChunks>();
-        app.add_systems(
-            Update,
-            auto_add_capturable_bounds_from_sprite // Add this system first /首先添加此系统
-                .after(FogSystemSet::UpdateChunkState), // After chunk states are updated / 在区块状态更新后
-        );
-        app.add_systems(
-            Update,
-            trigger_snapshot_remake_on_capturable_move_multi_chunk
-                .after(FogSystemSet::UpdateChunkState) // Ensure chunk states are up-to-date / 确保区块状态是最新的
-                .after(auto_add_capturable_bounds_from_sprite) // After bounds are potentially added / 在边界可能被添加后
-                // Consider running after Bevy's transform propagation and before event handling
-                // 考虑在 Bevy 的变换传播之后，事件处理之前运行
-                .before(handle_request_chunk_snapshot_events), // Process before general event handling / 在通用事件处理前处理
-        );
 
         // System to handle explicit snapshot remake requests
         // 处理显式快照重制请求的系统
