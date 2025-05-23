@@ -1,8 +1,9 @@
+use bevy::prelude::Resource;
+use bevy::reflect::Reflect;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use bevy::log::{debug, error, info, trace, warn};
 use crate::prelude::*;
-use bevy::color::palettes::basic;
-use bevy::platform::collections::{HashMap, HashSet};
-use bevy::render::extract_resource::ExtractResource;
-use bevy::render::render_resource::TextureFormat;
 
 /// 快速查找区块坐标对应的 FogChunk 实体
 /// Resource for quickly looking up FogChunk entities by their coordinates
@@ -44,41 +45,6 @@ impl ChunkStateCache {
     }
 }
 
-/// 存储可见性数据的 TextureArray 资源句柄
-/// Resource handle for the TextureArray storing visibility data
-#[derive(Resource, Debug, Clone, Reflect)]
-#[reflect(Resource)] // 注册为反射资源 / Register as a reflectable resource
-pub struct VisibilityTextureArray {
-    /// 图像资源的句柄 / Handle to the image asset
-    pub handle: Handle<Image>,
-}
-
-/// 存储雾效数据的 TextureArray 资源句柄
-/// Resource handle for the TextureArray storing fog data
-#[derive(Resource, Debug, Clone, Reflect)]
-#[reflect(Resource)] // 注册为反射资源 / Register as a reflectable resource
-pub struct FogTextureArray {
-    /// 图像资源的句柄 / Handle to the image asset
-    pub handle: Handle<Image>,
-}
-
-/// 存储快照数据的 TextureArray 资源句柄
-/// Resource handle for the TextureArray storing snapshot data
-#[derive(Resource, Debug, Clone, Reflect)]
-#[reflect(Resource)] // 注册为反射资源 / Register as a reflectable resource
-pub struct SnapshotTextureArray {
-    /// 图像资源的句柄 / Handle to the image asset
-    pub handle: Handle<Image>,
-}
-
-/// 存储快照数据的 TextureArray 资源句柄
-/// Resource handle for the TextureArray storing snapshot data
-#[derive(Resource, Debug, Clone, Reflect)]
-#[reflect(Resource)]
-pub struct SnapshotTempTexture {
-    /// 图像资源的句柄 / Handle to the image asset
-    pub handle: Handle<Image>,
-}
 
 #[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
@@ -199,30 +165,41 @@ impl TextureArrayManager {
         // We also need to find which coord was using these indices to remove it from coord_to_layers
         // 我们还需要找出哪个坐标正在使用这些索引，以便从 coord_to_layers 中删除它
         let mut coord_to_remove = None;
-        for (coord, (f_idx, s_idx)) in &self.coord_to_layers {
-            if *f_idx == fog_idx && *s_idx == snap_idx {
+        for (coord, &indices) in &self.coord_to_layers {
+            if indices == (fog_idx, snap_idx) {
                 coord_to_remove = Some(*coord);
                 break;
             }
         }
         if let Some(coord) = coord_to_remove {
             self.coord_to_layers.remove(&coord);
+            debug!("Removed coord {:?} for specific F{} S{}", coord, fog_idx, snap_idx);
         } else {
-            // warn!("Tried to free specific indices ({}, {}) that were not mapped to any coord.", fog_idx, snap_idx);
+            warn!("Attempted to free specific F{} S{} but no coord was using them.", fog_idx, snap_idx);
         }
 
+        // It's crucial that an index is not pushed to free_..._indices
+        // if it's already there or if it's invalid.
+        // 关键是，如果索引已存在或无效，则不要将其推送到 free_..._indices。
         if !self.free_fog_indices.contains(&fog_idx) {
+            // Basic check to prevent double free
             self.free_fog_indices.push(fog_idx);
         } else {
-            // warn!("Attempted to double-free specific fog index {}", fog_idx);
+            warn!(
+                "Attempted to double-free specific fog index {}",
+                fog_idx
+            );
         }
         if !self.free_snapshot_indices.contains(&snap_idx) {
             self.free_snapshot_indices.push(snap_idx);
         } else {
-            // warn!("Attempted to double-free specific snapshot index {}", snap_idx);
+            warn!(
+                "Attempted to double-free specific snapshot index {}",
+                snap_idx
+            );
         }
     }
-
+    
     pub fn get_allocated_indices(&self, coords: IVec2) -> Option<(u32, u32)> {
         self.coord_to_layers.get(&coords).copied()
     }
@@ -230,133 +207,4 @@ impl TextureArrayManager {
     pub fn is_coord_on_gpu(&self, coords: IVec2) -> bool {
         self.coord_to_layers.contains_key(&coords)
     }
-}
-
-/// 战争迷雾地图的全局设置
-/// Global settings for the fog of war map
-#[derive(Resource, ExtractResource, Clone, Debug)]
-pub struct FogMapSettings {
-    /// 是否启用战争迷雾系统
-    /// Whether the fog of war system is enabled
-    pub enabled: bool,
-    /// 每个区块的大小 (世界单位)
-    /// Size of each chunk (in world units)
-    pub chunk_size: UVec2,
-    /// 每个区块对应纹理的分辨率 (像素)
-    /// Resolution of the texture per chunk (in pixels)
-    pub texture_resolution_per_chunk: UVec2,
-    /// 未探索区域的雾颜色
-    /// Fog color for unexplored areas
-    pub fog_color_unexplored: Color,
-    /// 已探索但当前不可见区域的雾颜色 (通常是半透明)
-    /// Fog color for explored but not currently visible areas (usually semi-transparent)
-    pub fog_color_explored: Color,
-    /// 视野完全清晰区域的“颜色”（通常用于混合或阈值，可能完全透明）
-    /// "Color" for fully visible areas (often used for blending or thresholds, might be fully transparent)
-    pub vision_clear_color: Color, // 例如 Color::NONE 或用于计算的特定值 / e.g., Color::NONE or a specific value for calculations
-    /// 雾效纹理数组的格式
-    /// Texture format for the fog texture array ]
-    pub fog_texture_format: TextureFormat,
-    /// 快照纹理数组的格式
-    /// Texture format for the snapshot texture array
-    pub snapshot_texture_format: TextureFormat,
-    /// 最大允许的区块数量
-    /// Maximum number of allowed chunks
-    pub max_layers: u32,
-}
-
-impl Default for FogMapSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            chunk_size: UVec2::splat(256),
-            texture_resolution_per_chunk: UVec2::new(512, 512), // 示例分辨率 / Example resolution
-            fog_color_unexplored: Color::BLACK,
-            fog_color_explored: basic::GRAY.into(),
-            vision_clear_color: Color::NONE,
-            // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
-            // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
-            fog_texture_format: TextureFormat::R8Unorm,
-            // 快照需要颜色和透明度 / Snapshots need color and alpha
-            snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
-            max_layers: 64,
-        }
-    }
-}
-
-impl FogMapSettings {
-    pub fn chunk_coord_to_world(&self, chunk_coord: IVec2) -> Vec2 {
-        Vec2::new(
-            chunk_coord.x as f32 * self.chunk_size.x as f32,
-            chunk_coord.y as f32 * self.chunk_size.y as f32,
-        )
-    }
-
-    /// Converts world coordinates (Vec2) to chunk coordinates (IVec2).
-    /// 将世界坐标 (Vec2) 转换为区块坐标 (IVec2)。
-    pub fn world_to_chunk_coords(&self, world_pos: Vec2) -> IVec2 {
-        let chunk_x = (world_pos.x / self.chunk_size.x as f32).floor() as i32;
-        let chunk_y = (world_pos.y / self.chunk_size.y as f32).floor() as i32;
-        IVec2::new(chunk_x, chunk_y)
-    }
-}
-
-/// Information for a single snapshot request, generated in the main world.
-/// 单个快照请求的信息，在主世界中生成。
-#[derive(Debug, Clone, Reflect)]
-pub struct MainWorldSnapshotRequest {
-    pub chunk_coords: IVec2,
-    pub snapshot_layer_index: u32,
-    pub world_bounds: Rect,
-}
-
-
-
-/// 由主世界填充，请求渲染世界将 GPU 纹理数据复制到 CPU。
-/// Populated by the main world to request the render world to copy GPU texture data to CPU.
-#[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
-#[reflect(Resource, Default)]
-pub struct GpuToCpuCopyRequests {
-    pub requests: Vec<GpuToCpuCopyRequest>,
-}
-
-#[derive(Debug, Clone, Reflect)]
-pub struct GpuToCpuCopyRequest {
-    pub chunk_coords: IVec2,
-    pub fog_layer_index: u32,
-    pub snapshot_layer_index: u32,
-    // Staging buffer index or some identifier if RenderApp uses a pool
-    // 如果 RenderApp 使用池，则为暂存缓冲区索引或某种标识符
-}
-/// 由主世界填充，请求渲染世界将 CPU 纹理数据上传到 GPU。
-/// Populated by the main world to request the render world to upload CPU texture data to GPU.
-#[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
-#[reflect(Resource, Default)]
-pub struct CpuToGpuCopyRequests {
-    pub requests: Vec<CpuToGpuCopyRequest>,
-}
-
-#[derive(Debug, Clone, Reflect)]
-pub struct CpuToGpuCopyRequest {
-    pub chunk_coords: IVec2,
-    pub fog_layer_index: u32,
-    pub snapshot_layer_index: u32,
-    pub fog_image_handle: Handle<Image>,      
-    pub snapshot_image_handle: Handle<Image>,
-}
-
-/// 事件：当 GPU 数据成功复制到 CPU 并可供主世界使用时，由 RenderApp 发送。
-/// Event: Sent by RenderApp when GPU data has been successfully copied to CPU and is available to the main world.
-#[derive(Event, Debug)]
-pub struct ChunkGpuDataReadyEvent {
-    pub chunk_coords: IVec2,
-    pub fog_data: Vec<u8>,
-    pub snapshot_data: Vec<u8>,
-}
-
-/// 事件：当 CPU 数据成功上传到 GPU 时，由 RenderApp 发送。
-/// Event: Sent by RenderApp when CPU data has been successfully uploaded to GPU.
-#[derive(Event, Debug)]
-pub struct ChunkCpuDataUploadedEvent {
-    pub chunk_coords: IVec2,
 }

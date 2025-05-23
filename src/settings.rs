@@ -1,0 +1,55 @@
+use bevy::color::Color;
+use bevy::math::{IVec2, UVec2, Vec2};
+use bevy::render::render_resource::TextureFormat;
+use bevy::prelude::Resource;
+
+/// 战争迷雾地图的全局设置
+/// Global settings for the fog of war map
+#[derive(Resource, Clone, Debug)]
+pub struct FogMapSettings {
+    pub enabled: bool,
+    pub chunk_size: UVec2,
+    pub texture_resolution_per_chunk: UVec2,
+    pub fog_color_unexplored: Color,
+    pub fog_color_explored: Color,
+    pub vision_clear_color: Color,
+    pub fog_texture_format: TextureFormat,
+    pub snapshot_texture_format: TextureFormat,
+    pub max_layers: u32,
+}
+
+impl Default for FogMapSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            chunk_size: UVec2::splat(256),
+            texture_resolution_per_chunk: UVec2::new(512, 512), // 示例分辨率 / Example resolution
+            fog_color_unexplored: Color::BLACK,
+            fog_color_explored: bevy::color::palettes::basic::GRAY.into(),
+            vision_clear_color: Color::NONE,
+            // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
+            // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)
+            fog_texture_format: TextureFormat::R8Unorm,
+            // 快照需要颜色和透明度 / Snapshots need color and alpha
+            snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
+            max_layers: 64,
+        }
+    }
+}
+
+impl FogMapSettings {
+    pub fn chunk_coord_to_world(&self, chunk_coord: IVec2) -> Vec2 {
+        Vec2::new(
+            chunk_coord.x as f32 * self.chunk_size.x as f32,
+            chunk_coord.y as f32 * self.chunk_size.y as f32,
+        )
+    }
+
+    /// Converts world coordinates (Vec2) to chunk coordinates (IVec2).
+    /// 将世界坐标 (Vec2) 转换为区块坐标 (IVec2)。
+    pub fn world_to_chunk_coords(&self, world_pos: Vec2) -> IVec2 {
+        let chunk_x = (world_pos.x / self.chunk_size.x as f32).floor() as i32;
+        let chunk_y = (world_pos.y / self.chunk_size.y as f32).floor() as i32;
+        IVec2::new(chunk_x, chunk_y)
+    }
+}

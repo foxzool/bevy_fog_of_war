@@ -1,6 +1,4 @@
-use crate::components::*;
-use crate::resources::*;
-use bevy::prelude::*;
+use crate::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
 use bytemuck::{Pod, Zeroable};
