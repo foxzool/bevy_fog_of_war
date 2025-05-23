@@ -1,3 +1,4 @@
+use bevy::color::palettes::basic;
 use bevy::color::Color;
 use bevy::math::{IVec2, UVec2, Vec2};
 use bevy::prelude::Resource;
@@ -13,23 +14,30 @@ pub const MAX_LAYERS: u32 = 64;
 #[derive(Resource, Clone, Debug)]
 pub struct FogMapSettings {
     pub enabled: bool,
+    // 默认区块大小 / Default chunk size
     pub chunk_size: UVec2,
+     // 默认每区块分辨率 / Default resolution per chunk
     pub texture_resolution_per_chunk: UVec2,
+    // 未探索区域的雾颜色 / Fog color for unexplored areas
     pub fog_color_unexplored: Color,
+    // 已探索区域的雾颜色 / Fog color for explored areas
     pub fog_color_explored: Color,
+    // 视野清除颜色 / Vision clear color
     pub vision_clear_color: Color,
+    // 雾效纹理格式 / Fog texture format
     pub fog_texture_format: TextureFormat,
-    pub snapshot_texture_format: TextureFormat,
+    // 快照纹理格式 / Snapshot texture format
+    pub snapshot_texture_format: TextureFormat
 }
 
 impl Default for FogMapSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            chunk_size: UVec2::splat(256),
-            texture_resolution_per_chunk: UVec2::splat(256), // 示例分辨率 / Example resolution
+            chunk_size: UVec2::splat(256), 
+            texture_resolution_per_chunk: UVec2::splat(512),
             fog_color_unexplored: Color::BLACK,
-            fog_color_explored: bevy::color::palettes::basic::GRAY.into(),
+            fog_color_explored: basic::GRAY.into(),
             vision_clear_color: Color::NONE,
             // R8Unorm 通常足够表示雾的浓度 (0.0 可见, 1.0 遮蔽)
             // R8Unorm is often sufficient for fog density (0.0 visible, 1.0 obscured)

@@ -5,16 +5,19 @@ your 2D games, with support for multiple light sources, smooth transitions, and 
 
 ## Features
 
-- 2D fog of war with smooth transitions
-- Multiple dynamic light sources
-- Adjustable fog density and color
-- Explored area tracking with configurable visibility
-- Camera movement controls
-- Efficient GPU-based implementation using WGSL shaders
+- 2D fog of war with smooth transitions and customizable colors.
+- Support for multiple dynamic vision sources with various shapes.
+- Explored area tracking, with options for how explored areas remain visible.
+- Chunk-based map processing for efficient updates, suitable for large maps.
+- Snapshot system for persisting explored fog data.
+- Highly configurable via the `FogMapSettings` resource.
+- Efficient GPU-based implementation using WGSL compute shaders.
 
 ## Usage
 
 To use `bevy_fog_of_war` in your project, follow these steps:
+
+(You can import most commonly used items via `use bevy_fog_of_war::prelude::*;`)
 
 1.  **Add the plugin to your app:**
 
@@ -82,6 +85,36 @@ To use `bevy_fog_of_war` in your project, follow these steps:
            ));
        }
        ```
+
+5.  **Customize `FogMapSettings` (Optional):**
+
+    You can customize the fog of war behavior by inserting a `FogMapSettings` resource. Here's an example of how to configure it:
+
+    ```rust
+    use bevy::prelude::*;
+    use bevy_fog_of_war::prelude::*;
+    use bevy::render::render_resource::TextureFormat;
+
+    fn setup_fog_settings(mut commands: Commands) {
+        commands.insert_resource(FogMapSettings {
+            enabled: true,  // Enable/disable fog of war effect
+            chunk_size: UVec2::new(256, 256),  // Size of each chunk in world units
+            texture_resolution_per_chunk: UVec2::new(512, 512),  // Texture resolution per chunk
+            fog_color_unexplored: Color::rgba(0.1, 0.1, 0.1, 0.9),  // Color for unexplored areas
+            fog_color_explored: Color::rgba(0.3, 0.3, 0.3, 0.5),   // Color for explored but not visible areas
+            vision_clear_color: Color::NONE,  // Clear color for visible areas (usually transparent)
+            fog_texture_format: TextureFormat::R8Unorm,  // Texture format for fog
+            snapshot_texture_format: TextureFormat::R8Unorm  // Texture format for snapshots
+        });
+    }
+    ```
+
+    Then add the system to your app:
+    
+    ```rust
+    .add_systems(Startup, setup_fog_settings)
+    ```
+
 
 Check the [examples](examples/) directory for more detailed usage scenarios, including dynamic vision sources and different vision shapes.
 

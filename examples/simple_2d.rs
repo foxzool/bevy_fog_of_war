@@ -1,6 +1,7 @@
 use bevy::prelude::*;
-use bevy_fog_of_war::FogOfWarPlugin;
-use bevy_fog_of_war::prelude::{Capturable, FogOfWarCamera, VisionSource};
+use bevy_fog_of_war::prelude::{
+    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, VisionSource,
+};
 
 fn main() {
     App::new()
@@ -27,9 +28,19 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut fog_map_settings: ResMut<FogMapSettings>,
 ) {
     // spawn camera with circle vision
     commands.spawn((Camera2d, FogOfWarCamera, VisionSource::circle(100.0)));
+
+    // fog map settings
+    *fog_map_settings = FogMapSettings {
+        enabled: true,
+        fog_color_unexplored: Color::BLACK,
+        fog_color_explored: bevy::color::palettes::basic::GRAY.into(),
+        vision_clear_color: Color::NONE,
+        ..default()
+    };
 
     // spawn other shapes vision sources on top screen
     commands.spawn((
