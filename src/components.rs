@@ -10,7 +10,6 @@ use std::fmt::Display;
 #[derive(Component)]
 pub struct FogOfWarCamera;
 
-
 /// 视野源组件
 /// Vision source component
 #[derive(Component, Reflect, ExtractComponent, Clone)]
@@ -79,11 +78,12 @@ impl VisionSource {
 
 /// 视野形状
 /// Vision shape
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Default)]
 pub enum VisionShape {
     /// 圆形视野（全方向）
     /// Circular vision (omnidirectional)
+    #[default]
     Circle,
     /// 扇形视野（有方向和角度）
     /// Cone vision (with direction and angle)
@@ -91,12 +91,6 @@ pub enum VisionShape {
     /// 正方形视野
     /// Square vision
     Square,
-}
-
-impl Default for VisionShape {
-    fn default() -> Self {
-        VisionShape::Circle
-    }
 }
 
 impl Default for VisionSource {
@@ -115,11 +109,12 @@ impl Default for VisionSource {
 
 /// 区块的可见性状态
 /// Visibility state of a chunk
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
 pub enum ChunkVisibility {
     /// 从未被任何视野源照亮过
     /// Never been revealed by any vision source
+    #[default]
     Unexplored,
     /// 曾经被照亮过，但当前不在视野内
     /// Was revealed before, but not currently in vision
@@ -127,12 +122,6 @@ pub enum ChunkVisibility {
     /// 当前正被至少一个视野源照亮
     /// Currently being revealed by at least one vision source
     Visible,
-}
-
-impl Default for ChunkVisibility {
-    fn default() -> Self {
-        ChunkVisibility::Unexplored
-    }
 }
 
 impl Display for ChunkVisibility {
@@ -246,15 +235,14 @@ impl FogChunkImage {
     }
 }
 
-// 区块纹理数据的存储位置
-/// Storage location of the chunk's texture data
 /// 区块纹理数据的存储位置
 /// Storage location of the chunk's texture data
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Default)]
 pub enum ChunkMemoryLocation {
     /// 纹理数据存储在 GPU 显存中，可用于渲染
     /// Texture data resides in GPU VRAM, ready for rendering
+    #[default]
     Gpu,
     /// 纹理数据已从 GPU 卸载，存储在 CPU 内存中
     /// Texture data is unloaded from GPU and stored in CPU RAM
@@ -265,13 +253,6 @@ pub enum ChunkMemoryLocation {
     /// 主世界已请求渲染世界将 CPU 数据上传到此区块的 GPU 纹理。等待 ChunkCpuDataUploadedEvent。
     /// Main world has requested RenderWorld to upload CPU data to this chunk's GPU texture. Awaiting ChunkCpuDataUploadedEvent.
     PendingCopyToGpu,
-}
-
-impl Default for ChunkMemoryLocation {
-    fn default() -> Self {
-        ChunkMemoryLocation::Gpu // Or Cpu, depending on initial creation strategy
-        // 或 Cpu, 取决于初始创建策略
-    }
 }
 
 /// 聚合区块状态
