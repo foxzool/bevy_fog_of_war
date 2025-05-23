@@ -58,18 +58,18 @@ pub struct RenderSnapshotTempTexture(pub Handle<Image>);
 pub struct VisionSourceData {
     pub position: Vec2,        // World position / 世界位置 (matches WGSL `position`)
     pub radius: f32,           // Vision range / 视野范围 (matches WGSL `radius`)
-    pub shape_type: u32,       // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形 (matches WGSL `shape_type`)
-    pub direction_rad: f32,    // Direction in radians / 方向（弧度） (matches WGSL `direction`)
-    pub angle_rad: f32,        // Angle in radians (for cone) / 角度（弧度，用于扇形） (matches WGSL `angle`)
-    pub intensity: f32,        // Vision intensity / 视野强度 (matches WGSL `intensity`)
+    pub shape_type: u32, // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形 (matches WGSL `shape_type`)
+    pub direction_rad: f32, // Direction in radians / 方向（弧度） (matches WGSL `direction`)
+    pub angle_rad: f32, // Angle in radians (for cone) / 角度（弧度，用于扇形） (matches WGSL `angle`)
+    pub intensity: f32, // Vision intensity / 视野强度 (matches WGSL `intensity`)
     pub transition_ratio: f32, // Transition ratio / 过渡比例 (matches WGSL `transition_ratio`)
 
     // --- Precalculated values for WGSL --- / --- 为 WGSL 预计算的值 ---
-    pub cos_direction: f32,        // cos(direction_rad)
-    pub sin_direction: f32,        // sin(direction_rad)
-    pub cone_half_angle_cos: f32,  // cos(angle_rad * 0.5)
+    pub cos_direction: f32,       // cos(direction_rad)
+    pub sin_direction: f32,       // sin(direction_rad)
+    pub cone_half_angle_cos: f32, // cos(angle_rad * 0.5)
 
-    pub _padding1: f32,        // Padding to match WGSL struct size (48 bytes) / 填充以匹配 WGSL 结构体大小 (48 字节)
+    pub _padding1: f32, // Padding to match WGSL struct size (48 bytes) / 填充以匹配 WGSL 结构体大小 (48 字节)
 }
 
 #[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
@@ -150,7 +150,7 @@ pub fn extract_vision_sources(
                         radius: src.range,
                         shape_type,
                         direction_rad: src.direction, // Store original direction in radians / 存储原始方向（弧度）
-                        angle_rad: src.angle,         // Store original angle in radians / 存储原始角度（弧度）
+                        angle_rad: src.angle, // Store original angle in radians / 存储原始角度（弧度）
                         intensity: src.intensity,
                         transition_ratio: src.transition_ratio,
                         cos_direction: cos_dir,
@@ -170,8 +170,8 @@ pub fn extract_vision_sources(
             angle_rad: 0.0, // Full circle if cone, but irrelevant for shape_type 0 / 如果是扇形则为全圆，但对 shape_type 0 无关紧要
             intensity: 0.0,
             transition_ratio: 0.0,
-            cos_direction: 1.0, // cos(0)
-            sin_direction: 0.0, // sin(0)
+            cos_direction: 1.0,       // cos(0)
+            sin_direction: 0.0,       // sin(0)
             cone_half_angle_cos: 1.0, // cos(0 * 0.5)
             _padding1: 0.0,
         });
@@ -179,20 +179,76 @@ pub fn extract_vision_sources(
 }
 
 const GFX_INVALID_LAYER: i32 = -1;
+
 pub fn extract_gpu_chunk_data(
     mut chunk_data_res: ResMut<ExtractedGpuChunkData>,
+    settings: Extract<Res<FogMapSettings>>,
+    camera_query: Extract<Query<(&Camera, &GlobalTransform, &Projection), With<FogOfWarCamera>>>,
     fog_chunk_query: Extract<Query<&FogChunk>>,
 ) {
     chunk_data_res.compute_chunks.clear();
     chunk_data_res.overlay_mapping.clear();
 
+    let mut view_aabb_world: Option<Rect> = None;
+
+    if let Ok((_camera, camera_transform, projection)) = camera_query.single() {
+        // Calculate view AABB for an orthographic camera
+        // This assumes the FogOfWarCamera is orthographic. Handle perspective if needed.
+        if let Projection::Orthographic(ortho_projection) = projection {
+            let camera_scale = camera_transform.compute_transform().scale;
+            // ortho_projection.area gives the size of the projection area.
+            // For WindowSize scale mode, this area is in logical pixels, needing viewport size.
+            // For Fixed scale mode, this area is in world units.
+            // We'll assume Fixed scale mode or that area is already in appropriate units
+            // that can be scaled by camera_transform.scale to get world dimensions.
+            // A more robust way for WindowSize would be to use camera.logical_viewport_size().
+            let half_width = ortho_projection.area.width() * 0.5 * camera_scale.x;
+            let half_height = ortho_projection.area.height() * 0.5 * camera_scale.y;
+            let camera_pos_2d = camera_transform.translation().truncate();
+
+            view_aabb_world = Some(Rect {
+                min: Vec2::new(camera_pos_2d.x - half_width, camera_pos_2d.y - half_height),
+                max: Vec2::new(camera_pos_2d.x + half_width, camera_pos_2d.y + half_height),
+            });
+        } else {
+            warn!(
+                "FogOfWarCamera is not using an OrthographicProjection. Culling might not work as expected for perspective cameras with this AABB logic."
+            );
+            // For perspective, you'd need to implement frustum culling.
+        }
+    } else {
+        warn!(
+            "No single FogOfWarCamera found, or multiple were found. Fog chunk culling will not be performed."
+        );
+        // If no camera, all GPU-ready chunks will be processed (original behavior for this path)
+    }
+
+    let chunk_world_size_f32 = settings.chunk_size.as_vec2();
+
     for chunk in fog_chunk_query.iter() {
-        // 只处理在 GPU 上并且具有有效层索引的区块
-        // Only process chunks that are on GPU and have valid layer indices
-        if chunk.state.memory_location == ChunkMemoryLocation::Gpu
-            || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu
-        // Maybe include pending if data is already staged
+        if !(chunk.state.memory_location == ChunkMemoryLocation::Gpu
+            || chunk.state.memory_location == ChunkMemoryLocation::PendingCopyToGpu)
         {
+            continue; // Skip if not on GPU or pending
+        }
+
+        let chunk_min_world = chunk.coords.as_vec2() * chunk_world_size_f32;
+        let chunk_max_world = chunk_min_world + chunk_world_size_f32;
+        let chunk_aabb_world = Rect {
+            min: chunk_min_world,
+            max: chunk_max_world,
+        };
+
+        let mut is_visible_or_no_culling = true; // Default to true if culling is not active
+        if let Some(view_rect) = view_aabb_world {
+            // AABB intersection test
+            is_visible_or_no_culling = !(chunk_aabb_world.max.x < view_rect.min.x
+                || chunk_aabb_world.min.x > view_rect.max.x
+                || chunk_aabb_world.max.y < view_rect.min.y
+                || chunk_aabb_world.min.y > view_rect.max.y);
+        }
+
+        if is_visible_or_no_culling {
             let fog_idx_gfx = chunk
                 .fog_layer_index
                 .map_or(GFX_INVALID_LAYER, |val| val as i32);
@@ -213,8 +269,7 @@ pub fn extract_gpu_chunk_data(
         }
     }
 
-    // Fallback if no valid chunks found (as before)
-    // 如果未找到有效区块，则回退 (同前)
+    // Fallback if no valid chunks found (or all culled)
     if chunk_data_res.compute_chunks.is_empty() {
         chunk_data_res.compute_chunks.push(ChunkComputeData {
             coords: Default::default(),
