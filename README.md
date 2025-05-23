@@ -1,5 +1,8 @@
 # Bevy Fog of War
 
+![截屏2025-05-23 19 13 56](https://github.com/user-attachments/assets/fe84d5dc-e897-4e64-9d51-de788ae69230)
+
+
 [![CI](https://github.com/foxzool/bevy_fog_of_war/workflows/CI/badge.svg)](https://github.com/foxzool/bevy_fog_of_war/actions)
 [![Crates.io](https://img.shields.io/crates/v/bevy_fog_of_war)](https://crates.io/crates/bevy_fog_of_war)
 [![Downloads](https://img.shields.io/crates/d/bevy_fog_of_war)](https://crates.io/crates/bevy_fog_of_war)
