@@ -5,6 +5,10 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["ZoOL <zhooul@gmail.com>"]
 description = "A 2D fog of war plugin for Bevy"
+homepage = "https://crates.io/crates/bevy_fog_of_war"
+documentation = "https://docs.rs/bevy_fog_of_war"
+repository = "https://github.com/foxzool/bevy_fog_of_war"
+keywords = ["bevy", "game", "plugin", "wasm"]
 
 [dependencies]
 bevy = { version = "0.16", default-features = false, features = [

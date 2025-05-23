@@ -96,7 +96,6 @@ struct HorizontalMover {
     direction: f32, // 1.0 for right, -1.0 for left
 }
 
-
 const X_EXTENT: f32 = 900.;
 
 fn setup(

@@ -183,7 +183,7 @@ const GFX_INVALID_LAYER: i32 = -1;
 pub fn extract_gpu_chunk_data(
     mut chunk_data_res: ResMut<ExtractedGpuChunkData>,
     settings: Extract<Res<FogMapSettings>>,
-    camera_query: Extract<Query<(&Camera, &GlobalTransform, &Projection), With<FogOfWarCamera>>>,
+    camera_query: Extract<Query<(&GlobalTransform, &Projection), With<FogOfWarCamera>>>,
     fog_chunk_query: Extract<Query<&FogChunk>>,
 ) {
     chunk_data_res.compute_chunks.clear();
@@ -191,7 +191,7 @@ pub fn extract_gpu_chunk_data(
 
     let mut view_aabb_world: Option<Rect> = None;
 
-    if let Ok((_camera, camera_transform, projection)) = camera_query.single() {
+    if let Ok((camera_transform, projection)) = camera_query.single() {
         // Calculate view AABB for an orthographic camera
         // This assumes the FogOfWarCamera is orthographic. Handle perspective if needed.
         if let Projection::Orthographic(ortho_projection) = projection {

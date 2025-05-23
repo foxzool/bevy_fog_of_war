@@ -106,6 +106,7 @@ pub fn prepare_overlay_chunk_mapping_buffer(
     buffer_res.capacity = capacity;
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn prepare_fog_bind_groups(
     render_device: Res<RenderDevice>,
     mut fog_bind_groups: ResMut<FogBindGroups>,

@@ -1,9 +1,9 @@
+use crate::prelude::*;
+use bevy::log::{debug, error, info, trace, warn};
 use bevy::prelude::Resource;
 use bevy::reflect::Reflect;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use bevy::log::{debug, error, info, trace, warn};
-use crate::prelude::*;
 
 /// 快速查找区块坐标对应的 FogChunk 实体
 /// Resource for quickly looking up FogChunk entities by their coordinates
@@ -44,7 +44,6 @@ impl ChunkStateCache {
         // gpu_resident_chunks 的管理更复杂，不一定每帧清空 / gpu_resident_chunks management is more complex, not necessarily cleared every frame
     }
 }
-
 
 #[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
@@ -173,9 +172,15 @@ impl TextureArrayManager {
         }
         if let Some(coord) = coord_to_remove {
             self.coord_to_layers.remove(&coord);
-            debug!("Removed coord {:?} for specific F{} S{}", coord, fog_idx, snap_idx);
+            debug!(
+                "Removed coord {:?} for specific F{} S{}",
+                coord, fog_idx, snap_idx
+            );
         } else {
-            warn!("Attempted to free specific F{} S{} but no coord was using them.", fog_idx, snap_idx);
+            warn!(
+                "Attempted to free specific F{} S{} but no coord was using them.",
+                fog_idx, snap_idx
+            );
         }
 
         // It's crucial that an index is not pushed to free_..._indices
@@ -185,10 +190,7 @@ impl TextureArrayManager {
             // Basic check to prevent double free
             self.free_fog_indices.push(fog_idx);
         } else {
-            warn!(
-                "Attempted to double-free specific fog index {}",
-                fog_idx
-            );
+            warn!("Attempted to double-free specific fog index {}", fog_idx);
         }
         if !self.free_snapshot_indices.contains(&snap_idx) {
             self.free_snapshot_indices.push(snap_idx);
@@ -199,7 +201,7 @@ impl TextureArrayManager {
             );
         }
     }
-    
+
     pub fn get_allocated_indices(&self, coords: IVec2) -> Option<(u32, u32)> {
         self.coord_to_layers.get(&coords).copied()
     }

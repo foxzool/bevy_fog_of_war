@@ -1,8 +1,8 @@
+use crate::prelude::*;
 use bevy::asset::Handle;
 use bevy::prelude::Image;
 use bevy::prelude::Resource;
 use bevy::reflect::Reflect;
-use crate::prelude::*;
 
 /// 存储可见性数据的 TextureArray 资源句柄
 /// Resource handle for the TextureArray storing visibility data

@@ -1,4 +1,10 @@
 // fog_render/overlay.rs
+use super::RenderFogMapSettings;
+use super::extract::{
+    OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
+};
+use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
+use crate::snapshot::SnapshotCamera;
 use bevy::core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
 use bevy::ecs::query::QueryItem;
 use bevy::ecs::system::lifetimeless::Read;
@@ -12,12 +18,6 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::{FallbackImage, GpuImage};
 use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
-use crate::snapshot::SnapshotCamera;
-use super::RenderFogMapSettings;
-use super::extract::{
-    OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
-};
-use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wgsl";
 

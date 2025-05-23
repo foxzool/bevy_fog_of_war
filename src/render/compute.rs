@@ -2,6 +2,7 @@
 
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
+use crate::snapshot::SnapshotCamera;
 use bevy::render::render_resource::StorageTextureAccess::WriteOnly;
 use bevy::{
     prelude::*,
@@ -19,7 +20,6 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
     },
 };
-use crate::snapshot::SnapshotCamera;
 
 const SHADER_ASSET_PATH: &str = "shaders/fog_compute.wgsl";
 
@@ -78,16 +78,16 @@ impl FromWorld for FogComputePipeline {
 impl Node for FogComputeNode {
     fn run(
         &self,
-        graph: &mut RenderGraphContext, 
+        graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let view_entity = graph.view_entity();
-        
+
         if world.get::<SnapshotCamera>(view_entity).is_some() {
             return Ok(());
         }
-        
+
         let fog_bind_groups = world.resource::<FogBindGroups>();
         let compute_pipeline = world.resource::<FogComputePipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();

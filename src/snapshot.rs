@@ -1,6 +1,6 @@
-use crate::{FogSystemSet, RequestChunkSnapshotEvent};
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
+use crate::{FogSystemSet, RequestChunkSnapshotEvent};
 use bevy::{
     asset::RenderAssetUsages,
     core_pipeline::core_2d::graph::{Core2d, Node2d},

@@ -1,9 +1,8 @@
-use bevy::color::palettes::basic;
 use bevy::color::Color;
+use bevy::color::palettes::basic;
 use bevy::math::{IVec2, UVec2, Vec2};
 use bevy::prelude::Resource;
 use bevy::render::render_resource::TextureFormat;
-
 
 /// The maximum number of layers allowed in the fog of war texture array.
 /// 允许在雾效纹理数组中的最大层数。
@@ -16,7 +15,7 @@ pub struct FogMapSettings {
     pub enabled: bool,
     // 默认区块大小 / Default chunk size
     pub chunk_size: UVec2,
-     // 默认每区块分辨率 / Default resolution per chunk
+    // 默认每区块分辨率 / Default resolution per chunk
     pub texture_resolution_per_chunk: UVec2,
     // 未探索区域的雾颜色 / Fog color for unexplored areas
     pub fog_color_unexplored: Color,
@@ -27,14 +26,14 @@ pub struct FogMapSettings {
     // 雾效纹理格式 / Fog texture format
     pub fog_texture_format: TextureFormat,
     // 快照纹理格式 / Snapshot texture format
-    pub snapshot_texture_format: TextureFormat
+    pub snapshot_texture_format: TextureFormat,
 }
 
 impl Default for FogMapSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            chunk_size: UVec2::splat(256), 
+            chunk_size: UVec2::splat(256),
             texture_resolution_per_chunk: UVec2::splat(512),
             fog_color_unexplored: Color::BLACK,
             fog_color_explored: basic::GRAY.into(),
