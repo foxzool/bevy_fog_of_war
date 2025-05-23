@@ -1,6 +1,7 @@
 # Bevy Fog of War
 
-![截屏2025-05-23 19 13 56](https://github.com/user-attachments/assets/fe84d5dc-e897-4e64-9d51-de788ae69230)
+![截屏2025-05-23 19 23 05](https://github.com/user-attachments/assets/d8821536-7c91-4527-9425-c64ee5252b20)
+
 
 
 [![CI](https://github.com/foxzool/bevy_fog_of_war/workflows/CI/badge.svg)](https://github.com/foxzool/bevy_fog_of_war/actions)
