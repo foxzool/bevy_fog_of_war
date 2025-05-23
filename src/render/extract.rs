@@ -56,13 +56,20 @@ pub struct RenderSnapshotTempTexture(pub Handle<Image>);
 #[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct VisionSourceData {
-    pub pos: Vec2,             // World position / 世界位置
-    pub range: f32,            // Vision range / 视野范围
-    pub shape_type: u32,       // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形
-    pub direction: f32,        // Direction in radians / 方向（弧度）
-    pub angle: f32,            // Angle in radians (for cone) / 角度（弧度，用于扇形）
-    pub intensity: f32,        // Vision intensity / 视野强度
-    pub transition_ratio: f32, // Transition ratio / 过渡比例
+    pub position: Vec2,        // World position / 世界位置 (matches WGSL `position`)
+    pub radius: f32,           // Vision range / 视野范围 (matches WGSL `radius`)
+    pub shape_type: u32,       // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形 (matches WGSL `shape_type`)
+    pub direction_rad: f32,    // Direction in radians / 方向（弧度） (matches WGSL `direction`)
+    pub angle_rad: f32,        // Angle in radians (for cone) / 角度（弧度，用于扇形） (matches WGSL `angle`)
+    pub intensity: f32,        // Vision intensity / 视野强度 (matches WGSL `intensity`)
+    pub transition_ratio: f32, // Transition ratio / 过渡比例 (matches WGSL `transition_ratio`)
+
+    // --- Precalculated values for WGSL --- / --- 为 WGSL 预计算的值 ---
+    pub cos_direction: f32,        // cos(direction_rad)
+    pub sin_direction: f32,        // sin(direction_rad)
+    pub cone_half_angle_cos: f32,  // cos(angle_rad * 0.5)
+
+    pub _padding1: f32,        // Padding to match WGSL struct size (48 bytes) / 填充以匹配 WGSL 结构体大小 (48 字节)
 }
 
 #[derive(Copy, Clone, ShaderType, Pod, Zeroable, Debug)]
@@ -132,27 +139,41 @@ pub fn extract_vision_sources(
                         VisionShape::Square => 2u32,
                     };
 
+                    let cos_dir = src.direction.cos();
+                    let sin_dir = src.direction.sin();
+                    // For cone, angle is the full FOV. Shader uses half_angle.
+                    // 对于扇形，angle 是完整的视场角。Shader 使用半角。
+                    let cone_cos_half_angle = (src.angle * 0.5).cos();
+
                     VisionSourceData {
-                        pos: transform.translation().truncate(),
-                        range: src.range,
+                        position: transform.translation().truncate(),
+                        radius: src.range,
                         shape_type,
-                        direction: src.direction,
-                        angle: src.angle,
+                        direction_rad: src.direction, // Store original direction in radians / 存储原始方向（弧度）
+                        angle_rad: src.angle,         // Store original angle in radians / 存储原始角度（弧度）
                         intensity: src.intensity,
                         transition_ratio: src.transition_ratio,
+                        cos_direction: cos_dir,
+                        sin_direction: sin_dir,
+                        cone_half_angle_cos: cone_cos_half_angle,
+                        _padding1: 0.0, // Initialize padding / 初始化填充
                     }
                 }),
         );
 
     if sources_res.sources.is_empty() {
         sources_res.sources.push(VisionSourceData {
-            pos: Default::default(),
-            range: 0.0,
-            shape_type: 0,
-            direction: 0.0,
-            angle: 0.0,
+            position: Default::default(),
+            radius: 0.0,
+            shape_type: 0, // Circle by default / 默认为圆形
+            direction_rad: 0.0,
+            angle_rad: 0.0, // Full circle if cone, but irrelevant for shape_type 0 / 如果是扇形则为全圆，但对 shape_type 0 无关紧要
             intensity: 0.0,
             transition_ratio: 0.0,
+            cos_direction: 1.0, // cos(0)
+            sin_direction: 0.0, // sin(0)
+            cone_half_angle_cos: 1.0, // cos(0 * 0.5)
+            _padding1: 0.0,
         });
     }
 }

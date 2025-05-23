@@ -3,11 +3,17 @@ struct VisionSourceData {
     position: vec2<f32>,
     radius: f32,
     shape_type: u32, // 0=Circle, 1=Cone, 2=Rectangle / 0=圆形, 1=扇形, 2=矩形
-    direction: f32, // Direction in radians / 方向（弧度）
-    angle: f32, // Angle in radians (for cone) / 角度（弧度，用于扇形）
+    direction: f32, // Original direction, kept for potential other uses or CPU-side logic / 原始方向，保留以备他用或CPU端逻辑
+    angle: f32, // Original angle, kept for potential other uses or CPU-side logic / 原始角度，保留以备他用或CPU端逻辑
     intensity: f32, // Vision intensity / 视野强度
     transition_ratio: f32, // Transition ratio / 过渡比例
-    // padding f32
+
+    // --- Precalculated values --- / --- 预计算值 ---
+    cos_direction: f32,         // Precomputed cos of source.direction / 预计算的 source.direction 的余弦值
+    sin_direction: f32,         // Precomputed sin of source.direction / 预计算的 source.direction 的正弦值
+    cone_half_angle_cos: f32,   // Precomputed cos(source.angle * 0.5) for cone shape / 为扇形预计算的 cos(source.angle * 0.5)
+
+    _padding1: f32, // Padding to make struct size 48 bytes for alignment / 填充使结构体大小为48字节以对齐
 };
 
 struct ChunkComputeData {
@@ -93,6 +99,13 @@ fn main(
     var current_visibility: f32 = 0.0;
     for (var i = 0u; i < arrayLength(&vision_sources); i = i + 1u) {
        let source = vision_sources[i];
+
+       // Skip if source is ineffective (e.g. zero radius or intensity)
+       // 如果视野源无效（例如零半径或强度），则跳过
+       if (source.radius <= 0.001 || source.intensity <= 0.001) {
+           continue;
+       }
+
        let dist = distance(world_pos_xy, source.position);
 
        // 根据视野形状计算可见性 / Calculate visibility based on vision shape
@@ -125,14 +138,14 @@ fn main(
            // 扇形视野 / Cone vision
            if (dist <= source.radius) {
                // 计算点相对于视野源的方向角度 / Calculate angle of point relative to vision source
-               let dir_to_point = normalize(world_pos_xy - source.position);
-               let forward_dir = vec2<f32>(cos(source.direction), sin(source.direction));
+                let dir_to_point = normalize(world_pos_xy - source.position);
+                let forward_dir = vec2<f32>(source.cos_direction, source.sin_direction);
 
                // 计算点与前方向量的夹角（点积） / Calculate angle between point and forward vector (dot product)
                let dot_product = dot(dir_to_point, forward_dir);
 
                // 计算半角的余弦值 / Calculate cosine of half angle
-               let half_angle_cos = cos(source.angle * 0.5);
+                let half_angle_cos = source.cone_half_angle_cos;
 
                if (dot_product >= half_angle_cos) {
                    // 点在扇形内 / Point is within cone
@@ -153,8 +166,8 @@ fn main(
            let local_pos = world_pos_xy - source.position;
 
            // 旋转到视野方向 / Rotate to vision direction
-           let cos_dir = cos(-source.direction);
-           let sin_dir = sin(-source.direction);
+            let cos_dir = source.cos_direction; // cos(-source.direction) == cos(source.direction)
+            let sin_dir = -source.sin_direction; // sin(-source.direction) == -sin(source.direction)
            let rotated_x = local_pos.x * cos_dir - local_pos.y * sin_dir;
            let rotated_y = local_pos.x * sin_dir + local_pos.y * cos_dir;
            let rotated_pos = vec2<f32>(rotated_x, rotated_y);
@@ -196,8 +209,24 @@ fn main(
            break;
        }
     }
-    // Store current visibility
-    // 存储当前可见性
+    // --- Update Explored Status (fog_texture) ---
+    // --- 更新已探索状态 (fog_texture) ---
+    // Load current explored status from fog_texture.
+    // 从 fog_texture 加载当前已探索状态。
+    // We assume fog_texture stores 1.0 for explored, 0.0 for unexplored in its .r channel.
+    // 我们假设 fog_texture 在其 .r 通道中存储 1.0 表示已探索，0.0 表示未探索。
+    let current_explored_value = textureLoad(fog_texture, pixel_coord_in_chunk, target_layer_idx).r;
+
+    // If current visibility is high enough and the area is not already fully explored, mark as explored.
+    // 如果当前可见度足够高且该区域尚未完全探索，则标记为已探索。
+    if (current_visibility > EXPLORATION_VISIBILITY_THRESHOLD && current_explored_value < 0.999) {
+        // Mark as explored by writing 1.0 to the red channel.
+        // 通过向红色通道写入 1.0 来标记为已探索。
+        textureStore(fog_texture, pixel_coord_in_chunk, target_layer_idx, vec4<f32>(1.0, 0.0, 0.0, 1.0));
+    }
+
+    // Store current frame's visibility into visibility_texture (for overlay shader)
+    // 将当前帧的可见性存储到 visibility_texture (供叠加着色器使用)
     textureStore(visibility_texture, pixel_coord_in_chunk, target_layer_idx, vec4<f32>(current_visibility, 0.0, 0.0, 1.0));
 
 
