@@ -9,3 +9,4 @@ Cargo.lock
 /benches/target
 /.windsurfrules
 .DS_Store
+/dist
