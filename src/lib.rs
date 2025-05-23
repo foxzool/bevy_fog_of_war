@@ -109,7 +109,7 @@ impl Plugin for FogOfWarPlugin {
         );
 
         app.add_plugins(FogOfWarRenderPlugin);
-        app.add_plugins(snapshot::SnapshotPlugin);
+        app.add_plugins(SnapshotPlugin);
     }
 }
 
@@ -120,12 +120,11 @@ fn setup_fog_resources(
 ) {
     // --- Create Texture Arrays ---
     // --- 创建 Texture Arrays ---
-    debug!("Setting up Fog of War with {} layers.", settings.max_layers);
 
     let fog_texture_size = Extent3d {
         width: settings.texture_resolution_per_chunk.x,
         height: settings.texture_resolution_per_chunk.y,
-        depth_or_array_layers: settings.max_layers,
+        depth_or_array_layers: MAX_LAYERS,
     };
     let snapshot_texture_size = fog_texture_size;
     let visibility_texture_size = fog_texture_size;
@@ -204,7 +203,7 @@ fn setup_fog_resources(
     commands.insert_resource(SnapshotTextureArray {
         handle: snapshot_handle.clone(),
     });
-    commands.insert_resource(TextureArrayManager::new(settings.max_layers));
+    commands.insert_resource(TextureArrayManager::new(MAX_LAYERS));
 
     info!("Fog of War resources initialized");
 }

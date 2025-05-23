@@ -1,7 +1,12 @@
 use bevy::color::Color;
 use bevy::math::{IVec2, UVec2, Vec2};
-use bevy::render::render_resource::TextureFormat;
 use bevy::prelude::Resource;
+use bevy::render::render_resource::TextureFormat;
+
+
+/// The maximum number of layers allowed in the fog of war texture array.
+/// 允许在雾效纹理数组中的最大层数。
+pub const MAX_LAYERS: u32 = 64;
 
 /// 战争迷雾地图的全局设置
 /// Global settings for the fog of war map
@@ -15,7 +20,6 @@ pub struct FogMapSettings {
     pub vision_clear_color: Color,
     pub fog_texture_format: TextureFormat,
     pub snapshot_texture_format: TextureFormat,
-    pub max_layers: u32,
 }
 
 impl Default for FogMapSettings {
@@ -23,7 +27,7 @@ impl Default for FogMapSettings {
         Self {
             enabled: true,
             chunk_size: UVec2::splat(256),
-            texture_resolution_per_chunk: UVec2::new(512, 512), // 示例分辨率 / Example resolution
+            texture_resolution_per_chunk: UVec2::splat(256), // 示例分辨率 / Example resolution
             fog_color_unexplored: Color::BLACK,
             fog_color_explored: bevy::color::palettes::basic::GRAY.into(),
             vision_clear_color: Color::NONE,
@@ -32,7 +36,6 @@ impl Default for FogMapSettings {
             fog_texture_format: TextureFormat::R8Unorm,
             // 快照需要颜色和透明度 / Snapshots need color and alpha
             snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
-            max_layers: 64,
         }
     }
 }
