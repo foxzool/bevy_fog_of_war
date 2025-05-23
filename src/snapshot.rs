@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
-use crate::{FogSystemSet, RequestChunkSnapshotEvent};
+use crate::{FogSystems, RequestChunkSnapshotEvent};
 use bevy::{
     asset::RenderAssetUsages,
     core_pipeline::core_2d::graph::{Core2d, Node2d},
@@ -38,8 +38,8 @@ impl Plugin for SnapshotPlugin {
         app.add_systems(
             Update,
             handle_request_chunk_snapshot_events
-                .after(FogSystemSet::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
-                .before(FogSystemSet::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
+                .after(FogSystems::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
+                .before(FogSystems::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
         );
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {

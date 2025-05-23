@@ -118,7 +118,7 @@ fn setup(
     commands.spawn((
         Text2d("Count".to_string()),
         TextFont {
-            font: font_handle.clone().into(),
+            font: font_handle.clone(),
             font_size: 20.0,
             ..Default::default()
         },

@@ -26,7 +26,7 @@ mod texture_handles;
 pub struct RequestChunkSnapshotEvent(pub IVec2);
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
-enum FogSystemSet {
+enum FogSystems {
     /// Update chunk states based on vision and camera
     /// 更新区块状态 (基于视野和相机)
     UpdateChunkState,
@@ -77,9 +77,9 @@ impl Plugin for FogOfWarPlugin {
         app.configure_sets(
             Update,
             (
-                FogSystemSet::UpdateChunkState,
-                FogSystemSet::ManageEntities,
-                FogSystemSet::PrepareTransfers,
+                FogSystems::UpdateChunkState,
+                FogSystems::ManageEntities,
+                FogSystems::PrepareTransfers,
             )
                 .chain(), // Ensure they run in this order / 确保它们按此顺序运行
         );
@@ -95,17 +95,17 @@ impl Plugin for FogOfWarPlugin {
                 update_chunk_component_state,
             )
                 .chain()
-                .in_set(FogSystemSet::UpdateChunkState),
+                .in_set(FogSystems::UpdateChunkState),
         );
 
         app.add_systems(
             Update,
-            (manage_chunk_entities).in_set(FogSystemSet::ManageEntities),
+            (manage_chunk_entities).in_set(FogSystems::ManageEntities),
         );
 
         app.add_systems(
             Update,
-            manage_chunk_texture_transfer.in_set(FogSystemSet::PrepareTransfers),
+            manage_chunk_texture_transfer.in_set(FogSystems::PrepareTransfers),
         );
 
         app.add_plugins(FogOfWarRenderPlugin);
