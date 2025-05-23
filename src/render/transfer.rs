@@ -92,61 +92,6 @@ pub fn process_cpu_to_gpu_copies(
     }
 }
 
-/// 辅助函数：计算每行字节数。
-/// Helper function: Calculate bytes per row.
-/// 返回 `Option<u32>`，因为某些格式可能不受支持或难以计算。
-/// Returns `Option<u32>` as some formats might not be supported or easily calculable.
-fn calculate_bytes_per_row(width: u32, format: TextureFormat) -> Option<u32> {
-    let bits_per_pixel = match format {
-        TextureFormat::R8Unorm
-        | TextureFormat::R8Snorm
-        | TextureFormat::R8Uint
-        | TextureFormat::R8Sint => 8,
-        TextureFormat::R16Uint
-        | TextureFormat::R16Sint
-        | TextureFormat::R16Unorm
-        | TextureFormat::R16Snorm
-        | TextureFormat::R16Float => 16,
-        TextureFormat::Rg8Unorm
-        | TextureFormat::Rg8Snorm
-        | TextureFormat::Rg8Uint
-        | TextureFormat::Rg8Sint => 16,
-        TextureFormat::R32Uint | TextureFormat::R32Sint | TextureFormat::R32Float => 32,
-        TextureFormat::Rg16Uint
-        | TextureFormat::Rg16Sint
-        | TextureFormat::Rg16Unorm
-        | TextureFormat::Rg16Snorm
-        | TextureFormat::Rg16Float => 32,
-        TextureFormat::Rgba8Unorm
-        | TextureFormat::Rgba8UnormSrgb
-        | TextureFormat::Rgba8Snorm
-        | TextureFormat::Rgba8Uint
-        | TextureFormat::Rgba8Sint => 32,
-        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => 32,
-        TextureFormat::Rg32Uint | TextureFormat::Rg32Sint | TextureFormat::Rg32Float => 64,
-        TextureFormat::Rgba16Uint
-        | TextureFormat::Rgba16Sint
-        | TextureFormat::Rgba16Unorm
-        | TextureFormat::Rgba16Snorm
-        | TextureFormat::Rgba16Float => 64,
-        TextureFormat::Rgba32Uint | TextureFormat::Rgba32Sint | TextureFormat::Rgba32Float => 128,
-        _ => {
-            warn!(
-                "Unsupported texture format for bytes_per_row calculation: {:?}",
-                format
-            );
-            return None;
-        }
-    };
-    let bytes_per_pixel = bits_per_pixel / 8;
-    let unaligned = width * bytes_per_pixel;
-    // Align up to 256 bytes (COPY_BYTES_PER_ROW_ALIGNMENT)
-    // 向上对齐到 256 字节
-    let align = 256;
-    let aligned = ((unaligned + align - 1) / align) * align;
-    Some(aligned)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn initiate_gpu_to_cpu_copies_and_request_map(
     render_device: Res<RenderDevice>,
@@ -182,19 +127,24 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             continue;
         }
 
-        let Some(bytes_per_row_fog) = calculate_bytes_per_row(texture_width, fog_format) else {
-            continue;
-        };
-        let fog_buffer_size = (bytes_per_row_fog * texture_height) as u64;
-        if fog_buffer_size == 0 {
+        let fog_format_size = fog_format.pixel_size() as u32;
+        if fog_format_size == 0 {
             error!("Fog buffer size is 0 for chunk {:?}", request.chunk_coords);
             continue;
         }
 
-        let Some(bytes_per_row_snapshot) = calculate_bytes_per_row(texture_width, snapshot_format)
-        else {
+        let bytes_per_row_fog = texture_width * fog_format_size;
+        let fog_buffer_size = (bytes_per_row_fog * texture_height) as u64;
+
+        let snapshot_format_size = snapshot_format.pixel_size() as u32;
+        if snapshot_format_size == 0 {
+            error!(
+                "Snapshot buffer size is 0 for chunk {:?}",
+                request.chunk_coords
+            );
             continue;
-        };
+        }
+        let bytes_per_row_snapshot = texture_width * snapshot_format_size;
         let snapshot_buffer_size = (bytes_per_row_snapshot * texture_height) as u64;
         if snapshot_buffer_size == 0 {
             error!(

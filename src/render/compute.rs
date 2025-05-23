@@ -114,8 +114,8 @@ impl Node for FogComputeNode {
         let texture_res = settings.texture_resolution_per_chunk;
         let workgroup_size_x = 8;
         let workgroup_size_y = 8;
-        let workgroups_x = (texture_res.x + workgroup_size_x - 1) / workgroup_size_x;
-        let workgroups_y = (texture_res.y + workgroup_size_y - 1) / workgroup_size_y;
+        let workgroups_x = texture_res.x.div_ceil(workgroup_size_x);
+        let workgroups_y = texture_res.y.div_ceil(workgroup_size_y);
         // Dispatch per chunk / 按区块分派
         let workgroups_z = chunk_count as u32;
 
