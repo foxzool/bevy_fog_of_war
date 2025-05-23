@@ -60,7 +60,7 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
       - name: Check documentation
-        run: cargo doc --locked --workspace --all-features --document-private-items --no-deps
+        run: cargo doc  --workspace --all-features --document-private-items --no-deps
 
   # Run Clippy lints.
   clippy-lints:
@@ -87,7 +87,7 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
       - name: Run Clippy lints
-        run: cargo clippy --locked --workspace --all-targets --all-features
+        run: cargo clippy  --workspace --all-targets --all-features
 
   # Run Bevy lints.
   bevy-lints:
@@ -111,7 +111,7 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
       - name: Run Bevy lints
-        run: bevy_lint --locked --workspace --all-targets --all-features
+        run: bevy_lint  --workspace --all-targets --all-features
 
   # Run tests.
   tests:
@@ -145,11 +145,11 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run tests
-        run: cargo nextest run --locked --workspace --all-targets --no-fail-fast --no-tests=warn
+        run: cargo nextest run  --workspace --all-targets --no-fail-fast --no-tests=warn
 
       # Running doctests separately is a workaround for <https://github.com/rust-lang/cargo/issues/6669>.
       - name: Run doctests
-        run: cargo test --locked --workspace --doc --no-fail-fast
+        run: cargo test  --workspace --doc --no-fail-fast
 
   # Check that the web build compiles.
   check-web:
