@@ -1074,8 +1074,19 @@ fn monitor_reset_sync_system(
             // 检查是否超时
             // Check for timeout
             if reset_sync.is_timeout(current_time) {
-                error!("Reset timeout waiting for render world processing");
+                let elapsed = current_time - reset_sync.start_time.unwrap_or(current_time);
+                error!("Reset timeout waiting for render world processing after {}ms (timeout: {}ms)", 
+                       elapsed, reset_sync.timeout_ms);
                 reset_sync.mark_failed(FogResetError::Timeout("Timeout waiting for render world processing".to_string()));
+            } else {
+                // 定期日志进度
+                // Log progress periodically
+                if let Some(start_time) = reset_sync.start_time {
+                    let elapsed = current_time - start_time;
+                    if elapsed > 2000 && elapsed % 1000 < 50 { // Log every second after 2 seconds
+                        debug!("Waiting for render world processing... elapsed: {}ms", elapsed);
+                    }
+                }
             }
         }
         ResetSyncState::RenderWorldProcessing => {

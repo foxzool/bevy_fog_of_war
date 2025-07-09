@@ -329,7 +329,7 @@ impl Default for FogResetSync {
         Self {
             state: ResetSyncState::Idle,
             start_time: None,
-            timeout_ms: 5000, // 5秒超时 / 5 second timeout
+            timeout_ms: 15000, // 15秒超时 / 15 second timeout
             checkpoint: None,
         }
     }

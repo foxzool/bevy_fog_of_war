@@ -502,6 +502,11 @@ pub fn check_and_clear_textures_on_reset(
     // 检查是否需要开始渲染世界处理
     // Check if render world processing needs to start
     if reset_sync.state != ResetSyncState::MainWorldComplete {
+        // 添加调试信息以了解当前状态
+        // Add debug info to understand current state
+        if !matches!(reset_sync.state, ResetSyncState::Idle) {
+            debug!("Render world reset system called but state is: {:?}", reset_sync.state);
+        }
         return;
     }
     
