@@ -827,8 +827,8 @@ fn reset_fog_of_war_system(
     }
 }
 
-/// 执行主世界重置操作，返回错误信息
-/// Execute main world reset operations, returns error message
+/// 执行主世界重置操作，返回详细错误信息
+/// Execute main world reset operations, returns detailed error information
 fn execute_main_world_reset(
     cache: &mut ResMut<ChunkStateCache>,
     chunk_q: &mut Query<&mut FogChunk>,
@@ -840,14 +840,23 @@ fn execute_main_world_reset(
     snapshot_texture: &Res<SnapshotTextureArray>,
     commands: &mut Commands,
     chunk_manager: &mut ResMut<ChunkEntityManager>,
-) -> Result<(), String> {
-    // 将复杂的重置逻辑拆分为更小的函数
-    // Break down complex reset logic into smaller functions
-    reset_chunk_cache(cache);
-    reset_chunk_states(chunk_q, texture_manager);
-    reset_chunk_images(chunk_query, images);
-    reset_main_textures(images, fog_texture, visibility_texture, snapshot_texture);
-    cleanup_chunk_entities(chunk_manager, commands);
+) -> Result<(), FogResetError> {
+    // 将复杂的重置逻辑拆分为更小的函数，每个都能返回具体错误
+    // Break down complex reset logic into smaller functions, each can return specific errors
+    reset_chunk_cache(cache)
+        .map_err(FogResetError::CacheResetFailed)?;
+    
+    reset_chunk_states(chunk_q, texture_manager)
+        .map_err(FogResetError::ChunkStateResetFailed)?;
+    
+    reset_chunk_images(chunk_query, images)
+        .map_err(FogResetError::ImageResetFailed)?;
+    
+    reset_main_textures(images, fog_texture, visibility_texture, snapshot_texture)
+        .map_err(FogResetError::TextureResetFailed)?;
+    
+    cleanup_chunk_entities(chunk_manager, commands)
+        .map_err(FogResetError::EntityCleanupFailed)?;
     
     info!("Main world reset operations completed successfully");
     Ok(())
@@ -855,13 +864,22 @@ fn execute_main_world_reset(
 
 /// 重置区块缓存状态
 /// Reset chunk cache state
-fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) {
+fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) -> Result<(), String> {
     let explored_count = cache.explored_chunks.len();
     let visible_count = cache.visible_chunks.len();
     let gpu_count = cache.gpu_resident_chunks.len();
+    
+    // 验证缓存状态
+    // Validate cache state
+    if explored_count > 10000 || visible_count > 10000 || gpu_count > 10000 {
+        return Err(format!("Cache sizes too large: explored={}, visible={}, gpu={}", 
+                          explored_count, visible_count, gpu_count));
+    }
+    
     cache.reset_all();
     info!("Reset cache: {} explored, {} visible, {} gpu chunks cleared", 
            explored_count, visible_count, gpu_count);
+    Ok(())
 }
 
 /// 重置区块状态
@@ -869,8 +887,15 @@ fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) {
 fn reset_chunk_states(
     chunk_q: &mut Query<&mut FogChunk>,
     texture_manager: &mut ResMut<TextureArrayManager>,
-) {
+) -> Result<(), String> {
     let chunk_count = chunk_q.iter().count();
+    
+    // 验证区块数量
+    // Validate chunk count
+    if chunk_count > 1000 {
+        return Err(format!("Too many chunks to reset: {}", chunk_count));
+    }
+    
     for mut chunk in chunk_q.iter_mut() {
         chunk.state.visibility = ChunkVisibility::Unexplored;
         chunk.state.memory_location = ChunkMemoryLocation::Cpu;
@@ -882,6 +907,7 @@ fn reset_chunk_states(
     // 清除所有纹理层分配
     // Clear all texture layer allocations
     texture_manager.clear_all_layers();
+    Ok(())
 }
 
 /// 重置区块图像数据
@@ -889,28 +915,30 @@ fn reset_chunk_states(
 fn reset_chunk_images(
     chunk_query: &mut Query<(Entity, &mut FogChunkImage)>,
     images: &mut ResMut<Assets<Image>>,
-) {
+) -> Result<(), String> {
     for (_entity, chunk_image) in chunk_query.iter_mut() {
         if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
-            // 安全的雾效纹理大小计算，防止整数溢出
-            // Safe fog texture size calculation to prevent integer overflow
-            let size = (fog_image.texture_descriptor.size.width as u64)
-                .checked_mul(fog_image.texture_descriptor.size.height as u64)
-                .and_then(|v| usize::try_from(v).ok())
-                .expect("Fog texture size too large, would cause integer overflow");
-            fog_image.data = Some(vec![0u8; size]);
+            // 使用统一的纹理大小计算器
+            // Use unified texture size calculator
+            let size_info = TextureSizeCalculator::calculate_2d_single_channel(
+                fog_image.texture_descriptor.size.width,
+                fog_image.texture_descriptor.size.height
+            ).map_err(|e| format!("Failed to calculate fog texture size: {}", e))?;
+            
+            fog_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
         if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
-            // 安全的快照纹理大小计算（包含4字节RGBA），防止整数溢出
-            // Safe snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
-            let size = (snapshot_image.texture_descriptor.size.width as u64)
-                .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
-                .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
-                .and_then(|v| usize::try_from(v).ok())
-                .expect("Snapshot texture size too large, would cause integer overflow");
-            snapshot_image.data = Some(vec![0u8; size]);
+            // 使用统一的纹理大小计算器（RGBA）
+            // Use unified texture size calculator (RGBA)
+            let size_info = TextureSizeCalculator::calculate_2d_rgba(
+                snapshot_image.texture_descriptor.size.width,
+                snapshot_image.texture_descriptor.size.height
+            ).map_err(|e| format!("Failed to calculate snapshot texture size: {}", e))?;
+            
+            snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
     }
+    Ok(())
 }
 
 /// 重置主纹理数据
@@ -920,46 +948,49 @@ fn reset_main_textures(
     fog_texture: &Res<FogTextureArray>,
     visibility_texture: &Res<VisibilityTextureArray>,
     snapshot_texture: &Res<SnapshotTextureArray>,
-) {
+) -> Result<(), String> {
     // Reset fog texture
     if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
-        // 安全的主雾效纹理大小计算，防止整数溢出
-        // Safe main fog texture size calculation to prevent integer overflow
-        let size = (fog_image.texture_descriptor.size.width as u64)
-            .checked_mul(fog_image.texture_descriptor.size.height as u64)
-            .and_then(|v| v.checked_mul(fog_image.texture_descriptor.size.depth_or_array_layers as u64))
-            .and_then(|v| usize::try_from(v).ok())
-            .expect("Main fog texture size too large, would cause integer overflow");
-        fog_image.data = Some(vec![0u8; size]);
-        info!("Reset fog texture data: {} bytes", size);
+        // 使用统一的纹理大小计算器（3D单通道）
+        // Use unified texture size calculator (3D single channel)
+        let size_info = TextureSizeCalculator::calculate_3d_single_channel(
+            fog_image.texture_descriptor.size.width,
+            fog_image.texture_descriptor.size.height,
+            fog_image.texture_descriptor.size.depth_or_array_layers
+        ).map_err(|e| format!("Failed to calculate main fog texture size: {}", e))?;
+        
+        fog_image.data = Some(vec![0u8; size_info.total_bytes]);
+        info!("Reset fog texture data: {} bytes", size_info.total_bytes);
     }
 
     // Reset visibility texture
     if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
-        // 安全的主可见性纹理大小计算，防止整数溢出
-        // Safe main visibility texture size calculation to prevent integer overflow
-        let size = (visibility_image.texture_descriptor.size.width as u64)
-            .checked_mul(visibility_image.texture_descriptor.size.height as u64)
-            .and_then(|v| v.checked_mul(visibility_image.texture_descriptor.size.depth_or_array_layers as u64))
-            .and_then(|v| usize::try_from(v).ok())
-            .expect("Main visibility texture size too large, would cause integer overflow");
-        visibility_image.data = Some(vec![0u8; size]);
-        info!("Reset visibility texture data: {} bytes", size);
+        // 使用统一的纹理大小计算器（3D单通道）
+        // Use unified texture size calculator (3D single channel)
+        let size_info = TextureSizeCalculator::calculate_3d_single_channel(
+            visibility_image.texture_descriptor.size.width,
+            visibility_image.texture_descriptor.size.height,
+            visibility_image.texture_descriptor.size.depth_or_array_layers
+        ).map_err(|e| format!("Failed to calculate main visibility texture size: {}", e))?;
+        
+        visibility_image.data = Some(vec![0u8; size_info.total_bytes]);
+        info!("Reset visibility texture data: {} bytes", size_info.total_bytes);
     }
 
     // Reset snapshot texture
     if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
-        // 安全的主快照纹理大小计算（包含4字节RGBA），防止整数溢出
-        // Safe main snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
-        let size = (snapshot_image.texture_descriptor.size.width as u64)
-            .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
-            .and_then(|v| v.checked_mul(snapshot_image.texture_descriptor.size.depth_or_array_layers as u64))
-            .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
-            .and_then(|v| usize::try_from(v).ok())
-            .expect("Main snapshot texture size too large, would cause integer overflow");
-        snapshot_image.data = Some(vec![0u8; size]);
-        info!("Reset snapshot texture data: {} bytes", size);
+        // 使用统一的纹理大小计算器（3D RGBA）
+        // Use unified texture size calculator (3D RGBA)
+        let size_info = TextureSizeCalculator::calculate_3d_rgba(
+            snapshot_image.texture_descriptor.size.width,
+            snapshot_image.texture_descriptor.size.height,
+            snapshot_image.texture_descriptor.size.depth_or_array_layers
+        ).map_err(|e| format!("Failed to calculate main snapshot texture size: {}", e))?;
+        
+        snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
+        info!("Reset snapshot texture data: {} bytes", size_info.total_bytes);
     }
+    Ok(())
 }
 
 /// 清理区块实体
@@ -967,8 +998,15 @@ fn reset_main_textures(
 fn cleanup_chunk_entities(
     chunk_manager: &mut ResMut<ChunkEntityManager>,
     commands: &mut Commands,
-) {
+) -> Result<(), String> {
     let entity_count = chunk_manager.map.len();
+    
+    // 验证实体数量
+    // Validate entity count
+    if entity_count > 1000 {
+        return Err(format!("Too many entities to cleanup: {}", entity_count));
+    }
+    
     for (_coords, entity) in chunk_manager.map.iter() {
         commands.entity(*entity).despawn();
     }
@@ -978,6 +1016,7 @@ fn cleanup_chunk_entities(
     chunk_manager.map.clear();
     
     info!("Despawned {} chunk entities", entity_count);
+    Ok(())
 }
 
 /// 回滚重置操作到检查点状态
@@ -985,7 +1024,22 @@ fn cleanup_chunk_entities(
 fn rollback_reset_to_checkpoint(
     cache: &mut ResMut<ChunkStateCache>,
     checkpoint: &ResetCheckpoint,
-) -> Result<(), String> {
+) -> Result<(), FogResetError> {
+    // 验证检查点数据
+    // Validate checkpoint data
+    if checkpoint.explored_chunks.len() > 10000 ||
+       checkpoint.visible_chunks.len() > 10000 ||
+       checkpoint.gpu_resident_chunks.len() > 10000 ||
+       checkpoint.camera_view_chunks.len() > 10000 {
+        return Err(FogResetError::RollbackFailed(format!(
+            "Checkpoint data too large: explored={}, visible={}, gpu={}, camera={}",
+            checkpoint.explored_chunks.len(),
+            checkpoint.visible_chunks.len(),
+            checkpoint.gpu_resident_chunks.len(),
+            checkpoint.camera_view_chunks.len()
+        )));
+    }
+    
     // 恢复区块缓存状态
     // Restore chunk cache state
     cache.explored_chunks = checkpoint.explored_chunks.clone();
@@ -1021,7 +1075,7 @@ fn monitor_reset_sync_system(
             // Check for timeout
             if reset_sync.is_timeout(current_time) {
                 error!("Reset timeout waiting for render world processing");
-                reset_sync.mark_failed("Timeout waiting for render world processing".to_string());
+                reset_sync.mark_failed(FogResetError::Timeout("Timeout waiting for render world processing".to_string()));
             }
         }
         ResetSyncState::RenderWorldProcessing => {
@@ -1029,7 +1083,7 @@ fn monitor_reset_sync_system(
             // Check for timeout
             if reset_sync.is_timeout(current_time) {
                 error!("Reset timeout during render world processing");
-                reset_sync.mark_failed("Timeout during render world processing".to_string());
+                reset_sync.mark_failed(FogResetError::Timeout("Timeout during render world processing".to_string()));
             }
         }
         ResetSyncState::Complete => {

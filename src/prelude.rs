@@ -1,6 +1,7 @@
 pub use crate::data_transfer::{
     ChunkCpuDataUploadedEvent, ChunkGpuDataReadyEvent, CpuToGpuCopyRequest, CpuToGpuCopyRequests,
-    FogResetSync, GpuToCpuCopyRequest, GpuToCpuCopyRequests, ResetCheckpoint, ResetFogOfWarEvent, ResetSyncState,
+    FogResetError, FogResetSync, GpuToCpuCopyRequest, GpuToCpuCopyRequests, ResetCheckpoint, ResetFogOfWarEvent, ResetSyncState,
+    TextureSizeCalculator, TextureSizeInfo,
 };
 pub use crate::managers::*;
 pub use crate::settings::*;

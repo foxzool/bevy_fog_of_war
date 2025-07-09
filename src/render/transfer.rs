@@ -516,17 +516,17 @@ pub fn check_and_clear_textures_on_reset(
     // Get GPU images with error handling
     let Some(fog_gpu_image) = gpu_images.get(&fog_texture.0) else {
         error!("Failed to get fog GPU image during reset");
-        reset_sync.mark_failed("Failed to get fog GPU image during reset".to_string());
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get fog GPU image during reset".to_string()));
         return;
     };
     let Some(visibility_gpu_image) = gpu_images.get(&visibility_texture.0) else {
         error!("Failed to get visibility GPU image during reset");
-        reset_sync.mark_failed("Failed to get visibility GPU image during reset".to_string());
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get visibility GPU image during reset".to_string()));
         return;
     };
     let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture.0) else {
         error!("Failed to get snapshot GPU image during reset");
-        reset_sync.mark_failed("Failed to get snapshot GPU image during reset".to_string());
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get snapshot GPU image during reset".to_string()));
         return;
     };
 
