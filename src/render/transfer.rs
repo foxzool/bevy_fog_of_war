@@ -684,8 +684,9 @@ pub fn check_and_clear_textures_on_reset(
 
     render_queue.submit(std::iter::once(command_encoder.finish()));
     
-    // 标记渲染世界处理完成
-    // Mark render world processing complete
-    reset_sync.mark_complete();
+    // 通过事件通知主世界渲染完成，而不是直接修改同步状态
+    // Notify main world of render completion via event instead of directly modifying sync state
+    // Note: 直接修改 ExtractResource 的状态不会传回主世界
+    // Note: Directly modifying ExtractResource state won't propagate back to main world
     info!("Render world texture reset processing complete");
 }

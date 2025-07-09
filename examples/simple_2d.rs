@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
-    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, VisionSource,
+    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailedEvent, FogResetSuccessEvent, VisionSource,
 };
 
 fn main() {
@@ -16,7 +16,7 @@ fn main() {
         }))
         .add_plugins(FogOfWarPlugin)
         .add_systems(Startup, setup)
-        .add_systems(Update, (draw_gizmos, camera_movement))
+        .add_systems(Update, (draw_gizmos, camera_movement, handle_fog_reset_events))
         .run();
 }
 
@@ -132,5 +132,22 @@ fn camera_movement(
             direction = direction.normalize();
             camera_transform.translation += direction * speed * time.delta_secs();
         }
+    }
+}
+
+/// 监听雾效重置事件的系统
+/// System that listens to fog reset events
+fn handle_fog_reset_events(
+    mut success_events: EventReader<FogResetSuccessEvent>,
+    mut failure_events: EventReader<FogResetFailedEvent>,
+) {
+    for event in success_events.read() {
+        info!("✅ Fog reset completed successfully! Duration: {}ms, Chunks reset: {}", 
+              event.duration_ms, event.chunks_reset);
+    }
+    
+    for event in failure_events.read() {
+        error!("❌ Fog reset failed! Duration: {}ms, Error: {}", 
+               event.duration_ms, event.error);
     }
 }

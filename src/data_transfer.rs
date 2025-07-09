@@ -264,6 +264,31 @@ impl TextureSizeCalculator {
 #[derive(Event, Debug, Default)]
 pub struct ResetFogOfWarEvent;
 
+/// 事件：雾效重置成功完成
+/// Event: Fog of war reset completed successfully
+#[derive(Event, Debug, Default)]
+pub struct FogResetSuccessEvent {
+    /// 重置持续时间（毫秒）
+    /// Reset duration in milliseconds
+    pub duration_ms: u64,
+    /// 重置的区块数量
+    /// Number of chunks that were reset
+    pub chunks_reset: usize,
+}
+
+/// 事件：雾效重置失败
+/// Event: Fog of war reset failed
+#[derive(Event, Debug)]
+pub struct FogResetFailedEvent {
+    /// 失败原因
+    /// Failure reason
+    pub error: FogResetError,
+    /// 重置持续时间（毫秒）
+    /// Reset duration in milliseconds
+    pub duration_ms: u64,
+}
+
+
 /// 重置同步状态
 /// Reset synchronization state
 #[derive(Debug, Clone, PartialEq)]
@@ -301,6 +326,9 @@ pub struct FogResetSync {
     /// 重置前的检查点数据
     /// Checkpoint data before reset
     pub checkpoint: Option<ResetCheckpoint>,
+    /// 重置时的区块数量（用于统计）
+    /// Number of chunks during reset (for statistics)
+    pub chunks_count: usize,
 }
 
 /// 重置检查点，用于回滚
@@ -331,6 +359,7 @@ impl Default for FogResetSync {
             start_time: None,
             timeout_ms: 15000, // 15秒超时 / 15 second timeout
             checkpoint: None,
+            chunks_count: 0,
         }
     }
 }
@@ -387,6 +416,7 @@ impl FogResetSync {
         self.state = ResetSyncState::Idle;
         self.start_time = None;
         self.checkpoint = None;
+        self.chunks_count = 0;
     }
     
     /// 检查是否有可用的检查点进行回滚

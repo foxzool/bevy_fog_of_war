@@ -47,6 +47,7 @@ fn main() {
                 movable_vision_control,
                 debug_draw_chunks,
                 horizontal_movement_system,
+                handle_fog_reset_events,
                 rotate_entities_system,
                 handle_reset_input,
             ),
@@ -445,7 +446,7 @@ fn setup_ui(mut commands: Commands) {
     // 创建颜色动画标题文本
     // Create color animated title text
     commands.spawn((
-        Text::new("Fog of War System"),
+        Text::new("Fog of War"),
         TextFont {
             font_size: 32.0,
             ..default()
@@ -614,6 +615,23 @@ fn horizontal_movement_system(
 fn rotate_entities_system(time: Res<Time>, mut query: Query<&mut Transform, With<RotationAble>>) {
     for mut transform in query.iter_mut() {
         transform.rotate_z(std::f32::consts::FRAC_PI_2 * time.delta_secs()); // 90 degrees per second / 每秒旋转90度
+    }
+}
+
+/// 监听雾效重置事件的系统
+/// System that listens to fog reset events
+fn handle_fog_reset_events(
+    mut success_events: EventReader<FogResetSuccessEvent>,
+    mut failure_events: EventReader<FogResetFailedEvent>,
+) {
+    for event in success_events.read() {
+        info!("✅ Fog reset completed successfully! Duration: {}ms, Chunks reset: {}",
+              event.duration_ms, event.chunks_reset);
+    }
+
+    for event in failure_events.read() {
+        error!("❌ Fog reset failed! Duration: {}ms, Error: {}",
+               event.duration_ms, event.error);
     }
 }
 

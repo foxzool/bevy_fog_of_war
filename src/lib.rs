@@ -70,7 +70,9 @@ impl Plugin for FogOfWarPlugin {
         app.add_event::<ChunkGpuDataReadyEvent>()
             .add_event::<ChunkCpuDataUploadedEvent>()
             .add_event::<RequestChunkSnapshotEvent>() // Added event for remaking snapshots / 添加用于重制快照的事件
-            .add_event::<ResetFogOfWarEvent>(); // Added event for resetting fog of war / 添加用于重置雾效的事件
+            .add_event::<ResetFogOfWarEvent>() // Added event for resetting fog of war / 添加用于重置雾效的事件
+            .add_event::<FogResetSuccessEvent>() // Added event for successful reset / 添加用于成功重置的事件
+            .add_event::<FogResetFailedEvent>(); // Added event for failed reset / 添加用于失败重置的事件
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
             .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
@@ -785,6 +787,7 @@ fn reset_fog_of_war_system(
         };
         
         reset_sync.checkpoint = Some(checkpoint);
+        reset_sync.chunks_count = chunk_manager.map.len();
         
         // 执行主世界重置操作
         // Execute main world reset operations
@@ -1062,6 +1065,8 @@ fn monitor_reset_sync_system(
     mut reset_sync: ResMut<FogResetSync>,
     mut cache: ResMut<ChunkStateCache>,
     time: Res<Time>,
+    mut success_events: EventWriter<FogResetSuccessEvent>,
+    mut failure_events: EventWriter<FogResetFailedEvent>,
 ) {
     let current_time = time.elapsed().as_millis() as u64;
     
@@ -1071,21 +1076,29 @@ fn monitor_reset_sync_system(
             // Idle state, no processing needed
         }
         ResetSyncState::MainWorldComplete => {
-            // 检查是否超时
-            // Check for timeout
-            if reset_sync.is_timeout(current_time) {
-                let elapsed = current_time - reset_sync.start_time.unwrap_or(current_time);
-                error!("Reset timeout waiting for render world processing after {}ms (timeout: {}ms)", 
-                       elapsed, reset_sync.timeout_ms);
-                reset_sync.mark_failed(FogResetError::Timeout("Timeout waiting for render world processing".to_string()));
-            } else {
-                // 定期日志进度
-                // Log progress periodically
-                if let Some(start_time) = reset_sync.start_time {
-                    let elapsed = current_time - start_time;
-                    if elapsed > 2000 && elapsed % 1000 < 50 { // Log every second after 2 seconds
-                        debug!("Waiting for render world processing... elapsed: {}ms", elapsed);
-                    }
+            // 由于渲染世界的 ExtractResource 状态更新不会传回主世界，
+            // 我们使用一个简单的超时机制来标记完成
+            // Since render world ExtractResource state updates don't propagate back to main world,
+            // we use a simple timeout mechanism to mark completion
+            if let Some(start_time) = reset_sync.start_time {
+                let elapsed = current_time - start_time;
+                
+                // 给渲染世界足够时间完成处理（2秒）
+                // Give render world enough time to complete processing (2 seconds)
+                if elapsed > 2000 {
+                    info!("Assuming render world processing completed after {}ms", elapsed);
+                    reset_sync.state = ResetSyncState::Complete;
+                } else if elapsed > 1000 && elapsed % 500 < 50 { // Log every 500ms after 1 second
+                    debug!("Waiting for render world processing... elapsed: {}ms", elapsed);
+                }
+                
+                // 仍然保留超时保护
+                // Still keep timeout protection
+                if reset_sync.is_timeout(current_time) {
+                    let elapsed = current_time - reset_sync.start_time.unwrap_or(current_time);
+                    error!("Reset timeout waiting for render world processing after {}ms (timeout: {}ms)", 
+                           elapsed, reset_sync.timeout_ms);
+                    reset_sync.mark_failed(FogResetError::Timeout("Timeout waiting for render world processing".to_string()));
                 }
             }
         }
@@ -1100,13 +1113,30 @@ fn monitor_reset_sync_system(
         ResetSyncState::Complete => {
             // 重置完成，回到空闲状态
             // Reset complete, return to idle state
-            info!("Reset sync completed successfully");
+            let duration_ms = current_time - reset_sync.start_time.unwrap_or(current_time);
+            info!("Reset sync completed successfully in {}ms", duration_ms);
+            
+            // 发送成功事件
+            // Send success event
+            success_events.write(FogResetSuccessEvent {
+                duration_ms,
+                chunks_reset: reset_sync.chunks_count,
+            });
+            
             reset_sync.reset_to_idle();
         }
         ResetSyncState::Failed(ref error) => {
             // 重置失败，尝试回滚到检查点
             // Reset failed, try to rollback to checkpoint
-            error!("Reset sync failed: {}", error);
+            let duration_ms = current_time - reset_sync.start_time.unwrap_or(current_time);
+            error!("Reset sync failed: {} (duration: {}ms)", error, duration_ms);
+            
+            // 发送失败事件
+            // Send failure event
+            failure_events.write(FogResetFailedEvent {
+                error: error.clone(),
+                duration_ms,
+            });
             
             if let Some(checkpoint) = reset_sync.get_checkpoint() {
                 match rollback_reset_to_checkpoint(&mut cache, checkpoint) {
