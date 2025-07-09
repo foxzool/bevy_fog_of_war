@@ -488,6 +488,7 @@ pub(crate) fn check_cpu_to_gpu_request(
 
 /// 检查并清空纹理（在渲染世界中重置时）
 /// Check and clear textures (when resetting in render world)
+#[allow(clippy::too_many_arguments)]
 pub fn check_and_clear_textures_on_reset(
     mut reset_sync: ResMut<FogResetSync>,
     render_device: Res<RenderDevice>,

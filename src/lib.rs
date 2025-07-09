@@ -425,14 +425,13 @@ fn manage_chunk_entities(
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
 
-            if let Ok(chunk) = chunk_q.get_mut(*entity) {
-                if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
+            if let Ok(chunk) = chunk_q.get_mut(*entity)
+                && chunk.state.memory_location == ChunkMemoryLocation::Cpu {
                     // Mark for transition to GPU
                     // 标记以转换到 GPU
                     chunks_to_make_gpu.insert(coords);
                     // Actual data upload handled in manage_chunk_memory_logic or RenderApp
                     // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
-                }
                 // Ensure it's marked as GPU resident in cache (will be done in memory logic)
                 // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
             }
@@ -747,6 +746,7 @@ pub fn manage_chunk_texture_transfer(
 /// Reset all fog of war system state, including explored areas, visibility states, and texture data.
 /// 重构为4个参数以减少耦合。
 /// Refactored to 4 parameters to reduce coupling.
+#[allow(clippy::too_many_arguments)]
 fn reset_fog_of_war_system(
     mut events: EventReader<ResetFogOfWarEvent>,
     mut cache: ResMut<ChunkStateCache>,
@@ -829,6 +829,7 @@ fn reset_fog_of_war_system(
 
 /// 执行主世界重置操作，返回详细错误信息
 /// Execute main world reset operations, returns detailed error information
+#[allow(clippy::too_many_arguments)]
 fn execute_main_world_reset(
     cache: &mut ResMut<ChunkStateCache>,
     chunk_q: &mut Query<&mut FogChunk>,
@@ -872,8 +873,7 @@ fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) -> Result<(), String> 
     // 验证缓存状态
     // Validate cache state
     if explored_count > 10000 || visible_count > 10000 || gpu_count > 10000 {
-        return Err(format!("Cache sizes too large: explored={}, visible={}, gpu={}", 
-                          explored_count, visible_count, gpu_count));
+        return Err(format!("Cache sizes too large: explored={explored_count}, visible={visible_count}, gpu={gpu_count}"));
     }
     
     cache.reset_all();
@@ -893,7 +893,7 @@ fn reset_chunk_states(
     // 验证区块数量
     // Validate chunk count
     if chunk_count > 1000 {
-        return Err(format!("Too many chunks to reset: {}", chunk_count));
+        return Err(format!("Too many chunks to reset: {chunk_count}"));
     }
     
     for mut chunk in chunk_q.iter_mut() {
@@ -923,7 +923,7 @@ fn reset_chunk_images(
             let size_info = TextureSizeCalculator::calculate_2d_single_channel(
                 fog_image.texture_descriptor.size.width,
                 fog_image.texture_descriptor.size.height
-            ).map_err(|e| format!("Failed to calculate fog texture size: {}", e))?;
+            ).map_err(|e| format!("Failed to calculate fog texture size: {e}"))?;
             
             fog_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
@@ -933,7 +933,7 @@ fn reset_chunk_images(
             let size_info = TextureSizeCalculator::calculate_2d_rgba(
                 snapshot_image.texture_descriptor.size.width,
                 snapshot_image.texture_descriptor.size.height
-            ).map_err(|e| format!("Failed to calculate snapshot texture size: {}", e))?;
+            ).map_err(|e| format!("Failed to calculate snapshot texture size: {e}"))?;
             
             snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
@@ -957,7 +957,7 @@ fn reset_main_textures(
             fog_image.texture_descriptor.size.width,
             fog_image.texture_descriptor.size.height,
             fog_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main fog texture size: {}", e))?;
+        ).map_err(|e| format!("Failed to calculate main fog texture size: {e}"))?;
         
         fog_image.data = Some(vec![0u8; size_info.total_bytes]);
         info!("Reset fog texture data: {} bytes", size_info.total_bytes);
@@ -971,7 +971,7 @@ fn reset_main_textures(
             visibility_image.texture_descriptor.size.width,
             visibility_image.texture_descriptor.size.height,
             visibility_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main visibility texture size: {}", e))?;
+        ).map_err(|e| format!("Failed to calculate main visibility texture size: {e}"))?;
         
         visibility_image.data = Some(vec![0u8; size_info.total_bytes]);
         info!("Reset visibility texture data: {} bytes", size_info.total_bytes);
@@ -985,7 +985,7 @@ fn reset_main_textures(
             snapshot_image.texture_descriptor.size.width,
             snapshot_image.texture_descriptor.size.height,
             snapshot_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main snapshot texture size: {}", e))?;
+        ).map_err(|e| format!("Failed to calculate main snapshot texture size: {e}"))?;
         
         snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
         info!("Reset snapshot texture data: {} bytes", size_info.total_bytes);
@@ -1004,7 +1004,7 @@ fn cleanup_chunk_entities(
     // 验证实体数量
     // Validate entity count
     if entity_count > 1000 {
-        return Err(format!("Too many entities to cleanup: {}", entity_count));
+        return Err(format!("Too many entities to cleanup: {entity_count}"));
     }
     
     for (_coords, entity) in chunk_manager.map.iter() {

@@ -92,15 +92,15 @@ pub enum FogResetError {
 impl std::fmt::Display for FogResetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FogResetError::CacheResetFailed(msg) => write!(f, "Cache reset failed: {}", msg),
-            FogResetError::ChunkStateResetFailed(msg) => write!(f, "Chunk state reset failed: {}", msg),
-            FogResetError::ImageResetFailed(msg) => write!(f, "Image reset failed: {}", msg),
-            FogResetError::TextureResetFailed(msg) => write!(f, "Texture reset failed: {}", msg),
-            FogResetError::EntityCleanupFailed(msg) => write!(f, "Entity cleanup failed: {}", msg),
-            FogResetError::RenderWorldFailed(msg) => write!(f, "Render world processing failed: {}", msg),
-            FogResetError::RollbackFailed(msg) => write!(f, "Rollback failed: {}", msg),
-            FogResetError::Timeout(msg) => write!(f, "Timeout: {}", msg),
-            FogResetError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+            FogResetError::CacheResetFailed(msg) => write!(f, "Cache reset failed: {msg}"),
+            FogResetError::ChunkStateResetFailed(msg) => write!(f, "Chunk state reset failed: {msg}"),
+            FogResetError::ImageResetFailed(msg) => write!(f, "Image reset failed: {msg}"),
+            FogResetError::TextureResetFailed(msg) => write!(f, "Texture reset failed: {msg}"),
+            FogResetError::EntityCleanupFailed(msg) => write!(f, "Entity cleanup failed: {msg}"),
+            FogResetError::RenderWorldFailed(msg) => write!(f, "Render world processing failed: {msg}"),
+            FogResetError::RollbackFailed(msg) => write!(f, "Rollback failed: {msg}"),
+            FogResetError::Timeout(msg) => write!(f, "Timeout: {msg}"),
+            FogResetError::Unknown(msg) => write!(f, "Unknown error: {msg}"),
         }
     }
 }
@@ -139,17 +139,17 @@ impl TextureSizeCalculator {
         
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {}", width)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
         
         let total_bytes = bytes_per_row
             .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {}x{}", width, height)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {width}x{height}")))?;
         
         let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {}", total_bytes)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
         
         let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {}", bytes_per_row)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
         
         // 对齐计算需要RenderDevice，这里先返回未对齐的值
         // Alignment calculation requires RenderDevice, return unaligned value for now
@@ -170,17 +170,17 @@ impl TextureSizeCalculator {
         
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {}", width)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
         
         let total_bytes = bytes_per_row
             .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {}x{}", width, height)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {width}x{height}")))?;
         
         let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {}", total_bytes)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
         
         let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {}", bytes_per_row)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
         
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,
@@ -199,21 +199,21 @@ impl TextureSizeCalculator {
         
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {}", width)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
         
         let bytes_per_slice = bytes_per_row
             .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {}x{}", width, height)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {width}x{height}")))?;
         
         let total_bytes = bytes_per_slice
             .checked_mul(depth_or_layers as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {}x{}x{}", width, height, depth_or_layers)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {width}x{height}x{depth_or_layers}")))?;
         
         let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {}", total_bytes)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
         
         let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {}", bytes_per_row)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
         
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,
@@ -232,21 +232,21 @@ impl TextureSizeCalculator {
         
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {}", width)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
         
         let bytes_per_slice = bytes_per_row
             .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {}x{}", width, height)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {width}x{height}")))?;
         
         let total_bytes = bytes_per_slice
             .checked_mul(depth_or_layers as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {}x{}x{}", width, height, depth_or_layers)))?;
+            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {width}x{height}x{depth_or_layers}")))?;
         
         let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {}", total_bytes)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
         
         let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {}", bytes_per_row)))?;
+            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
         
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,

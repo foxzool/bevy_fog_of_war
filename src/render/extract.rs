@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::prelude::*;
 use bevy::render::Extract;
 use bevy::render::render_resource::ShaderType;
