@@ -497,21 +497,52 @@ pub fn check_and_clear_textures_on_reset(
         label: Some("fog_reset_clear_textures"),
     });
 
-    // Clear fog texture (set to 0 = unexplored)
+    // Pre-calculate buffer sizes and create reusable buffers to reduce memory usage
+    // 预先计算缓冲区大小并创建可重用缓冲区以减少内存使用
+    let fog_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+    let fog_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
+    let fog_buffer_size = fog_padded_bytes_per_row * texture_height as usize;
+    let fog_clear_data = vec![0u8; fog_buffer_size]; // 0 = unexplored
+
+    let vis_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+    let vis_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
+    let vis_buffer_size = vis_padded_bytes_per_row * texture_height as usize;
+    let vis_clear_data = vec![0u8; vis_buffer_size]; // 0 = not visible
+
+    let snap_bytes_per_row = texture_width * TextureFormat::Rgba8Unorm.pixel_size() as u32; // RGBA already included in pixel_size
+    let snap_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
+    let snap_buffer_size = snap_padded_bytes_per_row * texture_height as usize;
+    let snap_clear_data = vec![0u8; snap_buffer_size]; // Clear to black
+
+    // Create reusable buffers once instead of creating new ones for each layer
+    // 创建可重用缓冲区一次，而不是为每个层创建新的缓冲区
+    let fog_buffer = render_device.create_buffer_with_data(
+        &bevy::render::render_resource::BufferInitDescriptor {
+            label: Some("fog_reset_clear_buffer"),
+            contents: &fog_clear_data,
+            usage: BufferUsages::COPY_SRC,
+        },
+    );
+
+    let vis_buffer = render_device.create_buffer_with_data(
+        &bevy::render::render_resource::BufferInitDescriptor {
+            label: Some("visibility_reset_clear_buffer"),
+            contents: &vis_clear_data,
+            usage: BufferUsages::COPY_SRC,
+        },
+    );
+
+    let snap_buffer = render_device.create_buffer_with_data(
+        &bevy::render::render_resource::BufferInitDescriptor {
+            label: Some("snapshot_reset_clear_buffer"),
+            contents: &snap_clear_data,
+            usage: BufferUsages::COPY_SRC,
+        },
+    );
+
+    // Clear fog texture (set to 0 = unexplored) - reuse fog_buffer for all layers
+    // 清除雾效纹理（设置为0=未探索）- 对所有层重用fog_buffer
     for layer in 0..num_layers {
-        let fog_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
-        let fog_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
-        let fog_buffer_size = fog_padded_bytes_per_row * texture_height as usize;
-        let fog_clear_data = vec![0u8; fog_buffer_size]; // 0 = unexplored
-
-        let fog_buffer = render_device.create_buffer_with_data(
-            &bevy::render::render_resource::BufferInitDescriptor {
-                label: Some("fog_reset_clear_buffer"),
-                contents: &fog_clear_data,
-                usage: BufferUsages::COPY_SRC,
-            },
-        );
-
         command_encoder.copy_buffer_to_texture(
             TexelCopyBufferInfo {
                 buffer: &fog_buffer,
@@ -535,21 +566,9 @@ pub fn check_and_clear_textures_on_reset(
         );
     }
 
-    // Clear visibility texture (set to 0 = not visible)
+    // Clear visibility texture (set to 0 = not visible) - reuse vis_buffer for all layers
+    // 清除可见性纹理（设置为0=不可见）- 对所有层重用vis_buffer
     for layer in 0..num_layers {
-        let vis_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
-        let vis_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
-        let vis_buffer_size = vis_padded_bytes_per_row * texture_height as usize;
-        let vis_clear_data = vec![0u8; vis_buffer_size]; // 0 = not visible
-
-        let vis_buffer = render_device.create_buffer_with_data(
-            &bevy::render::render_resource::BufferInitDescriptor {
-                label: Some("visibility_reset_clear_buffer"),
-                contents: &vis_clear_data,
-                usage: BufferUsages::COPY_SRC,
-            },
-        );
-
         command_encoder.copy_buffer_to_texture(
             TexelCopyBufferInfo {
                 buffer: &vis_buffer,
@@ -573,21 +592,9 @@ pub fn check_and_clear_textures_on_reset(
         );
     }
 
-    // Clear snapshot texture (set to 0)
+    // Clear snapshot texture (set to 0) - reuse snap_buffer for all layers
+    // 清除快照纹理（设置为0）- 对所有层重用snap_buffer
     for layer in 0..num_layers {
-        let snap_bytes_per_row = texture_width * TextureFormat::Rgba8Unorm.pixel_size() as u32; // RGBA already included in pixel_size
-        let snap_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
-        let snap_buffer_size = snap_padded_bytes_per_row * texture_height as usize;
-        let snap_clear_data = vec![0u8; snap_buffer_size]; // Clear to black
-
-        let snap_buffer = render_device.create_buffer_with_data(
-            &bevy::render::render_resource::BufferInitDescriptor {
-                label: Some("snapshot_reset_clear_buffer"),
-                contents: &snap_clear_data,
-                usage: BufferUsages::COPY_SRC,
-            },
-        );
-
         command_encoder.copy_buffer_to_texture(
             TexelCopyBufferInfo {
                 buffer: &snap_buffer,
