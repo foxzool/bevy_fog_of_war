@@ -745,6 +745,8 @@ pub fn manage_chunk_texture_transfer(
 
 /// 重置雾效系统的所有状态，包括已探索区域、可见性状态和纹理数据。
 /// Reset all fog of war system state, including explored areas, visibility states, and texture data.
+/// 重构为4个参数以减少耦合。
+/// Refactored to 4 parameters to reduce coupling.
 fn reset_fog_of_war_system(
     mut events: EventReader<ResetFogOfWarEvent>,
     mut cache: ResMut<ChunkStateCache>,
@@ -762,110 +764,147 @@ fn reset_fog_of_war_system(
 ) {
     for _event in events.read() {
         info!("Resetting fog of war system...");
-
-        // 1. Reset the cache completely, including explored chunks
-        // 1. 完全重置缓存，包括已探索区块
-        let explored_count = cache.explored_chunks.len();
-        let visible_count = cache.visible_chunks.len();
-        let gpu_count = cache.gpu_resident_chunks.len();
-        cache.reset_all();
-        info!("Reset cache: {} explored, {} visible, {} gpu chunks cleared", 
-               explored_count, visible_count, gpu_count);
-
-        // 2. Reset all chunk visibility states to Unexplored and set memory location to Cpu
-        // 2. 将所有区块的可见性状态重置为未探索，并将内存位置设为 CPU
-        let chunk_count = chunk_q.iter().count();
-        for mut chunk in chunk_q.iter_mut() {
-            chunk.state.visibility = ChunkVisibility::Unexplored;
-            chunk.state.memory_location = ChunkMemoryLocation::Cpu;
-            chunk.fog_layer_index = None;
-            chunk.snapshot_layer_index = None;
-        }
-        info!("Reset {} chunk states to Unexplored/Cpu", chunk_count);
-
-        // 3. Clear all texture layer allocations
-        // 3. 清除所有纹理层分配
-        texture_manager.clear_all_layers();
-
-        // 4. Reset chunk CPU data and force re-upload
-        // 4. 重置区块CPU数据并强制重新上传
         
-        // Clear CPU data for all chunk images to ensure they get reset
-        for (_entity, chunk_image) in chunk_query.iter_mut() {
-            if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
-                // 安全的雾效纹理大小计算，防止整数溢出
-                // Safe fog texture size calculation to prevent integer overflow
-                let size = (fog_image.texture_descriptor.size.width as u64)
-                    .checked_mul(fog_image.texture_descriptor.size.height as u64)
-                    .and_then(|v| usize::try_from(v).ok())
-                    .expect("Fog texture size too large, would cause integer overflow");
-                fog_image.data = Some(vec![0u8; size]);
-            }
-            if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
-                // 安全的快照纹理大小计算（包含4字节RGBA），防止整数溢出
-                // Safe snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
-                let size = (snapshot_image.texture_descriptor.size.width as u64)
-                    .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
-                    .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
-                    .and_then(|v| usize::try_from(v).ok())
-                    .expect("Snapshot texture size too large, would cause integer overflow");
-                snapshot_image.data = Some(vec![0u8; size]);
-            }
-        }
+        // 将复杂的重置逻辑拆分为更小的函数
+        // Break down complex reset logic into smaller functions
+        reset_chunk_cache(&mut cache);
+        reset_chunk_states(&mut chunk_q, &mut texture_manager);
+        reset_chunk_images(&mut chunk_query, &mut images);
+        reset_main_textures(&mut images, &fog_texture, &visibility_texture, &snapshot_texture);
+        cleanup_chunk_entities(&mut chunk_manager, &mut commands);
         
-        // Reset main texture arrays
-        if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
-            // 安全的主雾效纹理大小计算，防止整数溢出
-            // Safe main fog texture size calculation to prevent integer overflow
-            let size = (fog_image.texture_descriptor.size.width as u64)
-                .checked_mul(fog_image.texture_descriptor.size.height as u64)
-                .and_then(|v| v.checked_mul(fog_image.texture_descriptor.size.depth_or_array_layers as u64))
-                .and_then(|v| usize::try_from(v).ok())
-                .expect("Main fog texture size too large, would cause integer overflow");
-            fog_image.data = Some(vec![0u8; size]);
-            info!("Reset fog texture data: {} bytes", size);
-        }
-
-        if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
-            // 安全的主可见性纹理大小计算，防止整数溢出
-            // Safe main visibility texture size calculation to prevent integer overflow
-            let size = (visibility_image.texture_descriptor.size.width as u64)
-                .checked_mul(visibility_image.texture_descriptor.size.height as u64)
-                .and_then(|v| v.checked_mul(visibility_image.texture_descriptor.size.depth_or_array_layers as u64))
-                .and_then(|v| usize::try_from(v).ok())
-                .expect("Main visibility texture size too large, would cause integer overflow");
-            visibility_image.data = Some(vec![0u8; size]);
-            info!("Reset visibility texture data: {} bytes", size);
-        }
-
-        if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
-            // 安全的主快照纹理大小计算（包含4字节RGBA），防止整数溢出
-            // Safe main snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
-            let size = (snapshot_image.texture_descriptor.size.width as u64)
-                .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
-                .and_then(|v| v.checked_mul(snapshot_image.texture_descriptor.size.depth_or_array_layers as u64))
-                .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
-                .and_then(|v| usize::try_from(v).ok())
-                .expect("Main snapshot texture size too large, would cause integer overflow");
-            snapshot_image.data = Some(vec![0u8; size]);
-            info!("Reset snapshot texture data: {} bytes", size);
-        }
-
-        // 5. Despawn all chunk entities as they will be recreated when needed
-        // 5. 销毁所有区块实体，因为它们会在需要时重新创建
-        let entity_count = chunk_manager.map.len();
-        for (_coords, entity) in chunk_manager.map.iter() {
-            commands.entity(*entity).despawn();
-        }
-        
-        // Clear the chunk entity manager mapping
-        // 清除区块实体管理器映射
-        chunk_manager.map.clear();
-
-        info!("Fog of war system reset complete! Despawned {} chunk entities", entity_count);
-        
-        // 6. Mark that render world needs to reset textures
-        // 6. 标记渲染世界需要重置纹理
+        // 标记渲染世界需要重置纹理
+        // Mark that render world needs to reset textures
         reset_pending.0 = true;
+        
+        info!("Fog of war system reset complete!");
     }
 }
+
+/// 重置区块缓存状态
+/// Reset chunk cache state
+fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) {
+    let explored_count = cache.explored_chunks.len();
+    let visible_count = cache.visible_chunks.len();
+    let gpu_count = cache.gpu_resident_chunks.len();
+    cache.reset_all();
+    info!("Reset cache: {} explored, {} visible, {} gpu chunks cleared", 
+           explored_count, visible_count, gpu_count);
+}
+
+/// 重置区块状态
+/// Reset chunk states
+fn reset_chunk_states(
+    chunk_q: &mut Query<&mut FogChunk>,
+    texture_manager: &mut ResMut<TextureArrayManager>,
+) {
+    let chunk_count = chunk_q.iter().count();
+    for mut chunk in chunk_q.iter_mut() {
+        chunk.state.visibility = ChunkVisibility::Unexplored;
+        chunk.state.memory_location = ChunkMemoryLocation::Cpu;
+        chunk.fog_layer_index = None;
+        chunk.snapshot_layer_index = None;
+    }
+    info!("Reset {} chunk states to Unexplored/Cpu", chunk_count);
+    
+    // 清除所有纹理层分配
+    // Clear all texture layer allocations
+    texture_manager.clear_all_layers();
+}
+
+/// 重置区块图像数据
+/// Reset chunk image data
+fn reset_chunk_images(
+    chunk_query: &mut Query<(Entity, &mut FogChunkImage)>,
+    images: &mut ResMut<Assets<Image>>,
+) {
+    for (_entity, chunk_image) in chunk_query.iter_mut() {
+        if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+            // 安全的雾效纹理大小计算，防止整数溢出
+            // Safe fog texture size calculation to prevent integer overflow
+            let size = (fog_image.texture_descriptor.size.width as u64)
+                .checked_mul(fog_image.texture_descriptor.size.height as u64)
+                .and_then(|v| usize::try_from(v).ok())
+                .expect("Fog texture size too large, would cause integer overflow");
+            fog_image.data = Some(vec![0u8; size]);
+        }
+        if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+            // 安全的快照纹理大小计算（包含4字节RGBA），防止整数溢出
+            // Safe snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
+            let size = (snapshot_image.texture_descriptor.size.width as u64)
+                .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
+                .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+                .and_then(|v| usize::try_from(v).ok())
+                .expect("Snapshot texture size too large, would cause integer overflow");
+            snapshot_image.data = Some(vec![0u8; size]);
+        }
+    }
+}
+
+/// 重置主纹理数据
+/// Reset main texture data
+fn reset_main_textures(
+    images: &mut ResMut<Assets<Image>>,
+    fog_texture: &Res<FogTextureArray>,
+    visibility_texture: &Res<VisibilityTextureArray>,
+    snapshot_texture: &Res<SnapshotTextureArray>,
+) {
+    // Reset fog texture
+    if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
+        // 安全的主雾效纹理大小计算，防止整数溢出
+        // Safe main fog texture size calculation to prevent integer overflow
+        let size = (fog_image.texture_descriptor.size.width as u64)
+            .checked_mul(fog_image.texture_descriptor.size.height as u64)
+            .and_then(|v| v.checked_mul(fog_image.texture_descriptor.size.depth_or_array_layers as u64))
+            .and_then(|v| usize::try_from(v).ok())
+            .expect("Main fog texture size too large, would cause integer overflow");
+        fog_image.data = Some(vec![0u8; size]);
+        info!("Reset fog texture data: {} bytes", size);
+    }
+
+    // Reset visibility texture
+    if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
+        // 安全的主可见性纹理大小计算，防止整数溢出
+        // Safe main visibility texture size calculation to prevent integer overflow
+        let size = (visibility_image.texture_descriptor.size.width as u64)
+            .checked_mul(visibility_image.texture_descriptor.size.height as u64)
+            .and_then(|v| v.checked_mul(visibility_image.texture_descriptor.size.depth_or_array_layers as u64))
+            .and_then(|v| usize::try_from(v).ok())
+            .expect("Main visibility texture size too large, would cause integer overflow");
+        visibility_image.data = Some(vec![0u8; size]);
+        info!("Reset visibility texture data: {} bytes", size);
+    }
+
+    // Reset snapshot texture
+    if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
+        // 安全的主快照纹理大小计算（包含4字节RGBA），防止整数溢出
+        // Safe main snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
+        let size = (snapshot_image.texture_descriptor.size.width as u64)
+            .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
+            .and_then(|v| v.checked_mul(snapshot_image.texture_descriptor.size.depth_or_array_layers as u64))
+            .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+            .and_then(|v| usize::try_from(v).ok())
+            .expect("Main snapshot texture size too large, would cause integer overflow");
+        snapshot_image.data = Some(vec![0u8; size]);
+        info!("Reset snapshot texture data: {} bytes", size);
+    }
+}
+
+/// 清理区块实体
+/// Cleanup chunk entities
+fn cleanup_chunk_entities(
+    chunk_manager: &mut ResMut<ChunkEntityManager>,
+    commands: &mut Commands,
+) {
+    let entity_count = chunk_manager.map.len();
+    for (_coords, entity) in chunk_manager.map.iter() {
+        commands.entity(*entity).despawn();
+    }
+    
+    // 清除区块实体管理器映射
+    // Clear the chunk entity manager mapping
+    chunk_manager.map.clear();
+    
+    info!("Despawned {} chunk entities", entity_count);
+}
+
