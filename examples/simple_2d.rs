@@ -89,7 +89,7 @@ fn setup(
                     0.0,
                 ),
             ))
-            .insert_if(Capturable, || i % 2 == 0);
+            .insert_if(Capturable, || i.is_multiple_of(2));
     }
 }
 

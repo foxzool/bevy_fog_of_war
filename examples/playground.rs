@@ -227,7 +227,7 @@ fn setup(
 
         // 为偶数索引的方块添加视野提供者
         // Add vision provider to blocks with even indices
-        if i % 2 == 0 {
+        if i.is_multiple_of(2) {
             entity_commands.insert(Capturable);
         } else {
             entity_commands.insert((
@@ -352,8 +352,7 @@ fn update_fog_settings(
             "Disabled"
         };
         text.0 = format!(
-            "Fog Status: {}\nPress F to toggle\nPress Up/Down to adjust Alpha: {:.0}%",
-            status, alpha_percentage
+            "Fog Status: {status}\nPress F to toggle\nPress Up/Down to adjust Alpha: {alpha_percentage:.0}%"
         );
     }
 }
@@ -471,13 +470,12 @@ fn update_fps_text(
     mut query: Query<&mut TextSpan, With<FpsText>>,
 ) {
     for mut span in &mut query {
-        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-            if let Some(value) = fps.smoothed() {
+        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS)
+            && let Some(value) = fps.smoothed() {
                 // 更新 FPS 文本值
                 // Update FPS text value
                 **span = format!("{value:.1}");
             }
-        }
     }
 }
 
@@ -524,31 +522,29 @@ fn movable_vision_control(
 
         // 处理鼠标点击事件
         // Handle mouse click event
-        if mouse_button_input.just_pressed(MouseButton::Left) {
-            if let Ok(window) = windows.single() {
-                if let Some(cursor_position) = window.cursor_position() {
-                    // 获取摄像机和全局变换
-                    // Get camera and global transform
-                    if let Ok((camera, camera_transform)) = cameras.single() {
-                        // 将屏幕坐标转换为世界坐标
-                        // Convert screen coordinates to world coordinates
-                        if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position)
-                        {
-                            // 处理 2D 平面上的目标点
-                            // Handle target point on 2D plane
-                            // 为简单起见，直接使用原始 x,y 坐标
-                            // For simplicity, directly use original x,y coordinates
-                            let target_pos =
-                                Vec3::new(ray.origin.x, ray.origin.y, transform.translation.z);
+        if mouse_button_input.just_pressed(MouseButton::Left)
+            && let Ok(window) = windows.single()
+            && let Some(cursor_position) = window.cursor_position() {
+                // 获取摄像机和全局变换
+                // Get camera and global transform
+                if let Ok((camera, camera_transform)) = cameras.single() {
+                    // 将屏幕坐标转换为世界坐标
+                    // Convert screen coordinates to world coordinates
+                    if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position)
+                    {
+                        // 处理 2D 平面上的目标点
+                        // Handle target point on 2D plane
+                        // 为简单起见，直接使用原始 x,y 坐标
+                        // For simplicity, directly use original x,y coordinates
+                        let target_pos =
+                            Vec3::new(ray.origin.x, ray.origin.y, transform.translation.z);
 
-                            // 设置移动目标点
-                            // Set movement target point
-                            target_position.0 = Some(target_pos);
-                        }
+                        // 设置移动目标点
+                        // Set movement target point
+                        target_position.0 = Some(target_pos);
                     }
                 }
             }
-        }
 
         // 如果有目标位置，则向目标位置平滑移动
         // If there is a target position, smoothly move towards it
