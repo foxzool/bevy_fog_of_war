@@ -136,11 +136,15 @@ fn setup_fog_resources(
 
     // Fog Texture: R8Unorm (0=visible, 1=unexplored)
     // 雾效纹理: R8Unorm (0=可见, 1=未探索)
-    let fog_initial_data = vec![
-        0u8;
-        (fog_texture_size.width * fog_texture_size.height * fog_texture_size.depth_or_array_layers)
-            as usize
-    ];
+    // 安全的纹理大小计算，防止整数溢出
+    // Safe texture size calculation to prevent integer overflow
+    let fog_data_size = (fog_texture_size.width as u64)
+        .checked_mul(fog_texture_size.height as u64)
+        .and_then(|v| v.checked_mul(fog_texture_size.depth_or_array_layers as u64))
+        .and_then(|v| usize::try_from(v).ok())
+        .expect("Fog texture size too large, would cause integer overflow");
+    
+    let fog_initial_data = vec![0u8; fog_data_size];
     let mut fog_image = Image::new(
         fog_texture_size,
         TextureDimension::D2,
@@ -154,13 +158,15 @@ fn setup_fog_resources(
         | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
     fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
-    let visibility_initial_data = vec![
-        0u8;
-        (visibility_texture_size.width
-            * visibility_texture_size.height
-            * visibility_texture_size.depth_or_array_layers)
-            as usize
-    ];
+    // 安全的可见性纹理大小计算，防止整数溢出
+    // Safe visibility texture size calculation to prevent integer overflow
+    let visibility_data_size = (visibility_texture_size.width as u64)
+        .checked_mul(visibility_texture_size.height as u64)
+        .and_then(|v| v.checked_mul(visibility_texture_size.depth_or_array_layers as u64))
+        .and_then(|v| usize::try_from(v).ok())
+        .expect("Visibility texture size too large, would cause integer overflow");
+    
+    let visibility_initial_data = vec![0u8; visibility_data_size];
     let mut visibility_image = Image::new(
         visibility_texture_size,
         TextureDimension::D2,
@@ -176,13 +182,16 @@ fn setup_fog_resources(
 
     // Snapshot Texture: Rgba8UnormSrgb (Stores last visible scene)
     // 快照纹理: Rgba8UnormSrgb (存储最后可见的场景)
-    let snapshot_initial_data = vec![
-        0u8;
-        (snapshot_texture_size.width
-            * snapshot_texture_size.height
-            * snapshot_texture_size.depth_or_array_layers
-            * 4) as usize
-    ]; // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+    // 安全的快照纹理大小计算（包含4字节RGBA），防止整数溢出
+    // Safe snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
+    let snapshot_data_size = (snapshot_texture_size.width as u64)
+        .checked_mul(snapshot_texture_size.height as u64)
+        .and_then(|v| v.checked_mul(snapshot_texture_size.depth_or_array_layers as u64))
+        .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+        .and_then(|v| usize::try_from(v).ok())
+        .expect("Snapshot texture size too large, would cause integer overflow");
+    
+    let snapshot_initial_data = vec![0u8; snapshot_data_size];
     let mut snapshot_image = Image::new(
         snapshot_texture_size,
         TextureDimension::D2,
@@ -784,38 +793,60 @@ fn reset_fog_of_war_system(
         // Clear CPU data for all chunk images to ensure they get reset
         for (_entity, chunk_image) in chunk_query.iter_mut() {
             if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
-                let size = (fog_image.texture_descriptor.size.width * 
-                           fog_image.texture_descriptor.size.height) as usize;
+                // 安全的雾效纹理大小计算，防止整数溢出
+                // Safe fog texture size calculation to prevent integer overflow
+                let size = (fog_image.texture_descriptor.size.width as u64)
+                    .checked_mul(fog_image.texture_descriptor.size.height as u64)
+                    .and_then(|v| usize::try_from(v).ok())
+                    .expect("Fog texture size too large, would cause integer overflow");
                 fog_image.data = Some(vec![0u8; size]);
             }
             if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
-                let size = (snapshot_image.texture_descriptor.size.width * 
-                           snapshot_image.texture_descriptor.size.height * 4) as usize;
+                // 安全的快照纹理大小计算（包含4字节RGBA），防止整数溢出
+                // Safe snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
+                let size = (snapshot_image.texture_descriptor.size.width as u64)
+                    .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
+                    .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+                    .and_then(|v| usize::try_from(v).ok())
+                    .expect("Snapshot texture size too large, would cause integer overflow");
                 snapshot_image.data = Some(vec![0u8; size]);
             }
         }
         
         // Reset main texture arrays
         if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
-            let size = (fog_image.texture_descriptor.size.width * 
-                       fog_image.texture_descriptor.size.height * 
-                       fog_image.texture_descriptor.size.depth_or_array_layers) as usize;
+            // 安全的主雾效纹理大小计算，防止整数溢出
+            // Safe main fog texture size calculation to prevent integer overflow
+            let size = (fog_image.texture_descriptor.size.width as u64)
+                .checked_mul(fog_image.texture_descriptor.size.height as u64)
+                .and_then(|v| v.checked_mul(fog_image.texture_descriptor.size.depth_or_array_layers as u64))
+                .and_then(|v| usize::try_from(v).ok())
+                .expect("Main fog texture size too large, would cause integer overflow");
             fog_image.data = Some(vec![0u8; size]);
             info!("Reset fog texture data: {} bytes", size);
         }
 
         if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
-            let size = (visibility_image.texture_descriptor.size.width * 
-                       visibility_image.texture_descriptor.size.height * 
-                       visibility_image.texture_descriptor.size.depth_or_array_layers) as usize;
+            // 安全的主可见性纹理大小计算，防止整数溢出
+            // Safe main visibility texture size calculation to prevent integer overflow
+            let size = (visibility_image.texture_descriptor.size.width as u64)
+                .checked_mul(visibility_image.texture_descriptor.size.height as u64)
+                .and_then(|v| v.checked_mul(visibility_image.texture_descriptor.size.depth_or_array_layers as u64))
+                .and_then(|v| usize::try_from(v).ok())
+                .expect("Main visibility texture size too large, would cause integer overflow");
             visibility_image.data = Some(vec![0u8; size]);
             info!("Reset visibility texture data: {} bytes", size);
         }
 
         if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
-            let size = (snapshot_image.texture_descriptor.size.width * 
-                       snapshot_image.texture_descriptor.size.height * 
-                       snapshot_image.texture_descriptor.size.depth_or_array_layers * 4) as usize;
+            // 安全的主快照纹理大小计算（包含4字节RGBA），防止整数溢出
+            // Safe main snapshot texture size calculation (including 4-byte RGBA) to prevent integer overflow
+            let size = (snapshot_image.texture_descriptor.size.width as u64)
+                .checked_mul(snapshot_image.texture_descriptor.size.height as u64)
+                .and_then(|v| v.checked_mul(snapshot_image.texture_descriptor.size.depth_or_array_layers as u64))
+                .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
+                .and_then(|v| usize::try_from(v).ok())
+                .expect("Main snapshot texture size too large, would cause integer overflow");
             snapshot_image.data = Some(vec![0u8; size]);
             info!("Reset snapshot texture data: {} bytes", size);
         }

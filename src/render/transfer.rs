@@ -134,8 +134,14 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             continue;
         }
 
-        let bytes_per_row_fog = texture_width * fog_format_size;
-        let fog_buffer_size = (bytes_per_row_fog * texture_height) as u64;
+        // 安全的雾效缓冲区大小计算，防止整数溢出
+        // Safe fog buffer size calculation to prevent integer overflow
+        let bytes_per_row_fog = (texture_width as u64)
+            .checked_mul(fog_format_size as u64)
+            .expect("Fog bytes per row calculation would overflow");
+        let fog_buffer_size = bytes_per_row_fog
+            .checked_mul(texture_height as u64)
+            .expect("Fog buffer size calculation would overflow");
 
         let snapshot_format_size = snapshot_format.pixel_size() as u32;
         if snapshot_format_size == 0 {
@@ -145,8 +151,14 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             );
             continue;
         }
-        let bytes_per_row_snapshot = texture_width * snapshot_format_size;
-        let snapshot_buffer_size = (bytes_per_row_snapshot * texture_height) as u64;
+        // 安全的快照缓冲区大小计算，防止整数溢出
+        // Safe snapshot buffer size calculation to prevent integer overflow
+        let bytes_per_row_snapshot = (texture_width as u64)
+            .checked_mul(snapshot_format_size as u64)
+            .expect("Snapshot bytes per row calculation would overflow");
+        let snapshot_buffer_size = bytes_per_row_snapshot
+            .checked_mul(texture_height as u64)
+            .expect("Snapshot buffer size calculation would overflow");
         if snapshot_buffer_size == 0 {
             error!(
                 "Snapshot buffer size is 0 for chunk {:?}",
@@ -198,7 +210,8 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 buffer: &fog_staging_buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(bytes_per_row_fog), // Must be correctly aligned if required by backend
+                    bytes_per_row: Some(u32::try_from(bytes_per_row_fog)
+                        .expect("Fog bytes per row too large for u32")), // Must be correctly aligned if required by backend
                     rows_per_image: Some(texture_height),   // For 2D, this is height
                 },
             },
@@ -209,11 +222,16 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        let clear_bytes_per_row_unpadded =
-            texture_width as usize * TextureFormat::R8Unorm.pixel_size(); // Use pixel_size() for correctness
+        // 安全的清除缓冲区大小计算，防止整数溢出
+        // Safe clear buffer size calculation to prevent integer overflow
+        let clear_bytes_per_row_unpadded = (texture_width as usize)
+            .checked_mul(TextureFormat::R8Unorm.pixel_size())
+            .expect("Clear bytes per row calculation would overflow");
         let clear_padded_bytes_per_row =
             RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
-        let clear_buffer_size = clear_padded_bytes_per_row * texture_height as usize;
+        let clear_buffer_size = clear_padded_bytes_per_row
+            .checked_mul(texture_height as usize)
+            .expect("Clear buffer size calculation would overflow");
 
         let zero_data = vec![0u8; clear_buffer_size];
         let buffer = render_device.create_buffer_with_data(
@@ -272,7 +290,8 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 buffer: &snapshot_staging_buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(bytes_per_row_snapshot),
+                    bytes_per_row: Some(u32::try_from(bytes_per_row_snapshot)
+                        .expect("Snapshot bytes per row too large for u32")),
                     rows_per_image: Some(texture_height),
                 },
             },
@@ -283,11 +302,16 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        let clear_bytes_per_row_unpadded =
-            texture_width as usize * TextureFormat::Rgba8Unorm.pixel_size(); // Use pixel_size() for correctness
+        // 安全的快照清除缓冲区大小计算，防止整数溢出
+        // Safe snapshot clear buffer size calculation to prevent integer overflow
+        let clear_bytes_per_row_unpadded = (texture_width as usize)
+            .checked_mul(TextureFormat::Rgba8Unorm.pixel_size())
+            .expect("Snapshot clear bytes per row calculation would overflow");
         let clear_padded_bytes_per_row =
             RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
-        let clear_buffer_size = clear_padded_bytes_per_row * texture_height as usize;
+        let clear_buffer_size = clear_padded_bytes_per_row
+            .checked_mul(texture_height as usize)
+            .expect("Snapshot clear buffer size calculation would overflow");
 
         let zero_data = vec![0u8; clear_buffer_size];
         let buffer = render_device.create_buffer_with_data(
@@ -499,19 +523,40 @@ pub fn check_and_clear_textures_on_reset(
 
     // Pre-calculate buffer sizes and create reusable buffers to reduce memory usage
     // 预先计算缓冲区大小并创建可重用缓冲区以减少内存使用
-    let fog_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+    // 安全的雾效重置缓冲区大小计算，防止整数溢出
+    // Safe fog reset buffer size calculation to prevent integer overflow
+    let fog_bytes_per_row = (texture_width as u64)
+        .checked_mul(TextureFormat::R8Unorm.pixel_size() as u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .expect("Fog bytes per row calculation would overflow");
     let fog_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
-    let fog_buffer_size = fog_padded_bytes_per_row * texture_height as usize;
+    let fog_buffer_size = fog_padded_bytes_per_row
+        .checked_mul(texture_height as usize)
+        .expect("Fog buffer size calculation would overflow");
     let fog_clear_data = vec![0u8; fog_buffer_size]; // 0 = unexplored
 
-    let vis_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+    // 安全的可见性重置缓冲区大小计算，防止整数溢出
+    // Safe visibility reset buffer size calculation to prevent integer overflow
+    let vis_bytes_per_row = (texture_width as u64)
+        .checked_mul(TextureFormat::R8Unorm.pixel_size() as u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .expect("Visibility bytes per row calculation would overflow");
     let vis_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
-    let vis_buffer_size = vis_padded_bytes_per_row * texture_height as usize;
+    let vis_buffer_size = vis_padded_bytes_per_row
+        .checked_mul(texture_height as usize)
+        .expect("Visibility buffer size calculation would overflow");
     let vis_clear_data = vec![0u8; vis_buffer_size]; // 0 = not visible
 
-    let snap_bytes_per_row = texture_width * TextureFormat::Rgba8Unorm.pixel_size() as u32; // RGBA already included in pixel_size
+    // 安全的快照重置缓冲区大小计算，防止整数溢出
+    // Safe snapshot reset buffer size calculation to prevent integer overflow
+    let snap_bytes_per_row = (texture_width as u64)
+        .checked_mul(TextureFormat::Rgba8Unorm.pixel_size() as u64) // RGBA already included in pixel_size
+        .and_then(|v| u32::try_from(v).ok())
+        .expect("Snapshot bytes per row calculation would overflow");
     let snap_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
-    let snap_buffer_size = snap_padded_bytes_per_row * texture_height as usize;
+    let snap_buffer_size = snap_padded_bytes_per_row
+        .checked_mul(texture_height as usize)
+        .expect("Snapshot buffer size calculation would overflow");
     let snap_clear_data = vec![0u8; snap_buffer_size]; // Clear to black
 
     // Create reusable buffers once instead of creating new ones for each layer
