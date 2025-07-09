@@ -64,14 +64,17 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<ChunkStateCache>()
             .init_resource::<GpuToCpuCopyRequests>()
             .init_resource::<CpuToGpuCopyRequests>()
-            .init_resource::<MainWorldSnapshotRequestQueue>();
+            .init_resource::<MainWorldSnapshotRequestQueue>()
+            .init_resource::<FogResetPending>();
 
         app.add_event::<ChunkGpuDataReadyEvent>()
             .add_event::<ChunkCpuDataUploadedEvent>()
-            .add_event::<RequestChunkSnapshotEvent>(); // Added event for remaking snapshots / 添加用于重制快照的事件
+            .add_event::<RequestChunkSnapshotEvent>() // Added event for remaking snapshots / 添加用于重制快照的事件
+            .add_event::<ResetFogOfWarEvent>(); // Added event for resetting fog of war / 添加用于重置雾效的事件
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
             .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
+            .add_plugins(ExtractResourcePlugin::<FogResetPending>::default())
             .add_plugins(ExtractComponentPlugin::<SnapshotCamera>::default());
 
         app.configure_sets(
@@ -107,6 +110,8 @@ impl Plugin for FogOfWarPlugin {
             Update,
             manage_chunk_texture_transfer.in_set(FogSystems::PrepareTransfers),
         );
+
+        app.add_systems(Update, reset_fog_of_war_system);
 
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(SnapshotPlugin);
@@ -726,5 +731,110 @@ pub fn manage_chunk_texture_transfer(
                 // In transit, waiting for event
             }
         }
+    }
+}
+
+/// 重置雾效系统的所有状态，包括已探索区域、可见性状态和纹理数据。
+/// Reset all fog of war system state, including explored areas, visibility states, and texture data.
+fn reset_fog_of_war_system(
+    mut events: EventReader<ResetFogOfWarEvent>,
+    mut cache: ResMut<ChunkStateCache>,
+    mut chunk_q: Query<&mut FogChunk>,
+    mut chunk_query: Query<(Entity, &mut FogChunkImage)>,
+    mut texture_manager: ResMut<TextureArrayManager>,
+    mut images: ResMut<Assets<Image>>,
+    fog_texture: Res<FogTextureArray>,
+    visibility_texture: Res<VisibilityTextureArray>,
+    snapshot_texture: Res<SnapshotTextureArray>,
+    _settings: Res<FogMapSettings>,
+    mut commands: Commands,
+    mut chunk_manager: ResMut<ChunkEntityManager>,
+    mut reset_pending: ResMut<FogResetPending>,
+) {
+    for _event in events.read() {
+        info!("Resetting fog of war system...");
+
+        // 1. Reset the cache completely, including explored chunks
+        // 1. 完全重置缓存，包括已探索区块
+        let explored_count = cache.explored_chunks.len();
+        let visible_count = cache.visible_chunks.len();
+        let gpu_count = cache.gpu_resident_chunks.len();
+        cache.reset_all();
+        info!("Reset cache: {} explored, {} visible, {} gpu chunks cleared", 
+               explored_count, visible_count, gpu_count);
+
+        // 2. Reset all chunk visibility states to Unexplored and set memory location to Cpu
+        // 2. 将所有区块的可见性状态重置为未探索，并将内存位置设为 CPU
+        let chunk_count = chunk_q.iter().count();
+        for mut chunk in chunk_q.iter_mut() {
+            chunk.state.visibility = ChunkVisibility::Unexplored;
+            chunk.state.memory_location = ChunkMemoryLocation::Cpu;
+            chunk.fog_layer_index = None;
+            chunk.snapshot_layer_index = None;
+        }
+        info!("Reset {} chunk states to Unexplored/Cpu", chunk_count);
+
+        // 3. Clear all texture layer allocations
+        // 3. 清除所有纹理层分配
+        texture_manager.clear_all_layers();
+
+        // 4. Reset chunk CPU data and force re-upload
+        // 4. 重置区块CPU数据并强制重新上传
+        
+        // Clear CPU data for all chunk images to ensure they get reset
+        for (_entity, chunk_image) in chunk_query.iter_mut() {
+            if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+                let size = (fog_image.texture_descriptor.size.width * 
+                           fog_image.texture_descriptor.size.height) as usize;
+                fog_image.data = Some(vec![0u8; size]);
+            }
+            if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+                let size = (snapshot_image.texture_descriptor.size.width * 
+                           snapshot_image.texture_descriptor.size.height * 4) as usize;
+                snapshot_image.data = Some(vec![0u8; size]);
+            }
+        }
+        
+        // Reset main texture arrays
+        if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
+            let size = (fog_image.texture_descriptor.size.width * 
+                       fog_image.texture_descriptor.size.height * 
+                       fog_image.texture_descriptor.size.depth_or_array_layers) as usize;
+            fog_image.data = Some(vec![0u8; size]);
+            info!("Reset fog texture data: {} bytes", size);
+        }
+
+        if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
+            let size = (visibility_image.texture_descriptor.size.width * 
+                       visibility_image.texture_descriptor.size.height * 
+                       visibility_image.texture_descriptor.size.depth_or_array_layers) as usize;
+            visibility_image.data = Some(vec![0u8; size]);
+            info!("Reset visibility texture data: {} bytes", size);
+        }
+
+        if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
+            let size = (snapshot_image.texture_descriptor.size.width * 
+                       snapshot_image.texture_descriptor.size.height * 
+                       snapshot_image.texture_descriptor.size.depth_or_array_layers * 4) as usize;
+            snapshot_image.data = Some(vec![0u8; size]);
+            info!("Reset snapshot texture data: {} bytes", size);
+        }
+
+        // 5. Despawn all chunk entities as they will be recreated when needed
+        // 5. 销毁所有区块实体，因为它们会在需要时重新创建
+        let entity_count = chunk_manager.map.len();
+        for (_coords, entity) in chunk_manager.map.iter() {
+            commands.entity(*entity).despawn();
+        }
+        
+        // Clear the chunk entity manager mapping
+        // 清除区块实体管理器映射
+        chunk_manager.map.clear();
+
+        info!("Fog of war system reset complete! Despawned {} chunk entities", entity_count);
+        
+        // 6. Mark that render world needs to reset textures
+        // 6. 标记渲染世界需要重置纹理
+        reset_pending.0 = true;
     }
 }

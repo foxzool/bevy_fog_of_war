@@ -55,3 +55,13 @@ pub struct ChunkGpuDataReadyEvent {
 pub struct ChunkCpuDataUploadedEvent {
     pub chunk_coords: IVec2,
 }
+
+/// 事件：重置所有雾效数据，包括已探索区域、可见性状态和纹理数据。
+/// Event: Reset all fog of war data, including explored areas, visibility states, and texture data.
+#[derive(Event, Debug, Default)]
+pub struct ResetFogOfWarEvent;
+
+/// 资源：标记渲染世界需要重置纹理
+/// Resource: Mark that render world needs to reset textures
+#[derive(Resource, Debug, Default, Clone, ExtractResource)]
+pub struct FogResetPending(pub bool);

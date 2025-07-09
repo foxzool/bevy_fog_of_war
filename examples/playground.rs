@@ -48,6 +48,7 @@ fn main() {
                 debug_draw_chunks,
                 horizontal_movement_system,
                 rotate_entities_system,
+                handle_reset_input,
             ),
         )
         .run();
@@ -416,6 +417,32 @@ fn setup_ui(mut commands: Commands) {
         FogSettingsText,
     ));
 
+    // 创建控制说明文本
+    // Create control instructions text
+    commands.spawn((
+        Text::new(
+            "Controls:\n\
+             WASD - Move camera\n\
+             Arrow Keys - Move blue vision source\n\
+             F - Toggle fog\n\
+             R - Reset fog of war\n\
+             PageUp/Down - Adjust fog alpha\n\
+             Left Click - Set target for blue vision source"
+        ),
+        TextFont {
+            font_size: 14.0,
+            ..default()
+        },
+        TextLayout::new_with_justify(JustifyText::Left),
+        TextColor(Color::srgb(0.4, 0.4, 0.4)),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(20.0),
+            left: Val::Px(10.0),
+            ..default()
+        },
+    ));
+
     // 创建颜色动画标题文本
     // Create color animated title text
     commands.spawn((
@@ -661,5 +688,17 @@ fn debug_draw_chunks(
                 ));
             }
         }
+    }
+}
+
+// 处理重置输入系统
+// Handle reset input system
+fn handle_reset_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut reset_events: EventWriter<ResetFogOfWarEvent>,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyR) {
+        info!("Resetting fog of war...");
+        reset_events.write(ResetFogOfWarEvent);
     }
 }

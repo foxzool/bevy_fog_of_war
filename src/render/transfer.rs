@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
-use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture};
+use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
+use crate::settings::MAX_LAYERS;
 use async_channel::{Receiver, Sender};
 use bevy::{
     image::TextureFormatPixelInfo,
@@ -459,4 +460,159 @@ pub(crate) fn check_cpu_to_gpu_request(
         .collect::<Vec<ChunkCpuDataUploadedEvent>>();
 
     main_world.send_event_batch(requests);
+}
+
+/// 检查并清空纹理（在渲染世界中重置时）
+/// Check and clear textures (when resetting in render world)
+pub fn check_and_clear_textures_on_reset(
+    mut reset_pending: ResMut<FogResetPending>,
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    fog_texture: Res<RenderFogTexture>,
+    visibility_texture: Res<RenderVisibilityTexture>,
+    snapshot_texture: Res<RenderSnapshotTexture>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+    render_settings: Res<RenderFogMapSettings>,
+) {
+    if !reset_pending.0 {
+        return;
+    }
+
+    let texture_width = render_settings.texture_resolution_per_chunk.x;
+    let texture_height = render_settings.texture_resolution_per_chunk.y;
+    let num_layers = MAX_LAYERS;
+
+    // Get GPU images
+    let Some(fog_gpu_image) = gpu_images.get(&fog_texture.0) else {
+        return;
+    };
+    let Some(visibility_gpu_image) = gpu_images.get(&visibility_texture.0) else {
+        return;
+    };
+    let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture.0) else {
+        return;
+    };
+
+    let mut command_encoder = render_device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("fog_reset_clear_textures"),
+    });
+
+    // Clear fog texture (set to 0 = unexplored)
+    for layer in 0..num_layers {
+        let fog_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+        let fog_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
+        let fog_buffer_size = fog_padded_bytes_per_row * texture_height as usize;
+        let fog_clear_data = vec![0u8; fog_buffer_size]; // 0 = unexplored
+
+        let fog_buffer = render_device.create_buffer_with_data(
+            &bevy::render::render_resource::BufferInitDescriptor {
+                label: Some("fog_reset_clear_buffer"),
+                contents: &fog_clear_data,
+                usage: BufferUsages::COPY_SRC,
+            },
+        );
+
+        command_encoder.copy_buffer_to_texture(
+            TexelCopyBufferInfo {
+                buffer: &fog_buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(fog_padded_bytes_per_row as u32),
+                    rows_per_image: None,
+                },
+            },
+            TexelCopyTextureInfo {
+                texture: &fog_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d { x: 0, y: 0, z: layer },
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    // Clear visibility texture (set to 0 = not visible)
+    for layer in 0..num_layers {
+        let vis_bytes_per_row = texture_width * TextureFormat::R8Unorm.pixel_size() as u32;
+        let vis_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
+        let vis_buffer_size = vis_padded_bytes_per_row * texture_height as usize;
+        let vis_clear_data = vec![0u8; vis_buffer_size]; // 0 = not visible
+
+        let vis_buffer = render_device.create_buffer_with_data(
+            &bevy::render::render_resource::BufferInitDescriptor {
+                label: Some("visibility_reset_clear_buffer"),
+                contents: &vis_clear_data,
+                usage: BufferUsages::COPY_SRC,
+            },
+        );
+
+        command_encoder.copy_buffer_to_texture(
+            TexelCopyBufferInfo {
+                buffer: &vis_buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(vis_padded_bytes_per_row as u32),
+                    rows_per_image: None,
+                },
+            },
+            TexelCopyTextureInfo {
+                texture: &visibility_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d { x: 0, y: 0, z: layer },
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    // Clear snapshot texture (set to 0)
+    for layer in 0..num_layers {
+        let snap_bytes_per_row = texture_width * TextureFormat::Rgba8Unorm.pixel_size() as u32; // RGBA already included in pixel_size
+        let snap_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
+        let snap_buffer_size = snap_padded_bytes_per_row * texture_height as usize;
+        let snap_clear_data = vec![0u8; snap_buffer_size]; // Clear to black
+
+        let snap_buffer = render_device.create_buffer_with_data(
+            &bevy::render::render_resource::BufferInitDescriptor {
+                label: Some("snapshot_reset_clear_buffer"),
+                contents: &snap_clear_data,
+                usage: BufferUsages::COPY_SRC,
+            },
+        );
+
+        command_encoder.copy_buffer_to_texture(
+            TexelCopyBufferInfo {
+                buffer: &snap_buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(snap_padded_bytes_per_row as u32),
+                    rows_per_image: None,
+                },
+            },
+            TexelCopyTextureInfo {
+                texture: &snapshot_gpu_image.texture,
+                mip_level: 0,
+                origin: Origin3d { x: 0, y: 0, z: layer },
+                aspect: TextureAspect::All,
+            },
+            Extent3d {
+                width: texture_width,
+                height: texture_height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    render_queue.submit(std::iter::once(command_encoder.finish()));
+    
+    // Reset the flag
+    reset_pending.0 = false;
 }

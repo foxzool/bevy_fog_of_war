@@ -43,6 +43,15 @@ impl ChunkStateCache {
         self.camera_view_chunks.clear();
         // gpu_resident_chunks 的管理更复杂，不一定每帧清空 / gpu_resident_chunks management is more complex, not necessarily cleared every frame
     }
+
+    /// 完全重置所有缓存，包括已探索区域，用于雾效重置。
+    /// Completely reset all caches including explored areas, used for fog reset.
+    pub fn reset_all(&mut self) {
+        self.visible_chunks.clear();
+        self.explored_chunks.clear();
+        self.camera_view_chunks.clear();
+        self.gpu_resident_chunks.clear();
+    }
 }
 
 #[derive(Resource, Debug, Reflect)]
@@ -208,5 +217,23 @@ impl TextureArrayManager {
 
     pub fn is_coord_on_gpu(&self, coords: IVec2) -> bool {
         self.coord_to_layers.contains_key(&coords)
+    }
+
+    /// 清除所有分配的层索引，用于重置雾效系统。
+    /// Clear all allocated layer indices, used for resetting the fog system.
+    pub fn clear_all_layers(&mut self) {
+        info!("Clearing all texture array layer allocations");
+        
+        // Clear the coord to layers mapping
+        self.coord_to_layers.clear();
+        
+        // Reset all indices to free state
+        self.free_fog_indices.clear();
+        self.free_snapshot_indices.clear();
+        
+        for i in 0..self.capacity {
+            self.free_fog_indices.push(i);
+            self.free_snapshot_indices.push(i);
+        }
     }
 }

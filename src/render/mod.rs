@@ -82,6 +82,7 @@ impl Plugin for FogOfWarRenderPlugin {
             .add_systems(
                 Render,
                 (
+                    transfer::check_and_clear_textures_on_reset,
                     prepare::prepare_fog_uniforms,
                     prepare::prepare_vision_source_buffer,
                     prepare::prepare_gpu_chunk_buffer,

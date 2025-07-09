@@ -1,6 +1,6 @@
 pub use crate::data_transfer::{
     ChunkCpuDataUploadedEvent, ChunkGpuDataReadyEvent, CpuToGpuCopyRequest, CpuToGpuCopyRequests,
-    GpuToCpuCopyRequest, GpuToCpuCopyRequests,
+    FogResetPending, GpuToCpuCopyRequest, GpuToCpuCopyRequests, ResetFogOfWarEvent,
 };
 pub use crate::managers::*;
 pub use crate::settings::*;

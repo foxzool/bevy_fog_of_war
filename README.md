@@ -129,6 +129,43 @@ To use `bevy_fog_of_war` in your project, follow these steps:
 
 Check the [examples](examples/) directory for more detailed usage scenarios, including dynamic vision sources and different vision shapes.
 
+## Resetting Fog of War
+
+You can programmatically reset all fog of war data (explored areas, visibility states, and texture data) without despawning entities or cameras. This is useful when changing scenes or restarting levels:
+
+```rust
+use bevy::prelude::*;
+use bevy_fog_of_war::prelude::*;
+
+fn reset_on_keypress(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut reset_events: EventWriter<ResetFogOfWarEvent>,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyR) {
+        // Reset all fog of war data
+        reset_events.write(ResetFogOfWarEvent);
+    }
+}
+
+// Add this system to your app
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(FogOfWarPlugin)
+        .add_systems(Update, reset_on_keypress)
+        .run();
+}
+```
+
+The reset functionality:
+- Clears all explored areas
+- Resets all chunk visibility states to unexplored
+- Resets texture data to initial state
+- Preserves all entities, cameras, and vision sources
+- Allows for seamless scene transitions
+
+Check the [`reset_demo.rs`](examples/reset_demo.rs) example for a complete demonstration.
+
 ## Compatibility
 
 | Bevy Version | Plugin Version |
