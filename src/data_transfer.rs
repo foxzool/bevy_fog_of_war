@@ -104,15 +104,18 @@ pub struct FogResetSync {
 /// Reset checkpoint for rollback
 #[derive(Debug, Clone)]
 pub struct ResetCheckpoint {
-    /// 探索区块数量
-    /// Number of explored chunks
-    pub explored_chunks_count: usize,
-    /// 可见区块数量
-    /// Number of visible chunks
-    pub visible_chunks_count: usize,
-    /// GPU驻留区块数量
-    /// Number of GPU resident chunks
-    pub gpu_resident_chunks_count: usize,
+    /// 探索区块集合的备份
+    /// Backup of explored chunks set
+    pub explored_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    /// 可见区块集合的备份
+    /// Backup of visible chunks set
+    pub visible_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    /// GPU驻留区块集合的备份
+    /// Backup of GPU resident chunks set
+    pub gpu_resident_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    /// 相机视图区块集合的备份
+    /// Backup of camera view chunks set
+    pub camera_view_chunks: std::collections::HashSet<bevy::math::IVec2>,
     /// 检查点创建时间
     /// Checkpoint creation time
     pub created_at: u64,
@@ -175,5 +178,17 @@ impl FogResetSync {
         self.state = ResetSyncState::Idle;
         self.start_time = None;
         self.checkpoint = None;
+    }
+    
+    /// 检查是否有可用的检查点进行回滚
+    /// Check if checkpoint is available for rollback
+    pub fn has_checkpoint(&self) -> bool {
+        self.checkpoint.is_some()
+    }
+    
+    /// 获取检查点的引用
+    /// Get checkpoint reference
+    pub fn get_checkpoint(&self) -> Option<&ResetCheckpoint> {
+        self.checkpoint.as_ref()
     }
 }

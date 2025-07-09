@@ -774,12 +774,13 @@ fn reset_fog_of_war_system(
         info!("Starting atomic fog of war reset...");
         let current_time = time.elapsed().as_millis() as u64;
         
-        // 创建检查点用于回滚
-        // Create checkpoint for rollback
+        // 创建详细的检查点用于回滚
+        // Create detailed checkpoint for rollback
         let checkpoint = ResetCheckpoint {
-            explored_chunks_count: cache.explored_chunks.len(),
-            visible_chunks_count: cache.visible_chunks.len(),
-            gpu_resident_chunks_count: cache.gpu_resident_chunks.len(),
+            explored_chunks: cache.explored_chunks.clone(),
+            visible_chunks: cache.visible_chunks.clone(),
+            gpu_resident_chunks: cache.gpu_resident_chunks.clone(),
+            camera_view_chunks: cache.camera_view_chunks.clone(),
             created_at: current_time,
         };
         
@@ -800,6 +801,20 @@ fn reset_fog_of_war_system(
             &mut chunk_manager,
         ) {
             error!("Main world reset failed: {}", error);
+            
+            // 尝试回滚到检查点
+            // Try to rollback to checkpoint
+            if let Some(checkpoint) = reset_sync.get_checkpoint() {
+                match rollback_reset_to_checkpoint(&mut cache, checkpoint) {
+                    Ok(()) => {
+                        warn!("Successfully rolled back to checkpoint after main world reset failure");
+                    }
+                    Err(rollback_error) => {
+                        error!("Failed to rollback after main world reset failure: {}", rollback_error);
+                    }
+                }
+            }
+            
             reset_sync.mark_failed(error);
             continue;
         }
@@ -965,10 +980,33 @@ fn cleanup_chunk_entities(
     info!("Despawned {} chunk entities", entity_count);
 }
 
+/// 回滚重置操作到检查点状态
+/// Rollback reset operation to checkpoint state
+fn rollback_reset_to_checkpoint(
+    cache: &mut ResMut<ChunkStateCache>,
+    checkpoint: &ResetCheckpoint,
+) -> Result<(), String> {
+    // 恢复区块缓存状态
+    // Restore chunk cache state
+    cache.explored_chunks = checkpoint.explored_chunks.clone();
+    cache.visible_chunks = checkpoint.visible_chunks.clone();
+    cache.gpu_resident_chunks = checkpoint.gpu_resident_chunks.clone();
+    cache.camera_view_chunks = checkpoint.camera_view_chunks.clone();
+    
+    info!("Rollback completed: restored {} explored, {} visible, {} GPU, {} camera view chunks",
+          cache.explored_chunks.len(),
+          cache.visible_chunks.len(),
+          cache.gpu_resident_chunks.len(),
+          cache.camera_view_chunks.len());
+    
+    Ok(())
+}
+
 /// 监控重置同步状态，处理超时和状态转换
 /// Monitor reset sync state, handle timeouts and state transitions
 fn monitor_reset_sync_system(
     mut reset_sync: ResMut<FogResetSync>,
+    mut cache: ResMut<ChunkStateCache>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed().as_millis() as u64;
@@ -1001,9 +1039,23 @@ fn monitor_reset_sync_system(
             reset_sync.reset_to_idle();
         }
         ResetSyncState::Failed(ref error) => {
-            // 重置失败，记录错误并回到空闲状态
-            // Reset failed, log error and return to idle state
+            // 重置失败，尝试回滚到检查点
+            // Reset failed, try to rollback to checkpoint
             error!("Reset sync failed: {}", error);
+            
+            if let Some(checkpoint) = reset_sync.get_checkpoint() {
+                match rollback_reset_to_checkpoint(&mut cache, checkpoint) {
+                    Ok(()) => {
+                        warn!("Successfully rolled back to checkpoint after reset failure");
+                    }
+                    Err(rollback_error) => {
+                        error!("Failed to rollback to checkpoint: {}", rollback_error);
+                    }
+                }
+            } else {
+                warn!("No checkpoint available for rollback");
+            }
+            
             reset_sync.reset_to_idle();
         }
     }
