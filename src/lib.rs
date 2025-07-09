@@ -65,7 +65,7 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<GpuToCpuCopyRequests>()
             .init_resource::<CpuToGpuCopyRequests>()
             .init_resource::<MainWorldSnapshotRequestQueue>()
-            .init_resource::<FogResetPending>();
+            .init_resource::<FogResetSync>();
 
         app.add_event::<ChunkGpuDataReadyEvent>()
             .add_event::<ChunkCpuDataUploadedEvent>()
@@ -74,7 +74,7 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
             .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
-            .add_plugins(ExtractResourcePlugin::<FogResetPending>::default())
+            .add_plugins(ExtractResourcePlugin::<FogResetSync>::default())
             .add_plugins(ExtractComponentPlugin::<SnapshotCamera>::default());
 
         app.configure_sets(
@@ -111,7 +111,7 @@ impl Plugin for FogOfWarPlugin {
             manage_chunk_texture_transfer.in_set(FogSystems::PrepareTransfers),
         );
 
-        app.add_systems(Update, reset_fog_of_war_system);
+        app.add_systems(Update, (reset_fog_of_war_system, monitor_reset_sync_system));
 
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(SnapshotPlugin);
@@ -760,25 +760,82 @@ fn reset_fog_of_war_system(
     _settings: Res<FogMapSettings>,
     mut commands: Commands,
     mut chunk_manager: ResMut<ChunkEntityManager>,
-    mut reset_pending: ResMut<FogResetPending>,
+    mut reset_sync: ResMut<FogResetSync>,
+    time: Res<Time>,
 ) {
     for _event in events.read() {
-        info!("Resetting fog of war system...");
+        // 检查是否已有重置正在进行
+        // Check if reset is already in progress
+        if reset_sync.state != ResetSyncState::Idle {
+            warn!("Reset already in progress, state: {:?}", reset_sync.state);
+            continue;
+        }
         
-        // 将复杂的重置逻辑拆分为更小的函数
-        // Break down complex reset logic into smaller functions
-        reset_chunk_cache(&mut cache);
-        reset_chunk_states(&mut chunk_q, &mut texture_manager);
-        reset_chunk_images(&mut chunk_query, &mut images);
-        reset_main_textures(&mut images, &fog_texture, &visibility_texture, &snapshot_texture);
-        cleanup_chunk_entities(&mut chunk_manager, &mut commands);
+        info!("Starting atomic fog of war reset...");
+        let current_time = time.elapsed().as_millis() as u64;
         
-        // 标记渲染世界需要重置纹理
-        // Mark that render world needs to reset textures
-        reset_pending.0 = true;
+        // 创建检查点用于回滚
+        // Create checkpoint for rollback
+        let checkpoint = ResetCheckpoint {
+            explored_chunks_count: cache.explored_chunks.len(),
+            visible_chunks_count: cache.visible_chunks.len(),
+            gpu_resident_chunks_count: cache.gpu_resident_chunks.len(),
+            created_at: current_time,
+        };
         
-        info!("Fog of war system reset complete!");
+        reset_sync.checkpoint = Some(checkpoint);
+        
+        // 执行主世界重置操作
+        // Execute main world reset operations
+        if let Err(error) = execute_main_world_reset(
+            &mut cache,
+            &mut chunk_q,
+            &mut chunk_query,
+            &mut texture_manager,
+            &mut images,
+            &fog_texture,
+            &visibility_texture,
+            &snapshot_texture,
+            &mut commands,
+            &mut chunk_manager,
+        ) {
+            error!("Main world reset failed: {}", error);
+            reset_sync.mark_failed(error);
+            continue;
+        }
+        
+        // 标记主世界重置完成，开始渲染世界同步
+        // Mark main world reset complete, start render world sync
+        reset_sync.start_reset(current_time);
+        
+        info!("Main world reset complete, waiting for render world sync...");
     }
+}
+
+/// 执行主世界重置操作，返回错误信息
+/// Execute main world reset operations, returns error message
+fn execute_main_world_reset(
+    cache: &mut ResMut<ChunkStateCache>,
+    chunk_q: &mut Query<&mut FogChunk>,
+    chunk_query: &mut Query<(Entity, &mut FogChunkImage)>,
+    texture_manager: &mut ResMut<TextureArrayManager>,
+    images: &mut ResMut<Assets<Image>>,
+    fog_texture: &Res<FogTextureArray>,
+    visibility_texture: &Res<VisibilityTextureArray>,
+    snapshot_texture: &Res<SnapshotTextureArray>,
+    commands: &mut Commands,
+    chunk_manager: &mut ResMut<ChunkEntityManager>,
+) -> Result<(), String> {
+    // 将复杂的重置逻辑拆分为更小的函数
+    // Break down complex reset logic into smaller functions
+    reset_chunk_cache(cache);
+    reset_chunk_states(chunk_q, texture_manager);
+    reset_chunk_images(chunk_query, images);
+    reset_main_textures(images, fog_texture, visibility_texture, snapshot_texture);
+    cleanup_chunk_entities(chunk_manager, commands);
+    
+    info!("Main world reset operations completed successfully");
+    Ok(())
 }
 
 /// 重置区块缓存状态
@@ -906,5 +963,49 @@ fn cleanup_chunk_entities(
     chunk_manager.map.clear();
     
     info!("Despawned {} chunk entities", entity_count);
+}
+
+/// 监控重置同步状态，处理超时和状态转换
+/// Monitor reset sync state, handle timeouts and state transitions
+fn monitor_reset_sync_system(
+    mut reset_sync: ResMut<FogResetSync>,
+    time: Res<Time>,
+) {
+    let current_time = time.elapsed().as_millis() as u64;
+    
+    match reset_sync.state {
+        ResetSyncState::Idle => {
+            // 空闲状态，无需处理
+            // Idle state, no processing needed
+        }
+        ResetSyncState::MainWorldComplete => {
+            // 检查是否超时
+            // Check for timeout
+            if reset_sync.is_timeout(current_time) {
+                error!("Reset timeout waiting for render world processing");
+                reset_sync.mark_failed("Timeout waiting for render world processing".to_string());
+            }
+        }
+        ResetSyncState::RenderWorldProcessing => {
+            // 检查是否超时
+            // Check for timeout
+            if reset_sync.is_timeout(current_time) {
+                error!("Reset timeout during render world processing");
+                reset_sync.mark_failed("Timeout during render world processing".to_string());
+            }
+        }
+        ResetSyncState::Complete => {
+            // 重置完成，回到空闲状态
+            // Reset complete, return to idle state
+            info!("Reset sync completed successfully");
+            reset_sync.reset_to_idle();
+        }
+        ResetSyncState::Failed(ref error) => {
+            // 重置失败，记录错误并回到空闲状态
+            // Reset failed, log error and return to idle state
+            error!("Reset sync failed: {}", error);
+            reset_sync.reset_to_idle();
+        }
+    }
 }
 

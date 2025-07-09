@@ -61,7 +61,119 @@ pub struct ChunkCpuDataUploadedEvent {
 #[derive(Event, Debug, Default)]
 pub struct ResetFogOfWarEvent;
 
-/// 资源：标记渲染世界需要重置纹理
-/// Resource: Mark that render world needs to reset textures
-#[derive(Resource, Debug, Default, Clone, ExtractResource)]
-pub struct FogResetPending(pub bool);
+/// 重置同步状态
+/// Reset synchronization state
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResetSyncState {
+    /// 空闲状态，无重置进行中
+    /// Idle state, no reset in progress
+    Idle,
+    /// 主世界已发起重置，等待渲染世界处理
+    /// Main world has initiated reset, waiting for render world to process
+    MainWorldComplete,
+    /// 渲染世界正在处理重置
+    /// Render world is processing reset
+    RenderWorldProcessing,
+    /// 重置完成，等待清理
+    /// Reset complete, waiting for cleanup
+    Complete,
+    /// 重置失败，需要回滚
+    /// Reset failed, needs rollback
+    Failed(String),
+}
+
+/// 资源：原子性的跨世界同步重置管理
+/// Resource: Atomic cross-world synchronization reset management
+#[derive(Resource, Debug, Clone, ExtractResource)]
+pub struct FogResetSync {
+    /// 当前同步状态
+    /// Current synchronization state
+    pub state: ResetSyncState,
+    /// 重置开始时间戳（毫秒）
+    /// Reset start timestamp (milliseconds)
+    pub start_time: Option<u64>,
+    /// 重置超时时间（毫秒）
+    /// Reset timeout duration (milliseconds)
+    pub timeout_ms: u64,
+    /// 重置前的检查点数据
+    /// Checkpoint data before reset
+    pub checkpoint: Option<ResetCheckpoint>,
+}
+
+/// 重置检查点，用于回滚
+/// Reset checkpoint for rollback
+#[derive(Debug, Clone)]
+pub struct ResetCheckpoint {
+    /// 探索区块数量
+    /// Number of explored chunks
+    pub explored_chunks_count: usize,
+    /// 可见区块数量
+    /// Number of visible chunks
+    pub visible_chunks_count: usize,
+    /// GPU驻留区块数量
+    /// Number of GPU resident chunks
+    pub gpu_resident_chunks_count: usize,
+    /// 检查点创建时间
+    /// Checkpoint creation time
+    pub created_at: u64,
+}
+
+impl Default for FogResetSync {
+    fn default() -> Self {
+        Self {
+            state: ResetSyncState::Idle,
+            start_time: None,
+            timeout_ms: 5000, // 5秒超时 / 5 second timeout
+            checkpoint: None,
+        }
+    }
+}
+
+impl FogResetSync {
+    /// 检查重置是否超时
+    /// Check if reset has timed out
+    pub fn is_timeout(&self, current_time: u64) -> bool {
+        if let Some(start_time) = self.start_time {
+            current_time - start_time > self.timeout_ms
+        } else {
+            false
+        }
+    }
+    
+    /// 开始重置流程
+    /// Start reset process
+    pub fn start_reset(&mut self, current_time: u64) {
+        self.state = ResetSyncState::MainWorldComplete;
+        self.start_time = Some(current_time);
+    }
+    
+    /// 标记渲染世界开始处理
+    /// Mark render world processing started
+    pub fn start_render_processing(&mut self) {
+        if self.state == ResetSyncState::MainWorldComplete {
+            self.state = ResetSyncState::RenderWorldProcessing;
+        }
+    }
+    
+    /// 标记重置完成
+    /// Mark reset complete
+    pub fn mark_complete(&mut self) {
+        if self.state == ResetSyncState::RenderWorldProcessing {
+            self.state = ResetSyncState::Complete;
+        }
+    }
+    
+    /// 标记重置失败
+    /// Mark reset failed
+    pub fn mark_failed(&mut self, error: String) {
+        self.state = ResetSyncState::Failed(error);
+    }
+    
+    /// 重置到空闲状态
+    /// Reset to idle state
+    pub fn reset_to_idle(&mut self) {
+        self.state = ResetSyncState::Idle;
+        self.start_time = None;
+        self.checkpoint = None;
+    }
+}

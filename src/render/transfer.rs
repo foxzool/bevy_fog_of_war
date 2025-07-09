@@ -489,7 +489,7 @@ pub(crate) fn check_cpu_to_gpu_request(
 /// 检查并清空纹理（在渲染世界中重置时）
 /// Check and clear textures (when resetting in render world)
 pub fn check_and_clear_textures_on_reset(
-    mut reset_pending: ResMut<FogResetPending>,
+    mut reset_sync: ResMut<FogResetSync>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     fog_texture: Res<RenderFogTexture>,
@@ -498,9 +498,16 @@ pub fn check_and_clear_textures_on_reset(
     gpu_images: Res<RenderAssets<GpuImage>>,
     render_settings: Res<RenderFogMapSettings>,
 ) {
-    if !reset_pending.0 {
+    // 检查是否需要开始渲染世界处理
+    // Check if render world processing needs to start
+    if reset_sync.state != ResetSyncState::MainWorldComplete {
         return;
     }
+    
+    // 标记渲染世界开始处理
+    // Mark render world processing started
+    reset_sync.start_render_processing();
+    info!("Render world starting texture reset processing...");
 
     let texture_width = render_settings.texture_resolution_per_chunk.x;
     let texture_height = render_settings.texture_resolution_per_chunk.y;
@@ -665,6 +672,8 @@ pub fn check_and_clear_textures_on_reset(
 
     render_queue.submit(std::iter::once(command_encoder.finish()));
     
-    // Reset the flag
-    reset_pending.0 = false;
+    // 标记渲染世界处理完成
+    // Mark render world processing complete
+    reset_sync.mark_complete();
+    info!("Render world texture reset processing complete");
 }
