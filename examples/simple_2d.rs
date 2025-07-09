@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
-    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailedEvent, FogResetSuccessEvent, VisionSource,
+    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailedEvent,
+    FogResetSuccessEvent, VisionSource,
 };
 
 fn main() {
@@ -16,7 +17,10 @@ fn main() {
         }))
         .add_plugins(FogOfWarPlugin)
         .add_systems(Startup, setup)
-        .add_systems(Update, (draw_gizmos, camera_movement, handle_fog_reset_events))
+        .add_systems(
+            Update,
+            (draw_gizmos, camera_movement, handle_fog_reset_events),
+        )
         .run();
 }
 
@@ -142,12 +146,16 @@ fn handle_fog_reset_events(
     mut failure_events: EventReader<FogResetFailedEvent>,
 ) {
     for event in success_events.read() {
-        info!("✅ Fog reset completed successfully! Duration: {}ms, Chunks reset: {}", 
-              event.duration_ms, event.chunks_reset);
+        info!(
+            "✅ Fog reset completed successfully! Duration: {}ms, Chunks reset: {}",
+            event.duration_ms, event.chunks_reset
+        );
     }
-    
+
     for event in failure_events.read() {
-        error!("❌ Fog reset failed! Duration: {}ms, Error: {}", 
-               event.duration_ms, event.error);
+        error!(
+            "❌ Fog reset failed! Duration: {}ms, Error: {}",
+            event.duration_ms, event.error
+        );
     }
 }

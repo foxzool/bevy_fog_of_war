@@ -145,7 +145,7 @@ fn setup_fog_resources(
         .and_then(|v| v.checked_mul(fog_texture_size.depth_or_array_layers as u64))
         .and_then(|v| usize::try_from(v).ok())
         .expect("Fog texture size too large, would cause integer overflow");
-    
+
     let fog_initial_data = vec![0u8; fog_data_size];
     let mut fog_image = Image::new(
         fog_texture_size,
@@ -167,7 +167,7 @@ fn setup_fog_resources(
         .and_then(|v| v.checked_mul(visibility_texture_size.depth_or_array_layers as u64))
         .and_then(|v| usize::try_from(v).ok())
         .expect("Visibility texture size too large, would cause integer overflow");
-    
+
     let visibility_initial_data = vec![0u8; visibility_data_size];
     let mut visibility_image = Image::new(
         visibility_texture_size,
@@ -192,7 +192,7 @@ fn setup_fog_resources(
         .and_then(|v| v.checked_mul(4u64)) // 4 bytes per pixel for RGBA / RGBA 每像素 4 字节
         .and_then(|v| usize::try_from(v).ok())
         .expect("Snapshot texture size too large, would cause integer overflow");
-    
+
     let snapshot_initial_data = vec![0u8; snapshot_data_size];
     let mut snapshot_image = Image::new(
         snapshot_texture_size,
@@ -427,15 +427,16 @@ fn manage_chunk_entities(
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
 
-            if let Ok(chunk) = chunk_q.get_mut(*entity)
-                && chunk.state.memory_location == ChunkMemoryLocation::Cpu {
+            if let Ok(chunk) = chunk_q.get_mut(*entity) {
+                if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
                     // Mark for transition to GPU
                     // 标记以转换到 GPU
                     chunks_to_make_gpu.insert(coords);
                     // Actual data upload handled in manage_chunk_memory_logic or RenderApp
                     // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
-                // Ensure it's marked as GPU resident in cache (will be done in memory logic)
-                // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
+                    // Ensure it's marked as GPU resident in cache (will be done in memory logic)
+                    // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
+                }
             }
         } else {
             // Chunk entity doesn't exist, create it
@@ -772,10 +773,10 @@ fn reset_fog_of_war_system(
             warn!("Reset already in progress, state: {:?}", reset_sync.state);
             continue;
         }
-        
+
         info!("Starting atomic fog of war reset...");
         let current_time = time.elapsed().as_millis() as u64;
-        
+
         // 创建详细的检查点用于回滚
         // Create detailed checkpoint for rollback
         let checkpoint = ResetCheckpoint {
@@ -785,10 +786,10 @@ fn reset_fog_of_war_system(
             camera_view_chunks: cache.camera_view_chunks.clone(),
             created_at: current_time,
         };
-        
+
         reset_sync.checkpoint = Some(checkpoint);
         reset_sync.chunks_count = chunk_manager.map.len();
-        
+
         // 执行主世界重置操作
         // Execute main world reset operations
         if let Err(error) = execute_main_world_reset(
@@ -804,28 +805,33 @@ fn reset_fog_of_war_system(
             &mut chunk_manager,
         ) {
             error!("Main world reset failed: {}", error);
-            
+
             // 尝试回滚到检查点
             // Try to rollback to checkpoint
             if let Some(checkpoint) = reset_sync.get_checkpoint() {
                 match rollback_reset_to_checkpoint(&mut cache, checkpoint) {
                     Ok(()) => {
-                        warn!("Successfully rolled back to checkpoint after main world reset failure");
+                        warn!(
+                            "Successfully rolled back to checkpoint after main world reset failure"
+                        );
                     }
                     Err(rollback_error) => {
-                        error!("Failed to rollback after main world reset failure: {}", rollback_error);
+                        error!(
+                            "Failed to rollback after main world reset failure: {}",
+                            rollback_error
+                        );
                     }
                 }
             }
-            
+
             reset_sync.mark_failed(error);
             continue;
         }
-        
+
         // 标记主世界重置完成，开始渲染世界同步
         // Mark main world reset complete, start render world sync
         reset_sync.start_reset(current_time);
-        
+
         info!("Main world reset complete, waiting for render world sync...");
     }
 }
@@ -847,21 +853,17 @@ fn execute_main_world_reset(
 ) -> Result<(), FogResetError> {
     // 将复杂的重置逻辑拆分为更小的函数，每个都能返回具体错误
     // Break down complex reset logic into smaller functions, each can return specific errors
-    reset_chunk_cache(cache)
-        .map_err(FogResetError::CacheResetFailed)?;
-    
-    reset_chunk_states(chunk_q, texture_manager)
-        .map_err(FogResetError::ChunkStateResetFailed)?;
-    
-    reset_chunk_images(chunk_query, images)
-        .map_err(FogResetError::ImageResetFailed)?;
-    
+    reset_chunk_cache(cache).map_err(FogResetError::CacheResetFailed)?;
+
+    reset_chunk_states(chunk_q, texture_manager).map_err(FogResetError::ChunkStateResetFailed)?;
+
+    reset_chunk_images(chunk_query, images).map_err(FogResetError::ImageResetFailed)?;
+
     reset_main_textures(images, fog_texture, visibility_texture, snapshot_texture)
         .map_err(FogResetError::TextureResetFailed)?;
-    
-    cleanup_chunk_entities(chunk_manager, commands)
-        .map_err(FogResetError::EntityCleanupFailed)?;
-    
+
+    cleanup_chunk_entities(chunk_manager, commands).map_err(FogResetError::EntityCleanupFailed)?;
+
     info!("Main world reset operations completed successfully");
     Ok(())
 }
@@ -872,16 +874,20 @@ fn reset_chunk_cache(cache: &mut ResMut<ChunkStateCache>) -> Result<(), String> 
     let explored_count = cache.explored_chunks.len();
     let visible_count = cache.visible_chunks.len();
     let gpu_count = cache.gpu_resident_chunks.len();
-    
+
     // 验证缓存状态
     // Validate cache state
     if explored_count > 10000 || visible_count > 10000 || gpu_count > 10000 {
-        return Err(format!("Cache sizes too large: explored={explored_count}, visible={visible_count}, gpu={gpu_count}"));
+        return Err(format!(
+            "Cache sizes too large: explored={explored_count}, visible={visible_count}, gpu={gpu_count}"
+        ));
     }
-    
+
     cache.reset_all();
-    info!("Reset cache: {} explored, {} visible, {} gpu chunks cleared", 
-           explored_count, visible_count, gpu_count);
+    info!(
+        "Reset cache: {} explored, {} visible, {} gpu chunks cleared",
+        explored_count, visible_count, gpu_count
+    );
     Ok(())
 }
 
@@ -892,13 +898,13 @@ fn reset_chunk_states(
     texture_manager: &mut ResMut<TextureArrayManager>,
 ) -> Result<(), String> {
     let chunk_count = chunk_q.iter().count();
-    
+
     // 验证区块数量
     // Validate chunk count
     if chunk_count > 1000 {
         return Err(format!("Too many chunks to reset: {chunk_count}"));
     }
-    
+
     for mut chunk in chunk_q.iter_mut() {
         chunk.state.visibility = ChunkVisibility::Unexplored;
         chunk.state.memory_location = ChunkMemoryLocation::Cpu;
@@ -906,7 +912,7 @@ fn reset_chunk_states(
         chunk.snapshot_layer_index = None;
     }
     info!("Reset {} chunk states to Unexplored/Cpu", chunk_count);
-    
+
     // 清除所有纹理层分配
     // Clear all texture layer allocations
     texture_manager.clear_all_layers();
@@ -925,9 +931,10 @@ fn reset_chunk_images(
             // Use unified texture size calculator
             let size_info = TextureSizeCalculator::calculate_2d_single_channel(
                 fog_image.texture_descriptor.size.width,
-                fog_image.texture_descriptor.size.height
-            ).map_err(|e| format!("Failed to calculate fog texture size: {e}"))?;
-            
+                fog_image.texture_descriptor.size.height,
+            )
+            .map_err(|e| format!("Failed to calculate fog texture size: {e}"))?;
+
             fog_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
         if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
@@ -935,9 +942,10 @@ fn reset_chunk_images(
             // Use unified texture size calculator (RGBA)
             let size_info = TextureSizeCalculator::calculate_2d_rgba(
                 snapshot_image.texture_descriptor.size.width,
-                snapshot_image.texture_descriptor.size.height
-            ).map_err(|e| format!("Failed to calculate snapshot texture size: {e}"))?;
-            
+                snapshot_image.texture_descriptor.size.height,
+            )
+            .map_err(|e| format!("Failed to calculate snapshot texture size: {e}"))?;
+
             snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
         }
     }
@@ -959,9 +967,10 @@ fn reset_main_textures(
         let size_info = TextureSizeCalculator::calculate_3d_single_channel(
             fog_image.texture_descriptor.size.width,
             fog_image.texture_descriptor.size.height,
-            fog_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main fog texture size: {e}"))?;
-        
+            fog_image.texture_descriptor.size.depth_or_array_layers,
+        )
+        .map_err(|e| format!("Failed to calculate main fog texture size: {e}"))?;
+
         fog_image.data = Some(vec![0u8; size_info.total_bytes]);
         info!("Reset fog texture data: {} bytes", size_info.total_bytes);
     }
@@ -973,11 +982,18 @@ fn reset_main_textures(
         let size_info = TextureSizeCalculator::calculate_3d_single_channel(
             visibility_image.texture_descriptor.size.width,
             visibility_image.texture_descriptor.size.height,
-            visibility_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main visibility texture size: {e}"))?;
-        
+            visibility_image
+                .texture_descriptor
+                .size
+                .depth_or_array_layers,
+        )
+        .map_err(|e| format!("Failed to calculate main visibility texture size: {e}"))?;
+
         visibility_image.data = Some(vec![0u8; size_info.total_bytes]);
-        info!("Reset visibility texture data: {} bytes", size_info.total_bytes);
+        info!(
+            "Reset visibility texture data: {} bytes",
+            size_info.total_bytes
+        );
     }
 
     // Reset snapshot texture
@@ -987,11 +1003,15 @@ fn reset_main_textures(
         let size_info = TextureSizeCalculator::calculate_3d_rgba(
             snapshot_image.texture_descriptor.size.width,
             snapshot_image.texture_descriptor.size.height,
-            snapshot_image.texture_descriptor.size.depth_or_array_layers
-        ).map_err(|e| format!("Failed to calculate main snapshot texture size: {e}"))?;
-        
+            snapshot_image.texture_descriptor.size.depth_or_array_layers,
+        )
+        .map_err(|e| format!("Failed to calculate main snapshot texture size: {e}"))?;
+
         snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
-        info!("Reset snapshot texture data: {} bytes", size_info.total_bytes);
+        info!(
+            "Reset snapshot texture data: {} bytes",
+            size_info.total_bytes
+        );
     }
     Ok(())
 }
@@ -1003,21 +1023,21 @@ fn cleanup_chunk_entities(
     commands: &mut Commands,
 ) -> Result<(), String> {
     let entity_count = chunk_manager.map.len();
-    
+
     // 验证实体数量
     // Validate entity count
     if entity_count > 1000 {
         return Err(format!("Too many entities to cleanup: {entity_count}"));
     }
-    
+
     for (_coords, entity) in chunk_manager.map.iter() {
         commands.entity(*entity).despawn();
     }
-    
+
     // 清除区块实体管理器映射
     // Clear the chunk entity manager mapping
     chunk_manager.map.clear();
-    
+
     info!("Despawned {} chunk entities", entity_count);
     Ok(())
 }
@@ -1030,10 +1050,11 @@ fn rollback_reset_to_checkpoint(
 ) -> Result<(), FogResetError> {
     // 验证检查点数据
     // Validate checkpoint data
-    if checkpoint.explored_chunks.len() > 10000 ||
-       checkpoint.visible_chunks.len() > 10000 ||
-       checkpoint.gpu_resident_chunks.len() > 10000 ||
-       checkpoint.camera_view_chunks.len() > 10000 {
+    if checkpoint.explored_chunks.len() > 10000
+        || checkpoint.visible_chunks.len() > 10000
+        || checkpoint.gpu_resident_chunks.len() > 10000
+        || checkpoint.camera_view_chunks.len() > 10000
+    {
         return Err(FogResetError::RollbackFailed(format!(
             "Checkpoint data too large: explored={}, visible={}, gpu={}, camera={}",
             checkpoint.explored_chunks.len(),
@@ -1042,20 +1063,22 @@ fn rollback_reset_to_checkpoint(
             checkpoint.camera_view_chunks.len()
         )));
     }
-    
+
     // 恢复区块缓存状态
     // Restore chunk cache state
     cache.explored_chunks = checkpoint.explored_chunks.clone();
     cache.visible_chunks = checkpoint.visible_chunks.clone();
     cache.gpu_resident_chunks = checkpoint.gpu_resident_chunks.clone();
     cache.camera_view_chunks = checkpoint.camera_view_chunks.clone();
-    
-    info!("Rollback completed: restored {} explored, {} visible, {} GPU, {} camera view chunks",
-          cache.explored_chunks.len(),
-          cache.visible_chunks.len(),
-          cache.gpu_resident_chunks.len(),
-          cache.camera_view_chunks.len());
-    
+
+    info!(
+        "Rollback completed: restored {} explored, {} visible, {} GPU, {} camera view chunks",
+        cache.explored_chunks.len(),
+        cache.visible_chunks.len(),
+        cache.gpu_resident_chunks.len(),
+        cache.camera_view_chunks.len()
+    );
+
     Ok(())
 }
 
@@ -1069,7 +1092,7 @@ fn monitor_reset_sync_system(
     mut failure_events: EventWriter<FogResetFailedEvent>,
 ) {
     let current_time = time.elapsed().as_millis() as u64;
-    
+
     match reset_sync.state {
         ResetSyncState::Idle => {
             // 空闲状态，无需处理
@@ -1082,23 +1105,34 @@ fn monitor_reset_sync_system(
             // we use a simple timeout mechanism to mark completion
             if let Some(start_time) = reset_sync.start_time {
                 let elapsed = current_time - start_time;
-                
+
                 // 给渲染世界足够时间完成处理（2秒）
                 // Give render world enough time to complete processing (2 seconds)
                 if elapsed > 2000 {
-                    info!("Assuming render world processing completed after {}ms", elapsed);
+                    info!(
+                        "Assuming render world processing completed after {}ms",
+                        elapsed
+                    );
                     reset_sync.state = ResetSyncState::Complete;
-                } else if elapsed > 1000 && elapsed % 500 < 50 { // Log every 500ms after 1 second
-                    debug!("Waiting for render world processing... elapsed: {}ms", elapsed);
+                } else if elapsed > 1000 && elapsed % 500 < 50 {
+                    // Log every 500ms after 1 second
+                    debug!(
+                        "Waiting for render world processing... elapsed: {}ms",
+                        elapsed
+                    );
                 }
-                
+
                 // 仍然保留超时保护
                 // Still keep timeout protection
                 if reset_sync.is_timeout(current_time) {
                     let elapsed = current_time - reset_sync.start_time.unwrap_or(current_time);
-                    error!("Reset timeout waiting for render world processing after {}ms (timeout: {}ms)", 
-                           elapsed, reset_sync.timeout_ms);
-                    reset_sync.mark_failed(FogResetError::Timeout("Timeout waiting for render world processing".to_string()));
+                    error!(
+                        "Reset timeout waiting for render world processing after {}ms (timeout: {}ms)",
+                        elapsed, reset_sync.timeout_ms
+                    );
+                    reset_sync.mark_failed(FogResetError::Timeout(
+                        "Timeout waiting for render world processing".to_string(),
+                    ));
                 }
             }
         }
@@ -1107,7 +1141,9 @@ fn monitor_reset_sync_system(
             // Check for timeout
             if reset_sync.is_timeout(current_time) {
                 error!("Reset timeout during render world processing");
-                reset_sync.mark_failed(FogResetError::Timeout("Timeout during render world processing".to_string()));
+                reset_sync.mark_failed(FogResetError::Timeout(
+                    "Timeout during render world processing".to_string(),
+                ));
             }
         }
         ResetSyncState::Complete => {
@@ -1115,14 +1151,14 @@ fn monitor_reset_sync_system(
             // Reset complete, return to idle state
             let duration_ms = current_time - reset_sync.start_time.unwrap_or(current_time);
             info!("Reset sync completed successfully in {}ms", duration_ms);
-            
+
             // 发送成功事件
             // Send success event
             success_events.write(FogResetSuccessEvent {
                 duration_ms,
                 chunks_reset: reset_sync.chunks_count,
             });
-            
+
             reset_sync.reset_to_idle();
         }
         ResetSyncState::Failed(ref error) => {
@@ -1130,14 +1166,14 @@ fn monitor_reset_sync_system(
             // Reset failed, try to rollback to checkpoint
             let duration_ms = current_time - reset_sync.start_time.unwrap_or(current_time);
             error!("Reset sync failed: {} (duration: {}ms)", error, duration_ms);
-            
+
             // 发送失败事件
             // Send failure event
             failure_events.write(FogResetFailedEvent {
                 error: error.clone(),
                 duration_ms,
             });
-            
+
             if let Some(checkpoint) = reset_sync.get_checkpoint() {
                 match rollback_reset_to_checkpoint(&mut cache, checkpoint) {
                     Ok(()) => {
@@ -1150,9 +1186,8 @@ fn monitor_reset_sync_system(
             } else {
                 warn!("No checkpoint available for rollback");
             }
-            
+
             reset_sync.reset_to_idle();
         }
     }
 }
-

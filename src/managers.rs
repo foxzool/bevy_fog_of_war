@@ -223,14 +223,14 @@ impl TextureArrayManager {
     /// Clear all allocated layer indices, used for resetting the fog system.
     pub fn clear_all_layers(&mut self) {
         info!("Clearing all texture array layer allocations");
-        
+
         // Clear the coord to layers mapping
         self.coord_to_layers.clear();
-        
+
         // Reset all indices to free state
         self.free_fog_indices.clear();
         self.free_snapshot_indices.clear();
-        
+
         for i in 0..self.capacity {
             self.free_fog_indices.push(i);
             self.free_snapshot_indices.push(i);

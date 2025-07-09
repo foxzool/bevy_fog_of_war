@@ -93,11 +93,15 @@ impl std::fmt::Display for FogResetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FogResetError::CacheResetFailed(msg) => write!(f, "Cache reset failed: {msg}"),
-            FogResetError::ChunkStateResetFailed(msg) => write!(f, "Chunk state reset failed: {msg}"),
+            FogResetError::ChunkStateResetFailed(msg) => {
+                write!(f, "Chunk state reset failed: {msg}")
+            }
             FogResetError::ImageResetFailed(msg) => write!(f, "Image reset failed: {msg}"),
             FogResetError::TextureResetFailed(msg) => write!(f, "Texture reset failed: {msg}"),
             FogResetError::EntityCleanupFailed(msg) => write!(f, "Entity cleanup failed: {msg}"),
-            FogResetError::RenderWorldFailed(msg) => write!(f, "Render world processing failed: {msg}"),
+            FogResetError::RenderWorldFailed(msg) => {
+                write!(f, "Render world processing failed: {msg}")
+            }
             FogResetError::RollbackFailed(msg) => write!(f, "Rollback failed: {msg}"),
             FogResetError::Timeout(msg) => write!(f, "Timeout: {msg}"),
             FogResetError::Unknown(msg) => write!(f, "Unknown error: {msg}"),
@@ -134,23 +138,28 @@ pub struct TextureSizeCalculator;
 impl TextureSizeCalculator {
     /// 计算2D纹理的大小（单通道）
     /// Calculate 2D texture size (single channel)
-    pub fn calculate_2d_single_channel(width: u32, height: u32) -> Result<TextureSizeInfo, FogResetError> {
+    pub fn calculate_2d_single_channel(
+        width: u32,
+        height: u32,
+    ) -> Result<TextureSizeInfo, FogResetError> {
         let bytes_per_pixel = 1u64; // Single channel (R8Unorm)
-        
+
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
             .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
-        
-        let total_bytes = bytes_per_row
-            .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {width}x{height}")))?;
-        
-        let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
-        
-        let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
-        
+
+        let total_bytes = bytes_per_row.checked_mul(height as u64).ok_or_else(|| {
+            FogResetError::Unknown(format!("Texture size too large: {width}x{height}"))
+        })?;
+
+        let total_bytes_usize = usize::try_from(total_bytes).map_err(|_| {
+            FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}"))
+        })?;
+
+        let bytes_per_row_usize = usize::try_from(bytes_per_row).map_err(|_| {
+            FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}"))
+        })?;
+
         // 对齐计算需要RenderDevice，这里先返回未对齐的值
         // Alignment calculation requires RenderDevice, return unaligned value for now
         Ok(TextureSizeInfo {
@@ -162,26 +171,28 @@ impl TextureSizeCalculator {
             depth_or_layers: 1,
         })
     }
-    
+
     /// 计算2D纹理的大小（RGBA）
     /// Calculate 2D texture size (RGBA)
     pub fn calculate_2d_rgba(width: u32, height: u32) -> Result<TextureSizeInfo, FogResetError> {
         let bytes_per_pixel = 4u64; // RGBA
-        
+
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
             .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
-        
-        let total_bytes = bytes_per_row
-            .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture size too large: {width}x{height}")))?;
-        
-        let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
-        
-        let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
-        
+
+        let total_bytes = bytes_per_row.checked_mul(height as u64).ok_or_else(|| {
+            FogResetError::Unknown(format!("Texture size too large: {width}x{height}"))
+        })?;
+
+        let total_bytes_usize = usize::try_from(total_bytes).map_err(|_| {
+            FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}"))
+        })?;
+
+        let bytes_per_row_usize = usize::try_from(bytes_per_row).map_err(|_| {
+            FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}"))
+        })?;
+
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,
             bytes_per_row: bytes_per_row_usize,
@@ -191,30 +202,40 @@ impl TextureSizeCalculator {
             depth_or_layers: 1,
         })
     }
-    
+
     /// 计算3D纹理数组的大小（单通道）
     /// Calculate 3D texture array size (single channel)
-    pub fn calculate_3d_single_channel(width: u32, height: u32, depth_or_layers: u32) -> Result<TextureSizeInfo, FogResetError> {
+    pub fn calculate_3d_single_channel(
+        width: u32,
+        height: u32,
+        depth_or_layers: u32,
+    ) -> Result<TextureSizeInfo, FogResetError> {
         let bytes_per_pixel = 1u64; // Single channel (R8Unorm)
-        
+
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
             .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
-        
-        let bytes_per_slice = bytes_per_row
-            .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {width}x{height}")))?;
-        
+
+        let bytes_per_slice = bytes_per_row.checked_mul(height as u64).ok_or_else(|| {
+            FogResetError::Unknown(format!("Texture slice too large: {width}x{height}"))
+        })?;
+
         let total_bytes = bytes_per_slice
             .checked_mul(depth_or_layers as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {width}x{height}x{depth_or_layers}")))?;
-        
-        let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
-        
-        let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
-        
+            .ok_or_else(|| {
+                FogResetError::Unknown(format!(
+                    "Texture array too large: {width}x{height}x{depth_or_layers}"
+                ))
+            })?;
+
+        let total_bytes_usize = usize::try_from(total_bytes).map_err(|_| {
+            FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}"))
+        })?;
+
+        let bytes_per_row_usize = usize::try_from(bytes_per_row).map_err(|_| {
+            FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}"))
+        })?;
+
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,
             bytes_per_row: bytes_per_row_usize,
@@ -224,30 +245,40 @@ impl TextureSizeCalculator {
             depth_or_layers,
         })
     }
-    
+
     /// 计算3D纹理数组的大小（RGBA）
     /// Calculate 3D texture array size (RGBA)
-    pub fn calculate_3d_rgba(width: u32, height: u32, depth_or_layers: u32) -> Result<TextureSizeInfo, FogResetError> {
+    pub fn calculate_3d_rgba(
+        width: u32,
+        height: u32,
+        depth_or_layers: u32,
+    ) -> Result<TextureSizeInfo, FogResetError> {
         let bytes_per_pixel = 4u64; // RGBA
-        
+
         let bytes_per_row = (width as u64)
             .checked_mul(bytes_per_pixel)
             .ok_or_else(|| FogResetError::Unknown(format!("Texture width too large: {width}")))?;
-        
-        let bytes_per_slice = bytes_per_row
-            .checked_mul(height as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture slice too large: {width}x{height}")))?;
-        
+
+        let bytes_per_slice = bytes_per_row.checked_mul(height as u64).ok_or_else(|| {
+            FogResetError::Unknown(format!("Texture slice too large: {width}x{height}"))
+        })?;
+
         let total_bytes = bytes_per_slice
             .checked_mul(depth_or_layers as u64)
-            .ok_or_else(|| FogResetError::Unknown(format!("Texture array too large: {width}x{height}x{depth_or_layers}")))?;
-        
-        let total_bytes_usize = usize::try_from(total_bytes)
-            .map_err(|_| FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}")))?;
-        
-        let bytes_per_row_usize = usize::try_from(bytes_per_row)
-            .map_err(|_| FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}")))?;
-        
+            .ok_or_else(|| {
+                FogResetError::Unknown(format!(
+                    "Texture array too large: {width}x{height}x{depth_or_layers}"
+                ))
+            })?;
+
+        let total_bytes_usize = usize::try_from(total_bytes).map_err(|_| {
+            FogResetError::Unknown(format!("Texture size exceeds usize: {total_bytes}"))
+        })?;
+
+        let bytes_per_row_usize = usize::try_from(bytes_per_row).map_err(|_| {
+            FogResetError::Unknown(format!("Bytes per row exceeds usize: {bytes_per_row}"))
+        })?;
+
         Ok(TextureSizeInfo {
             total_bytes: total_bytes_usize,
             bytes_per_row: bytes_per_row_usize,
@@ -287,7 +318,6 @@ pub struct FogResetFailedEvent {
     /// Reset duration in milliseconds
     pub duration_ms: u64,
 }
-
 
 /// 重置同步状态
 /// Reset synchronization state
@@ -374,14 +404,14 @@ impl FogResetSync {
             false
         }
     }
-    
+
     /// 开始重置流程
     /// Start reset process
     pub fn start_reset(&mut self, current_time: u64) {
         self.state = ResetSyncState::MainWorldComplete;
         self.start_time = Some(current_time);
     }
-    
+
     /// 标记渲染世界开始处理
     /// Mark render world processing started
     pub fn start_render_processing(&mut self) {
@@ -389,7 +419,7 @@ impl FogResetSync {
             self.state = ResetSyncState::RenderWorldProcessing;
         }
     }
-    
+
     /// 标记重置完成
     /// Mark reset complete
     pub fn mark_complete(&mut self) {
@@ -397,19 +427,19 @@ impl FogResetSync {
             self.state = ResetSyncState::Complete;
         }
     }
-    
+
     /// 标记重置失败
     /// Mark reset failed
     pub fn mark_failed(&mut self, error: FogResetError) {
         self.state = ResetSyncState::Failed(error);
     }
-    
+
     /// 标记重置失败（字符串消息，转换为Unknown错误）
     /// Mark reset failed (string message, converted to Unknown error)
     pub fn mark_failed_str(&mut self, error: String) {
         self.state = ResetSyncState::Failed(FogResetError::Unknown(error));
     }
-    
+
     /// 重置到空闲状态
     /// Reset to idle state
     pub fn reset_to_idle(&mut self) {
@@ -418,13 +448,13 @@ impl FogResetSync {
         self.checkpoint = None;
         self.chunks_count = 0;
     }
-    
+
     /// 检查是否有可用的检查点进行回滚
     /// Check if checkpoint is available for rollback
     pub fn has_checkpoint(&self) -> bool {
         self.checkpoint.is_some()
     }
-    
+
     /// 获取检查点的引用
     /// Get checkpoint reference
     pub fn get_checkpoint(&self) -> Option<&ResetCheckpoint> {

@@ -210,9 +210,11 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 buffer: &fog_staging_buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(u32::try_from(bytes_per_row_fog)
-                        .expect("Fog bytes per row too large for u32")), // Must be correctly aligned if required by backend
-                    rows_per_image: Some(texture_height),   // For 2D, this is height
+                    bytes_per_row: Some(
+                        u32::try_from(bytes_per_row_fog)
+                            .expect("Fog bytes per row too large for u32"),
+                    ), // Must be correctly aligned if required by backend
+                    rows_per_image: Some(texture_height), // For 2D, this is height
                 },
             },
             Extent3d {
@@ -290,8 +292,10 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
                 buffer: &snapshot_staging_buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(u32::try_from(bytes_per_row_snapshot)
-                        .expect("Snapshot bytes per row too large for u32")),
+                    bytes_per_row: Some(
+                        u32::try_from(bytes_per_row_snapshot)
+                            .expect("Snapshot bytes per row too large for u32"),
+                    ),
                     rows_per_image: Some(texture_height),
                 },
             },
@@ -505,11 +509,14 @@ pub fn check_and_clear_textures_on_reset(
         // 添加调试信息以了解当前状态
         // Add debug info to understand current state
         if !matches!(reset_sync.state, ResetSyncState::Idle) {
-            debug!("Render world reset system called but state is: {:?}", reset_sync.state);
+            debug!(
+                "Render world reset system called but state is: {:?}",
+                reset_sync.state
+            );
         }
         return;
     }
-    
+
     // 标记渲染世界开始处理
     // Mark render world processing started
     reset_sync.start_render_processing();
@@ -522,17 +529,23 @@ pub fn check_and_clear_textures_on_reset(
     // Get GPU images with error handling
     let Some(fog_gpu_image) = gpu_images.get(&fog_texture.0) else {
         error!("Failed to get fog GPU image during reset");
-        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get fog GPU image during reset".to_string()));
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed(
+            "Failed to get fog GPU image during reset".to_string(),
+        ));
         return;
     };
     let Some(visibility_gpu_image) = gpu_images.get(&visibility_texture.0) else {
         error!("Failed to get visibility GPU image during reset");
-        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get visibility GPU image during reset".to_string()));
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed(
+            "Failed to get visibility GPU image during reset".to_string(),
+        ));
         return;
     };
     let Some(snapshot_gpu_image) = gpu_images.get(&snapshot_texture.0) else {
         error!("Failed to get snapshot GPU image during reset");
-        reset_sync.mark_failed(FogResetError::RenderWorldFailed("Failed to get snapshot GPU image during reset".to_string()));
+        reset_sync.mark_failed(FogResetError::RenderWorldFailed(
+            "Failed to get snapshot GPU image during reset".to_string(),
+        ));
         return;
     };
 
@@ -548,7 +561,8 @@ pub fn check_and_clear_textures_on_reset(
         .checked_mul(TextureFormat::R8Unorm.pixel_size() as u64)
         .and_then(|v| u32::try_from(v).ok())
         .expect("Fog bytes per row calculation would overflow");
-    let fog_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
+    let fog_padded_bytes_per_row =
+        RenderDevice::align_copy_bytes_per_row(fog_bytes_per_row as usize);
     let fog_buffer_size = fog_padded_bytes_per_row
         .checked_mul(texture_height as usize)
         .expect("Fog buffer size calculation would overflow");
@@ -560,7 +574,8 @@ pub fn check_and_clear_textures_on_reset(
         .checked_mul(TextureFormat::R8Unorm.pixel_size() as u64)
         .and_then(|v| u32::try_from(v).ok())
         .expect("Visibility bytes per row calculation would overflow");
-    let vis_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
+    let vis_padded_bytes_per_row =
+        RenderDevice::align_copy_bytes_per_row(vis_bytes_per_row as usize);
     let vis_buffer_size = vis_padded_bytes_per_row
         .checked_mul(texture_height as usize)
         .expect("Visibility buffer size calculation would overflow");
@@ -572,7 +587,8 @@ pub fn check_and_clear_textures_on_reset(
         .checked_mul(TextureFormat::Rgba8Unorm.pixel_size() as u64) // RGBA already included in pixel_size
         .and_then(|v| u32::try_from(v).ok())
         .expect("Snapshot bytes per row calculation would overflow");
-    let snap_padded_bytes_per_row = RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
+    let snap_padded_bytes_per_row =
+        RenderDevice::align_copy_bytes_per_row(snap_bytes_per_row as usize);
     let snap_buffer_size = snap_padded_bytes_per_row
         .checked_mul(texture_height as usize)
         .expect("Snapshot buffer size calculation would overflow");
@@ -619,7 +635,11 @@ pub fn check_and_clear_textures_on_reset(
             TexelCopyTextureInfo {
                 texture: &fog_gpu_image.texture,
                 mip_level: 0,
-                origin: Origin3d { x: 0, y: 0, z: layer },
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer,
+                },
                 aspect: TextureAspect::All,
             },
             Extent3d {
@@ -645,7 +665,11 @@ pub fn check_and_clear_textures_on_reset(
             TexelCopyTextureInfo {
                 texture: &visibility_gpu_image.texture,
                 mip_level: 0,
-                origin: Origin3d { x: 0, y: 0, z: layer },
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer,
+                },
                 aspect: TextureAspect::All,
             },
             Extent3d {
@@ -671,7 +695,11 @@ pub fn check_and_clear_textures_on_reset(
             TexelCopyTextureInfo {
                 texture: &snapshot_gpu_image.texture,
                 mip_level: 0,
-                origin: Origin3d { x: 0, y: 0, z: layer },
+                origin: Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer,
+                },
                 aspect: TextureAspect::All,
             },
             Extent3d {
@@ -683,7 +711,7 @@ pub fn check_and_clear_textures_on_reset(
     }
 
     render_queue.submit(std::iter::once(command_encoder.finish()));
-    
+
     // 通过事件通知主世界渲染完成，而不是直接修改同步状态
     // Notify main world of render completion via event instead of directly modifying sync state
     // Note: 直接修改 ExtractResource 的状态不会传回主世界
