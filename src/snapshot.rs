@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
-use crate::{FogSystems, RequestChunkSnapshotEvent};
+use crate::{FogSystems, RequestChunkSnapshot};
 use bevy::{
     asset::RenderAssetUsages,
     core_pipeline::core_2d::graph::{Core2d, Node2d},
@@ -27,7 +27,7 @@ impl Plugin for SnapshotPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractResourcePlugin::<SnapshotCameraState>::default());
         app.init_resource::<SnapshotCameraState>();
-        app.add_event::<RequestCleanChunkSnapshotEvent>();
+        app.add_event::<RequestCleanChunkSnapshot>();
         app.add_systems(Startup, setup_snapshot_camera)
             .add_systems(PostUpdate, prepare_snapshot_camera)
             .add_systems(Update, ensure_snapshot_render_layer)
@@ -82,7 +82,7 @@ pub struct MainWorldSnapshotRequest {
 /// Event to request clean a snapshot for a specific chunk.
 /// 请求为特定区块清理快照的事件。
 #[derive(Event, Debug, Clone, Copy)]
-pub struct RequestCleanChunkSnapshotEvent(pub IVec2);
+pub struct RequestCleanChunkSnapshot(pub IVec2);
 
 /// 标记组件，指示该实体应被包含在战争迷雾的快照中
 /// Marker component indicating this entity should be included in the fog of war snapshot
@@ -299,10 +299,10 @@ pub fn ensure_snapshot_render_layer(
     }
 }
 
-/// System to handle `RequestChunkSnapshotEvent` and queue snapshot remakes.
-/// 处理 `RequestChunkSnapshotEvent` 事件并对快照重制进行排队的系统。
+/// System to handle `RequestChunkSnapshot` and queue snapshot remakes.
+/// 处理 `RequestChunkSnapshot` 事件并对快照重制进行排队的系统。
 fn handle_request_chunk_snapshot_events(
-    mut events: EventReader<RequestChunkSnapshotEvent>,
+    mut events: EventReader<RequestChunkSnapshot>,
     chunk_manager: Res<ChunkEntityManager>,
     chunk_query: Query<&FogChunk>, // Query for FogChunk to get its details / 查询 FogChunk 以获取其详细信息
     mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
@@ -321,7 +321,7 @@ fn handle_request_chunk_snapshot_events(
 
                     if !already_pending {
                         trace!(
-                            "Received RequestChunkSnapshotEvent for {:?}. Queuing snapshot remake for layer {}.",
+                            "Received RequestChunkSnapshot for {:?}. Queuing snapshot remake for layer {}.",
                             chunk_coords, snapshot_layer_index
                         );
                         snapshot_requests.requests.push(MainWorldSnapshotRequest {
@@ -331,25 +331,25 @@ fn handle_request_chunk_snapshot_events(
                         });
                     } else {
                         debug!(
-                            "Received RequestChunkSnapshotEvent for {:?}, but snapshot remake is already pending. Skipping.",
+                            "Received RequestChunkSnapshot for {:?}, but snapshot remake is already pending. Skipping.",
                             chunk_coords
                         );
                     }
                 } else {
                     warn!(
-                        "Received RequestChunkSnapshotEvent for {:?}, but chunk has no snapshot_layer_index. Cannot request snapshot.",
+                        "Received RequestChunkSnapshot for {:?}, but chunk has no snapshot_layer_index. Cannot request snapshot.",
                         chunk_coords
                     );
                 }
             } else {
                 warn!(
-                    "Received RequestChunkSnapshotEvent for {:?}, but failed to get FogChunk component.",
+                    "Received RequestChunkSnapshot for {:?}, but failed to get FogChunk component.",
                     chunk_coords
                 );
             }
         } else {
             warn!(
-                "Received RequestChunkSnapshotEvent for {:?}, but chunk entity not found in manager.",
+                "Received RequestChunkSnapshot for {:?}, but chunk entity not found in manager.",
                 chunk_coords
             );
         }

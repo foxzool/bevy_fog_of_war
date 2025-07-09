@@ -247,11 +247,11 @@ pub enum ChunkMemoryLocation {
     /// 纹理数据已从 GPU 卸载，存储在 CPU 内存中
     /// Texture data is unloaded from GPU and stored in CPU RAM
     Cpu,
-    /// 主世界已请求渲染世界将此区块数据从 GPU 复制到 CPU。等待 ChunkGpuDataReadyEvent。
-    /// Main world has requested RenderWorld to copy this chunk's data from GPU. Awaiting ChunkGpuDataReadyEvent.
+    /// 主世界已请求渲染世界将此区块数据从 GPU 复制到 CPU。等待 ChunkGpuDataReady。
+    /// Main world has requested RenderWorld to copy this chunk's data from GPU. Awaiting ChunkGpuDataReady.
     PendingCopyToCpu,
-    /// 主世界已请求渲染世界将 CPU 数据上传到此区块的 GPU 纹理。等待 ChunkCpuDataUploadedEvent。
-    /// Main world has requested RenderWorld to upload CPU data to this chunk's GPU texture. Awaiting ChunkCpuDataUploadedEvent.
+    /// 主世界已请求渲染世界将 CPU 数据上传到此区块的 GPU 纹理。等待 ChunkCpuDataUploaded。
+    /// Main world has requested RenderWorld to upload CPU data to this chunk's GPU texture. Awaiting ChunkCpuDataUploaded.
     PendingCopyToGpu,
 }
 

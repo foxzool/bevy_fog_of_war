@@ -23,7 +23,7 @@ mod texture_handles;
 /// Event to request a snapshot for a specific chunk.
 /// 请求为特定区块生成快照的事件。
 #[derive(Event, Debug, Clone, Copy)]
-pub struct RequestChunkSnapshotEvent(pub IVec2);
+pub struct RequestChunkSnapshot(pub IVec2);
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 enum FogSystems {
@@ -67,12 +67,12 @@ impl Plugin for FogOfWarPlugin {
             .init_resource::<MainWorldSnapshotRequestQueue>()
             .init_resource::<FogResetSync>();
 
-        app.add_event::<ChunkGpuDataReadyEvent>()
-            .add_event::<ChunkCpuDataUploadedEvent>()
-            .add_event::<RequestChunkSnapshotEvent>() // Added event for remaking snapshots / 添加用于重制快照的事件
-            .add_event::<ResetFogOfWarEvent>() // Added event for resetting fog of war / 添加用于重置雾效的事件
-            .add_event::<FogResetSuccessEvent>() // Added event for successful reset / 添加用于成功重置的事件
-            .add_event::<FogResetFailedEvent>(); // Added event for failed reset / 添加用于失败重置的事件
+        app.add_event::<ChunkGpuDataReady>()
+            .add_event::<ChunkCpuDataUploaded>()
+            .add_event::<RequestChunkSnapshot>() // Added event for remaking snapshots / 添加用于重制快照的事件
+            .add_event::<ResetFogOfWar>() // Added event for resetting fog of war / 添加用于重置雾效的事件
+            .add_event::<FogResetSuccess>() // Added event for successful reset / 添加用于成功重置的事件
+            .add_event::<FogResetFailed>(); // Added event for failed reset / 添加用于失败重置的事件
 
         app.add_plugins(ExtractResourcePlugin::<GpuToCpuCopyRequests>::default())
             .add_plugins(ExtractResourcePlugin::<CpuToGpuCopyRequests>::default())
@@ -333,7 +333,7 @@ fn update_chunk_component_state(
     cache: Res<ChunkStateCache>,
     chunk_manager: Res<ChunkEntityManager>,
     mut chunk_q: Query<&mut FogChunk>,
-    mut snapshot_event_writer: EventWriter<RequestChunkSnapshotEvent>, // Changed to EventWriter / 更改为 EventWriter
+    mut snapshot_event_writer: EventWriter<RequestChunkSnapshot>, // Changed to EventWriter / 更改为 EventWriter
 ) {
     for (coords, entity) in chunk_manager.map.iter() {
         if let Ok(mut chunk) = chunk_q.get_mut(*entity) {
@@ -370,14 +370,14 @@ fn update_chunk_component_state(
                             "re-entered visibility"
                         };
                         trace!(
-                            "Chunk {:?} ({}) {} ({} -> {}). Sending RequestChunkSnapshotEvent.",
+                            "Chunk {:?} ({}) {} ({} -> {}). Sending RequestChunkSnapshot.",
                             *coords,
                             entity.index(),
                             reason,
                             old_visibility,
                             new_visibility
                         );
-                        snapshot_event_writer.write(RequestChunkSnapshotEvent(*coords));
+                        snapshot_event_writer.write(RequestChunkSnapshot(*coords));
                     } else {
                         warn!(
                             "Chunk {:?} ({}) changed visibility ({} -> {}), but has no snapshot_layer_index. Cannot request snapshot via event.",
@@ -536,8 +536,8 @@ pub fn manage_chunk_texture_transfer(
     mut texture_manager: ResMut<TextureArrayManager>,
     mut gpu_to_cpu_requests: ResMut<GpuToCpuCopyRequests>,
     mut cpu_to_gpu_requests: ResMut<CpuToGpuCopyRequests>,
-    mut gpu_data_ready_reader: EventReader<ChunkGpuDataReadyEvent>,
-    mut cpu_data_uploaded_reader: EventReader<ChunkCpuDataUploadedEvent>,
+    mut gpu_data_ready_reader: EventReader<ChunkGpuDataReady>,
+    mut cpu_data_uploaded_reader: EventReader<ChunkCpuDataUploaded>,
     mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
 ) {
     for event in gpu_data_ready_reader.read() {
@@ -583,13 +583,13 @@ pub fn manage_chunk_texture_transfer(
                 chunk.state.memory_location = ChunkMemoryLocation::Cpu;
             } else {
                 warn!(
-                    "Chunk {:?}: Received GpuDataReadyEvent but state is {:?}, expected PendingCopyToCpu.",
+                    "Chunk {:?}: Received GpuDataReady but state is {:?}, expected PendingCopyToCpu.",
                     event.chunk_coords, chunk.state.memory_location
                 );
             }
         } else {
             warn!(
-                "Received GpuDataReadyEvent for unknown chunk: {:?}",
+                "Received GpuDataReady for unknown chunk: {:?}",
                 event.chunk_coords
             );
         }
@@ -610,13 +610,13 @@ pub fn manage_chunk_texture_transfer(
                 chunk.state.memory_location = ChunkMemoryLocation::Gpu;
             } else {
                 warn!(
-                    "Chunk {:?}: Received CpuDataUploadedEvent but state is {:?}, expected PendingCopyToGpu.",
+                    "Chunk {:?}: Received CpuDataUploaded but state is {:?}, expected PendingCopyToGpu.",
                     event.chunk_coords, chunk.state.memory_location
                 );
             }
         } else {
             warn!(
-                "Received CpuDataUploadedEvent for unknown chunk: {:?}",
+                "Received CpuDataUploaded for unknown chunk: {:?}",
                 event.chunk_coords
             );
         }
@@ -674,8 +674,8 @@ pub fn manage_chunk_texture_transfer(
                             fog_layer_index: fog_idx_val, // Pass the unwrapped value
                             snapshot_layer_index: snap_idx_val,
                         });
-                        // 索引在 GpuDataReadyEvent 事件处理中设为 None
-                        // Indices are set to None in GpuDataReadyEvent event handling
+                        // 索引在 GpuDataReady 事件处理中设为 None
+                        // Indices are set to None in GpuDataReady event handling
                     } else {
                         warn!(
                             "Chunk {:?}: Wanted GPU->CPU but indices are None. State: {:?}, Visibility: {:?}",
@@ -726,8 +726,8 @@ pub fn manage_chunk_texture_transfer(
 
                         // 从 CPU 存储中移除，因为它正在被上传
                         // Remove from CPU storage as it's being uploaded
-                        // (可选：可以等到 ChunkCpuDataUploadedEvent 再移除，以防上传失败)
-                        // (Optional: can wait for ChunkCpuDataUploadedEvent before removing, in case upload fails)
+                        // (可选：可以等到 ChunkCpuDataUploaded 再移除，以防上传失败)
+                        // (Optional: can wait for ChunkCpuDataUploaded before removing, in case upload fails)
                         // cpu_storage.storage.remove(&chunk.coords);
                     } else {
                         warn!(
@@ -751,7 +751,7 @@ pub fn manage_chunk_texture_transfer(
 /// Refactored to 4 parameters to reduce coupling.
 #[allow(clippy::too_many_arguments)]
 fn reset_fog_of_war_system(
-    mut events: EventReader<ResetFogOfWarEvent>,
+    mut events: EventReader<ResetFogOfWar>,
     mut cache: ResMut<ChunkStateCache>,
     mut chunk_q: Query<&mut FogChunk>,
     mut chunk_query: Query<(Entity, &mut FogChunkImage)>,
@@ -1088,8 +1088,8 @@ fn monitor_reset_sync_system(
     mut reset_sync: ResMut<FogResetSync>,
     mut cache: ResMut<ChunkStateCache>,
     time: Res<Time>,
-    mut success_events: EventWriter<FogResetSuccessEvent>,
-    mut failure_events: EventWriter<FogResetFailedEvent>,
+    mut success_events: EventWriter<FogResetSuccess>,
+    mut failure_events: EventWriter<FogResetFailed>,
 ) {
     let current_time = time.elapsed().as_millis() as u64;
 
@@ -1154,7 +1154,7 @@ fn monitor_reset_sync_system(
 
             // 发送成功事件
             // Send success event
-            success_events.write(FogResetSuccessEvent {
+            success_events.write(FogResetSuccess {
                 duration_ms,
                 chunks_reset: reset_sync.chunks_count,
             });
@@ -1169,7 +1169,7 @@ fn monitor_reset_sync_system(
 
             // 发送失败事件
             // Send failure event
-            failure_events.write(FogResetFailedEvent {
+            failure_events.write(FogResetFailed {
                 error: error.clone(),
                 duration_ms,
             });

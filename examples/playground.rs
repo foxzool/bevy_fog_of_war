@@ -624,8 +624,8 @@ fn rotate_entities_system(time: Res<Time>, mut query: Query<&mut Transform, With
 /// 监听雾效重置事件的系统
 /// System that listens to fog reset events
 fn handle_fog_reset_events(
-    mut success_events: EventReader<FogResetSuccessEvent>,
-    mut failure_events: EventReader<FogResetFailedEvent>,
+    mut success_events: EventReader<FogResetSuccess>,
+    mut failure_events: EventReader<FogResetFailed>,
 ) {
     for event in success_events.read() {
         info!(
@@ -716,10 +716,10 @@ fn debug_draw_chunks(
 // Handle reset input system
 fn handle_reset_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut reset_events: EventWriter<ResetFogOfWarEvent>,
+    mut reset_events: EventWriter<ResetFogOfWar>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         info!("Resetting fog of war...");
-        reset_events.write(ResetFogOfWarEvent);
+        reset_events.write(ResetFogOfWar);
     }
 }

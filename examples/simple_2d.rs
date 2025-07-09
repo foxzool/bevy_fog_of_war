@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
-    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailedEvent,
-    FogResetSuccessEvent, VisionSource,
+    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailed, FogResetSuccess,
+    VisionSource,
 };
 
 fn main() {
@@ -142,8 +142,8 @@ fn camera_movement(
 /// 监听雾效重置事件的系统
 /// System that listens to fog reset events
 fn handle_fog_reset_events(
-    mut success_events: EventReader<FogResetSuccessEvent>,
-    mut failure_events: EventReader<FogResetFailedEvent>,
+    mut success_events: EventReader<FogResetSuccess>,
+    mut failure_events: EventReader<FogResetFailed>,
 ) {
     for event in success_events.read() {
         info!(

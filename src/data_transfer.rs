@@ -43,7 +43,7 @@ pub struct CpuToGpuCopyRequest {
 /// 事件：当 GPU 数据成功复制到 CPU 并可供主世界使用时，由 RenderApp 发送。
 /// Event: Sent by RenderApp when GPU data has been successfully copied to CPU and is available to the main world.
 #[derive(Event, Debug)]
-pub struct ChunkGpuDataReadyEvent {
+pub struct ChunkGpuDataReady {
     pub chunk_coords: IVec2,
     pub fog_data: Vec<u8>,
     pub snapshot_data: Vec<u8>,
@@ -52,7 +52,7 @@ pub struct ChunkGpuDataReadyEvent {
 /// 事件：当 CPU 数据成功上传到 GPU 时，由 RenderApp 发送。
 /// Event: Sent by RenderApp when CPU data has been successfully uploaded to GPU.
 #[derive(Event, Debug)]
-pub struct ChunkCpuDataUploadedEvent {
+pub struct ChunkCpuDataUploaded {
     pub chunk_coords: IVec2,
 }
 
@@ -293,12 +293,12 @@ impl TextureSizeCalculator {
 /// 事件：重置所有雾效数据，包括已探索区域、可见性状态和纹理数据。
 /// Event: Reset all fog of war data, including explored areas, visibility states, and texture data.
 #[derive(Event, Debug, Default)]
-pub struct ResetFogOfWarEvent;
+pub struct ResetFogOfWar;
 
 /// 事件：雾效重置成功完成
 /// Event: Fog of war reset completed successfully
 #[derive(Event, Debug, Default)]
-pub struct FogResetSuccessEvent {
+pub struct FogResetSuccess {
     /// 重置持续时间（毫秒）
     /// Reset duration in milliseconds
     pub duration_ms: u64,
@@ -310,7 +310,7 @@ pub struct FogResetSuccessEvent {
 /// 事件：雾效重置失败
 /// Event: Fog of war reset failed
 #[derive(Event, Debug)]
-pub struct FogResetFailedEvent {
+pub struct FogResetFailed {
     /// 失败原因
     /// Failure reason
     pub error: FogResetError,

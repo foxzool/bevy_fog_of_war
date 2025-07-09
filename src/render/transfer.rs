@@ -397,7 +397,7 @@ pub fn check_and_process_mapped_buffers(
         if let (Some(fog_data), Some(snapshot_data)) =
             (&pending_data.fog_result, &pending_data.snapshot_result)
         {
-            main_world.send_event(ChunkGpuDataReadyEvent {
+            main_world.send_event(ChunkGpuDataReady {
                 chunk_coords: pending_data.original_request.chunk_coords,
                 fog_data: fog_data.clone(),
                 snapshot_data: snapshot_data.clone(),
@@ -482,10 +482,10 @@ pub(crate) fn check_cpu_to_gpu_request(
     let requests = cpu_to_gpu_requests
         .requests
         .drain(..)
-        .map(|coord| ChunkCpuDataUploadedEvent {
+        .map(|coord| ChunkCpuDataUploaded {
             chunk_coords: coord,
         })
-        .collect::<Vec<ChunkCpuDataUploadedEvent>>();
+        .collect::<Vec<ChunkCpuDataUploaded>>();
 
     main_world.send_event_batch(requests);
 }
