@@ -9,4 +9,5 @@ Cargo.lock
 /benches/target
 /.windsurfrules
 .DS_Store
-/distfog_save_*.json
+/dist
+fog_save_*.json
