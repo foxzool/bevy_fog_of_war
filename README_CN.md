@@ -20,6 +20,8 @@
 - 基于区块的地图处理，高效更新，适合大型地图
 - 快照系统，用于持久化已探索的迷雾数据
 - 原子化迷雾重置功能，支持成功/失败事件通知
+- 保存/加载功能，支持按角色或存档文件持久化迷雾数据
+- 服务器友好的 JSON 序列化格式
 - 通过 `FogMapSettings` 资源高度可配置
 - 使用 WGSL 计算着色器的高效 GPU 实现
 
@@ -200,6 +202,109 @@ fn main() {
 - 包含失败时的自动回滚
 
 查看 [`playground.rs`](examples/playground.rs) 和 [`simple_2d.rs`](examples/simple_2d.rs) 示例了解完整演示。
+
+## 持久化
+
+插件支持保存和加载雾效数据，允许你在游戏会话之间或按角色/存档文件持久化已探索的区域。
+
+### 保存雾效数据
+
+```rust
+use bevy::prelude::*;
+use bevy_fog_of_war::prelude::*;
+
+fn save_fog_data(
+    mut save_events: EventWriter<SaveFogOfWarRequest>,
+) {
+    // 请求保存特定角色的雾效数据
+    save_events.write(SaveFogOfWarRequest {
+        character_id: "player_1".to_string(),
+        include_texture_data: true, // 包含纹理数据以保存部分可见性
+    });
+}
+
+fn handle_save_complete(
+    mut events: EventReader<FogOfWarSaved>,
+) {
+    for event in events.read() {
+        // 序列化的 JSON 数据在 event.data 中可用
+        // 你可以将其保存到文件或发送到服务器
+        println!("为角色 {} 保存了 {} 个区块", 
+                 event.character_id, event.chunk_count);
+        
+        // 示例：保存到文件
+        std::fs::write(
+            format!("fog_save_{}.json", event.character_id), 
+            &event.data
+        ).unwrap();
+    }
+}
+```
+
+### 加载雾效数据
+
+```rust
+use bevy::prelude::*;
+use bevy_fog_of_war::prelude::*;
+
+fn load_fog_data(
+    mut load_events: EventWriter<LoadFogOfWarRequest>,
+) {
+    // 加载之前保存的数据
+    let saved_data = std::fs::read_to_string("fog_save_player_1.json").unwrap();
+    
+    load_events.write(LoadFogOfWarRequest {
+        character_id: "player_1".to_string(),
+        data: saved_data,
+    });
+}
+
+fn handle_load_complete(
+    mut events: EventReader<FogOfWarLoaded>,
+) {
+    for event in events.read() {
+        println!("为角色 {} 加载了 {} 个区块", 
+                 event.character_id, event.chunk_count);
+        
+        if !event.warnings.is_empty() {
+            println!("警告: {:?}", event.warnings);
+        }
+    }
+}
+```
+
+### 服务器集成
+
+持久化系统设计用于与服务器端存储配合使用：
+
+```rust
+// 服务器集成示例
+async fn save_to_server(character_id: &str, fog_data: &str) {
+    // 将雾效数据发送到你的游戏服务器
+    let response = reqwest::Client::new()
+        .post("https://api.yourgame.com/fog-of-war/save")
+        .json(&serde_json::json!({
+            "character_id": character_id,
+            "fog_data": fog_data,
+        }))
+        .send()
+        .await
+        .unwrap();
+}
+
+async fn load_from_server(character_id: &str) -> String {
+    // 从你的游戏服务器获取雾效数据
+    let response = reqwest::Client::new()
+        .get(format!("https://api.yourgame.com/fog-of-war/{}", character_id))
+        .send()
+        .await
+        .unwrap();
+    
+    response.text().await.unwrap()
+}
+```
+
+查看 [`persistence.rs`](examples/persistence.rs) 示例了解保存和加载雾效数据的完整演示。
 
 ## 兼容性
 

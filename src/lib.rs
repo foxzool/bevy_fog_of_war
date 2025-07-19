@@ -1,4 +1,5 @@
 use self::prelude::*;
+use crate::persistence::FogOfWarPersistencePlugin;
 use crate::render::FogOfWarRenderPlugin;
 use bevy::{
     asset::RenderAssetUsages,
@@ -14,6 +15,7 @@ use bevy::{
 mod components;
 mod data_transfer;
 mod managers;
+pub mod persistence;
 pub mod prelude;
 mod render;
 mod settings;
@@ -26,13 +28,16 @@ mod texture_handles;
 pub struct RequestChunkSnapshot(pub IVec2);
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
-enum FogSystems {
+pub enum FogSystems {
     /// Update chunk states based on vision and camera
     /// 更新区块状态 (基于视野和相机)
     UpdateChunkState,
     /// Manage chunk entities (creation, activation)
     /// 管理区块实体 (创建, 激活)
     ManageEntities,
+    /// Handle persistence operations (save/load)
+    /// 处理持久化操作 (保存/加载)
+    Persistence,
     /// Handle CPU <-> GPU memory transfer logic
     /// 处理 CPU <-> GPU 内存传输逻辑
     PrepareTransfers,
@@ -84,6 +89,7 @@ impl Plugin for FogOfWarPlugin {
             (
                 FogSystems::UpdateChunkState,
                 FogSystems::ManageEntities,
+                FogSystems::Persistence,
                 FogSystems::PrepareTransfers,
             )
                 .chain(), // Ensure they run in this order / 确保它们按此顺序运行
@@ -117,6 +123,7 @@ impl Plugin for FogOfWarPlugin {
 
         app.add_plugins(FogOfWarRenderPlugin);
         app.add_plugins(SnapshotPlugin);
+        app.add_plugins(FogOfWarPersistencePlugin);
     }
 }
 
@@ -622,9 +629,9 @@ pub fn manage_chunk_texture_transfer(
         }
     }
 
-    // 清空本帧的请求队列，因为它们将被重新评估
-    // Clear this frame's request queues as they will be re-evaluated
-    gpu_to_cpu_requests.requests.clear();
+    // 清空CPU到GPU请求队列，因为它们将被重新评估
+    // Clear CPU-to-GPU request queue as they will be re-evaluated
+    // NOTE: GPU-to-CPU requests are cleared by the render world after processing
     cpu_to_gpu_requests.requests.clear();
 
     // --- 2. 决定哪些区块应该在 GPU 上 ---
@@ -642,8 +649,30 @@ pub fn manage_chunk_texture_transfer(
             target_gpu_chunks.insert(coords);
         }
     }
-    // 你可能还想为 target_gpu_chunks 周围添加一个缓冲区
-    // You might also want to add a buffer zone around target_gpu_chunks
+    
+    // 为已探索区域添加缓冲区，确保持久化加载后的区域能被渲染
+    // Add buffer zone for explored areas to ensure persistence-loaded areas are rendered
+    let buffer_radius = 2; // 缓冲区半径（以chunk为单位）/ Buffer radius in chunks
+    let mut buffered_coords = std::collections::HashSet::new();
+    
+    // 为所有已探索的chunk添加缓冲区
+    // Add buffer zone around all explored chunks
+    for &explored_coord in &chunk_cache.explored_chunks {
+        for dy in -buffer_radius..=buffer_radius {
+            for dx in -buffer_radius..=buffer_radius {
+                let buffered_coord = explored_coord + IVec2::new(dx, dy);
+                if chunk_cache.explored_chunks.contains(&buffered_coord) {
+                    buffered_coords.insert(buffered_coord);
+                }
+            }
+        }
+    }
+    
+    // 将缓冲区内的已探索chunk添加到GPU目标列表
+    // Add buffered explored chunks to GPU target list
+    for &coords in &buffered_coords {
+        target_gpu_chunks.insert(coords);
+    }
 
     // --- 3. 遍历所有区块，确定是否需要传输 ---
     // --- 3. Iterate all chunks to determine if transfer is needed ---
@@ -706,35 +735,53 @@ pub fn manage_chunk_texture_transfer(
                 if should_be_on_gpu {
                     // 条件：在 CPU 上，但现在需要上 GPU
                     // Condition: On CPU, but now needed on GPU
-                    if let Some((fog_idx_val, snap_idx_val)) =
+
+                    // Check if chunk already has allocated layer indices (e.g., from persistence loading)
+                    // 检查区块是否已经有分配的层索引（例如，从持久化加载）
+                    let (fog_idx_val, snap_idx_val) = if let (Some(fog_idx), Some(snap_idx)) =
+                        (chunk.fog_layer_index, chunk.snapshot_layer_index)
+                    {
+                        // Use existing layer indices
+                        // 使用现有的层索引
+                        trace!(
+                            "Chunk {:?}: Using existing layer indices F{}, S{} for CPU -> GPU transfer",
+                            chunk.coords, fog_idx, snap_idx
+                        );
+                        (fog_idx, snap_idx)
+                    } else if let Some((fog_idx, snap_idx)) =
                         texture_manager.allocate_layer_indices(chunk.coords)
                     {
+                        // Allocate new layer indices
+                        // 分配新的层索引
                         trace!(
-                            "Chunk {:?}: Requesting CPU -> GPU transfer. Layers: F{}, S{}",
-                            chunk.coords, fog_idx_val, snap_idx_val
+                            "Chunk {:?}: Allocated new layer indices F{}, S{} for CPU -> GPU transfer",
+                            chunk.coords, fog_idx, snap_idx
                         );
-                        chunk.fog_layer_index = Some(fog_idx_val);
-                        chunk.snapshot_layer_index = Some(snap_idx_val);
-                        chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToGpu;
-                        cpu_to_gpu_requests.requests.push(CpuToGpuCopyRequest {
-                            chunk_coords: chunk.coords,
-                            fog_layer_index: fog_idx_val,
-                            snapshot_layer_index: snap_idx_val,
-                            fog_image_handle: chunk_image.fog_image_handle.clone(),
-                            snapshot_image_handle: chunk_image.snapshot_image_handle.clone(),
-                        });
-
-                        // 从 CPU 存储中移除，因为它正在被上传
-                        // Remove from CPU storage as it's being uploaded
-                        // (可选：可以等到 ChunkCpuDataUploaded 再移除，以防上传失败)
-                        // (Optional: can wait for ChunkCpuDataUploaded before removing, in case upload fails)
-                        // cpu_storage.storage.remove(&chunk.coords);
+                        chunk.fog_layer_index = Some(fog_idx);
+                        chunk.snapshot_layer_index = Some(snap_idx);
+                        (fog_idx, snap_idx)
                     } else {
                         warn!(
                             "Chunk {:?}: Wanted to move CPU -> GPU, but no free texture layers!",
                             chunk.coords
                         );
-                    }
+                        continue; // Skip this chunk and continue with the next one
+                    };
+
+                    chunk.state.memory_location = ChunkMemoryLocation::PendingCopyToGpu;
+                    cpu_to_gpu_requests.requests.push(CpuToGpuCopyRequest {
+                        chunk_coords: chunk.coords,
+                        fog_layer_index: fog_idx_val,
+                        snapshot_layer_index: snap_idx_val,
+                        fog_image_handle: chunk_image.fog_image_handle.clone(),
+                        snapshot_image_handle: chunk_image.snapshot_image_handle.clone(),
+                    });
+
+                    // 从 CPU 存储中移除，因为它正在被上传
+                    // Remove from CPU storage as it's being uploaded
+                    // (可选：可以等到 ChunkCpuDataUploaded 再移除，以防上传失败)
+                    // (Optional: can wait for ChunkCpuDataUploaded before removing, in case upload fails)
+                    // cpu_storage.storage.remove(&chunk.coords);
                 }
             }
             ChunkMemoryLocation::PendingCopyToCpu | ChunkMemoryLocation::PendingCopyToGpu => {

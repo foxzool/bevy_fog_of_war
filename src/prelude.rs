@@ -5,6 +5,10 @@ pub use crate::data_transfer::{
     TextureSizeInfo,
 };
 pub use crate::managers::*;
+pub use crate::persistence::{
+    FogOfWarLoaded, FogOfWarPersistencePlugin, FogOfWarSaveData, FogOfWarSaved,
+    LoadFogOfWarRequest, PersistenceError, SaveFogOfWarRequest,
+};
 pub use crate::settings::*;
 pub use crate::texture_handles::*;
 pub use crate::{FogOfWarPlugin, components::*, snapshot::*};

@@ -97,7 +97,7 @@ pub fn process_cpu_to_gpu_copies(
 pub fn initiate_gpu_to_cpu_copies_and_request_map(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
-    gpu_read_requests: Res<GpuToCpuCopyRequests>,
+    mut gpu_read_requests: ResMut<GpuToCpuCopyRequests>,
     fog_texture_array_handle: Res<RenderFogTexture>,
     snapshot_texture_array_handle: Res<RenderSnapshotTexture>,
     gpu_images: Res<RenderAssets<GpuImage>>,
@@ -224,56 +224,11 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        // 安全的清除缓冲区大小计算，防止整数溢出
-        // Safe clear buffer size calculation to prevent integer overflow
-        let clear_bytes_per_row_unpadded = (texture_width as usize)
-            .checked_mul(TextureFormat::R8Unorm.pixel_size())
-            .expect("Clear bytes per row calculation would overflow");
-        let clear_padded_bytes_per_row =
-            RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
-        let clear_buffer_size = clear_padded_bytes_per_row
-            .checked_mul(texture_height as usize)
-            .expect("Clear buffer size calculation would overflow");
-
-        let zero_data = vec![0u8; clear_buffer_size];
-        let buffer = render_device.create_buffer_with_data(
-            &bevy::render::render_resource::BufferInitDescriptor {
-                label: Some("clear_fog_layer_buffer"),
-                contents: &zero_data,
-                usage: BufferUsages::COPY_SRC,
-            },
-        );
-
-        command_encoder.copy_buffer_to_texture(
-            TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(u32::from(
-                        std::num::NonZeroU32::new(clear_padded_bytes_per_row as u32)
-                            .expect("Clear buffer row size should not be zero"),
-                    )),
-                    rows_per_image: None,
-                },
-            },
-            TexelCopyTextureInfo {
-                // Target the correct texture (explored_read seems right for clearing render data)
-                texture: &fog_gpu_image.texture,
-                mip_level: 0,
-                origin: Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: request.fog_layer_index,
-                },
-                aspect: TextureAspect::All,
-            },
-            Extent3d {
-                // Ensure the extent matches the area being cleared
-                width: texture_width,
-                height: texture_height,
-                depth_or_array_layers: 1, // Clearing one layer
-            },
-        );
+        // NOTE: Removed texture clearing operation here as it was incorrectly 
+        // resetting explored areas during save operations. GPU-to-CPU readback
+        // should not modify the original texture data.
+        // 注意：移除了这里的纹理清除操作，因为它在保存操作时错误地重置了已探索区域。
+        // GPU到CPU的回读不应该修改原始纹理数据。
 
         // --- 复制快照纹理数据到暂存区 ---
         // --- Copy Snapshot Texture Data to Staging Buffer ---
@@ -306,59 +261,11 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        // 安全的快照清除缓冲区大小计算，防止整数溢出
-        // Safe snapshot clear buffer size calculation to prevent integer overflow
-        let clear_bytes_per_row_unpadded = (texture_width as usize)
-            .checked_mul(TextureFormat::Rgba8Unorm.pixel_size())
-            .expect("Snapshot clear bytes per row calculation would overflow");
-        let clear_padded_bytes_per_row =
-            RenderDevice::align_copy_bytes_per_row(clear_bytes_per_row_unpadded);
-        let clear_buffer_size = clear_padded_bytes_per_row
-            .checked_mul(texture_height as usize)
-            .expect("Snapshot clear buffer size calculation would overflow");
-
-        let zero_data = vec![0u8; clear_buffer_size];
-        let buffer = render_device.create_buffer_with_data(
-            &bevy::render::render_resource::BufferInitDescriptor {
-                label: Some("clear_snap_layer_buffer"),
-                contents: &zero_data,
-                usage: BufferUsages::COPY_SRC,
-            },
-        );
-
-        command_encoder.copy_buffer_to_texture(
-            TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: TexelCopyBufferLayout {
-                    offset: 0,
-                    // ***** CHANGE HERE *****
-                    // Use the bytes_per_row calculated for the zero_data buffer
-                    bytes_per_row: Some(u32::from(
-                        std::num::NonZeroU32::new(clear_padded_bytes_per_row as u32)
-                            .expect("Clear buffer row size should not be zero"),
-                    )),
-                    // rows_per_image should likely be None when copying to a single 2D layer/slice
-                    rows_per_image: None,
-                },
-            },
-            TexelCopyTextureInfo {
-                // Target the correct texture (explored_read seems right for clearing render data)
-                texture: &snapshot_gpu_image.texture,
-                mip_level: 0,
-                origin: Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: request.snapshot_layer_index,
-                },
-                aspect: TextureAspect::All,
-            },
-            Extent3d {
-                // Ensure the extent matches the area being cleared
-                width: texture_width,
-                height: texture_height,
-                depth_or_array_layers: 1, // Clearing one layer
-            },
-        );
+        // NOTE: Removed snapshot texture clearing operation here as it was incorrectly 
+        // resetting explored areas during save operations. GPU-to-CPU readback
+        // should not modify the original texture data.
+        // 注意：移除了这里的快照纹理清除操作，因为它在保存操作时错误地重置了已探索区域。
+        // GPU到CPU的回读不应该修改原始纹理数据。
 
         let (fog_tx, fog_rx) = async_channel::bounded(1);
         let (snapshot_tx, snapshot_rx) = async_channel::bounded(1);
@@ -380,6 +287,10 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
 
         render_queue.submit(std::iter::once(command_encoder.finish()));
     }
+    
+    // Clear the requests after processing them
+    // 处理完请求后清除它们
+    gpu_read_requests.requests.clear();
 }
 
 pub fn check_and_process_mapped_buffers(

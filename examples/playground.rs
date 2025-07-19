@@ -5,11 +5,19 @@ use bevy::{
     prelude::*,
 };
 use bevy_fog_of_war::prelude::*;
+use std::fs;
 
 /// 移动目标位置资源
 /// Movement target position resource
 #[derive(Resource, Default)]
 struct TargetPosition(Option<Vec3>);
+
+/// 玩家标记组件
+/// Player marker component
+#[derive(Component)]
+struct Player {
+    character_id: String,
+}
 
 fn main() {
     App::new()
@@ -50,6 +58,9 @@ fn main() {
                 handle_fog_reset_events,
                 rotate_entities_system,
                 handle_reset_input,
+                handle_persistence_input,
+                handle_saved_event,
+                handle_loaded_event,
             ),
         )
         .run();
@@ -160,8 +171,8 @@ fn setup(
         RotationAble,
     ));
 
-    // 生成可移动的视野提供者
-    // Spawn movable vision provider
+    // 生成可移动的视野提供者（玩家）
+    // Spawn movable vision provider (player)
     commands.spawn((
         Sprite {
             color: Color::srgb(0.0, 0.8, 0.8),
@@ -179,6 +190,9 @@ fn setup(
             transition_ratio: 0.2,
         },
         MovableVision,
+        Player {
+            character_id: "player_1".to_string(),
+        },
     ));
 
     // 生成水平来回移动的 Sprite
@@ -427,7 +441,10 @@ fn setup_ui(mut commands: Commands) {
              F - Toggle fog\n\
              R - Reset fog of war\n\
              PageUp/Down - Adjust fog alpha\n\
-             Left Click - Set target for blue vision source",
+             Left Click - Set target for blue vision source\n\
+             P - Save fog data\n\
+             L - Load fog data\n\
+             1-3 - Load different character saves",
         ),
         TextFont {
             font_size: 14.0,
@@ -721,5 +738,111 @@ fn handle_reset_input(
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         info!("Resetting fog of war...");
         reset_events.write(ResetFogOfWar);
+    }
+}
+
+// 处理持久化输入系统
+// Handle persistence input system
+fn handle_persistence_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut save_events: EventWriter<SaveFogOfWarRequest>,
+    mut load_events: EventWriter<LoadFogOfWarRequest>,
+    player_query: Query<&Player>,
+) {
+    // 保存当前玩家的雾效数据
+    // Save current player's fog data
+    if keyboard_input.just_pressed(KeyCode::KeyP) {
+        if let Ok(player) = player_query.single() {
+            info!("Saving fog data for character: {}", player.character_id);
+            save_events.write(SaveFogOfWarRequest {
+                character_id: player.character_id.clone(),
+                include_texture_data: true,
+            });
+        }
+    }
+
+    // 加载当前玩家的雾效数据
+    // Load current player's fog data
+    if keyboard_input.just_pressed(KeyCode::KeyL) {
+        if let Ok(player) = player_query.single() {
+            let filename = format!("fog_save_{}.json", player.character_id);
+            match fs::read_to_string(&filename) {
+                Ok(data) => {
+                    info!("Loading fog data for character: {}", player.character_id);
+                    load_events.write(LoadFogOfWarRequest {
+                        character_id: player.character_id.clone(),
+                        data,
+                    });
+                }
+                Err(e) => {
+                    error!("Failed to read save file '{}': {}", filename, e);
+                }
+            }
+        }
+    }
+
+    // 加载不同角色的存档
+    // Load different character saves
+    for (key, character_id) in [
+        (KeyCode::Digit1, "player_1"),
+        (KeyCode::Digit2, "player_2"),
+        (KeyCode::Digit3, "player_3"),
+    ] {
+        if keyboard_input.just_pressed(key) {
+            let filename = format!("fog_save_{}.json", character_id);
+            match fs::read_to_string(&filename) {
+                Ok(data) => {
+                    info!("Loading fog data for character: {}", character_id);
+                    load_events.write(LoadFogOfWarRequest {
+                        character_id: character_id.to_string(),
+                        data,
+                    });
+                }
+                Err(_) => {
+                    warn!("No save file found for character: {}", character_id);
+                }
+            }
+        }
+    }
+}
+
+// 处理保存完成事件
+// Handle saved event
+fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
+    for event in events.read() {
+        // 将数据保存到文件
+        // Save data to file
+        let filename = format!("fog_save_{}.json", event.character_id);
+        match fs::write(&filename, &event.data) {
+            Ok(_) => {
+                info!(
+                    "Successfully saved {} chunks to file '{}' ({} bytes)",
+                    event.chunk_count,
+                    filename,
+                    event.data.len()
+                );
+            }
+            Err(e) => {
+                error!("Failed to write save file '{}': {}", filename, e);
+            }
+        }
+    }
+}
+
+// 处理加载完成事件
+// Handle loaded event
+fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
+    for event in events.read() {
+        info!(
+            "Successfully loaded {} chunks for character '{}'",
+            event.chunk_count, event.character_id
+        );
+
+        if !event.warnings.is_empty() {
+            warn!("Load warnings:");
+            for warning in &event.warnings {
+                warn!("  - {}", warning);
+            }
+        }
     }
 }

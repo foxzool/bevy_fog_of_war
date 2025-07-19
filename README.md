@@ -21,6 +21,8 @@ your 2D games, with support for multiple light sources, smooth transitions, and 
 - Chunk-based map processing for efficient updates, suitable for large maps.
 - Snapshot system for persisting explored fog data.
 - Atomic fog reset functionality with success/failure event notifications.
+- Save/load functionality for persisting fog data per character or save file.
+- Server-friendly JSON serialization for fog state.
 - Highly configurable via the `FogMapSettings` resource.
 - Efficient GPU-based implementation using WGSL compute shaders.
 
@@ -207,6 +209,109 @@ The reset functionality:
 
 Check the [`playground.rs`](examples/playground.rs) and [`simple_2d.rs`](examples/simple_2d.rs) examples for complete
 demonstrations.
+
+## Persistence
+
+The plugin supports saving and loading fog of war data, allowing you to persist explored areas across game sessions or per character/save file.
+
+### Saving Fog of War Data
+
+```rust
+use bevy::prelude::*;
+use bevy_fog_of_war::prelude::*;
+
+fn save_fog_data(
+    mut save_events: EventWriter<SaveFogOfWarRequest>,
+) {
+    // Request to save fog data for a specific character
+    save_events.write(SaveFogOfWarRequest {
+        character_id: "player_1".to_string(),
+        include_texture_data: true, // Include texture data for partial visibility
+    });
+}
+
+fn handle_save_complete(
+    mut events: EventReader<FogOfWarSaved>,
+) {
+    for event in events.read() {
+        // The serialized JSON data is available in event.data
+        // You can save this to a file or send to a server
+        println!("Saved {} chunks for character {}", 
+                 event.chunk_count, event.character_id);
+        
+        // Example: Save to file
+        std::fs::write(
+            format!("fog_save_{}.json", event.character_id), 
+            &event.data
+        ).unwrap();
+    }
+}
+```
+
+### Loading Fog of War Data
+
+```rust
+use bevy::prelude::*;
+use bevy_fog_of_war::prelude::*;
+
+fn load_fog_data(
+    mut load_events: EventWriter<LoadFogOfWarRequest>,
+) {
+    // Load previously saved data
+    let saved_data = std::fs::read_to_string("fog_save_player_1.json").unwrap();
+    
+    load_events.write(LoadFogOfWarRequest {
+        character_id: "player_1".to_string(),
+        data: saved_data,
+    });
+}
+
+fn handle_load_complete(
+    mut events: EventReader<FogOfWarLoaded>,
+) {
+    for event in events.read() {
+        println!("Loaded {} chunks for character {}", 
+                 event.chunk_count, event.character_id);
+        
+        if !event.warnings.is_empty() {
+            println!("Warnings: {:?}", event.warnings);
+        }
+    }
+}
+```
+
+### Server Integration
+
+The persistence system is designed to work with server-side storage:
+
+```rust
+// Example server integration
+async fn save_to_server(character_id: &str, fog_data: &str) {
+    // Send fog data to your game server
+    let response = reqwest::Client::new()
+        .post("https://api.yourgame.com/fog-of-war/save")
+        .json(&serde_json::json!({
+            "character_id": character_id,
+            "fog_data": fog_data,
+        }))
+        .send()
+        .await
+        .unwrap();
+}
+
+async fn load_from_server(character_id: &str) -> String {
+    // Fetch fog data from your game server
+    let response = reqwest::Client::new()
+        .get(format!("https://api.yourgame.com/fog-of-war/{}", character_id))
+        .send()
+        .await
+        .unwrap();
+    
+    response.text().await.unwrap()
+}
+```
+
+See the [`persistence.rs`](examples/persistence.rs) example for a complete demonstration of saving and loading fog data.
 
 ## Compatibility
 

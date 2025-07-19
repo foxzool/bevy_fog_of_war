@@ -109,7 +109,9 @@ impl Default for VisionSource {
 
 /// 区块的可见性状态
 /// Visibility state of a chunk
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Reflect, serde::Serialize, serde::Deserialize,
+)]
 #[reflect(Default)] // 允许通过反射获取默认值 / Allow getting default value via reflection
 pub enum ChunkVisibility {
     /// 从未被任何视野源照亮过
@@ -194,6 +196,10 @@ pub struct FogChunkImage {
 
 impl FogChunkImage {
     pub fn from_setting(images: &mut ResMut<Assets<Image>>, setting: &FogMapSettings) -> Self {
+        Self::from_setting_raw(&mut **images, setting)
+    }
+
+    pub fn from_setting_raw(images: &mut Assets<Image>, setting: &FogMapSettings) -> Self {
         let data = vec![0u8; setting.fog_texture_format.pixel_size()];
         let mut fog_image = Image::new_fill(
             Extent3d {
