@@ -8,8 +8,8 @@ use bevy_fog_of_war::prelude::{
 fn main() {
     // Controls:
     // WASD - Move camera
-    // S - Save fog data (demonstrates multiple serialization formats)
-    // L - Load fog data (auto-detects format)
+    // F5 - Save fog data (demonstrates multiple serialization formats)
+    // F9 - Load fog data (auto-detects format)
     // 
     // This example demonstrates the different serialization formats:
     // - JSON (human-readable, larger)
@@ -185,9 +185,9 @@ fn handle_save_load_input(
     mut save_events: EventWriter<SaveFogOfWarRequest>,
     mut load_events: EventWriter<LoadFogOfWarRequest>,
 ) {
-    // S键 - 保存雾效数据
-    // S key - Save fog data
-    if keyboard.just_pressed(KeyCode::KeyS) {
+    // F5键 - 保存雾效数据
+    // F5 key - Save fog data
+    if keyboard.just_pressed(KeyCode::F5) {
         info!("Saving fog data in multiple formats...");
         save_events.write(SaveFogOfWarRequest {
             character_id: "simple_demo".to_string(),
@@ -195,9 +195,9 @@ fn handle_save_load_input(
         });
     }
 
-    // L键 - 加载雾效数据
-    // L key - Load fog data  
-    if keyboard.just_pressed(KeyCode::KeyL) {
+    // F9键 - 加载雾效数据
+    // F9 key - Load fog data  
+    if keyboard.just_pressed(KeyCode::F9) {
         info!("Loading fog data (auto-detect format)...");
         
         // 尝试不同格式的文件（优先二进制格式）
@@ -247,7 +247,7 @@ fn handle_save_load_input(
         }
         
         if !loaded {
-            warn!("No save file found. Press S to save first.");
+            warn!("No save file found. Press F5 to save first.");
         }
     }
 }
@@ -294,7 +294,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
                     }
                 }
                 
-                info!("Format comparison complete! Use L to load back.");
+                info!("Format comparison complete! Use F9 to load back.");
             }
             Err(e) => {
                 error!("Failed to parse save data: {}", e);
