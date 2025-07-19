@@ -10,4 +10,21 @@ Cargo.lock
 /.windsurfrules
 .DS_Store
 /dist
+# Fog of war save files (all formats)
 fog_save_*.json
+fog_save_*.msgpack
+fog_save_*.bincode
+fog_save_*.json.gz
+fog_save_*.json.lz4
+fog_save_*.json.zst
+fog_save_*.msgpack.gz
+fog_save_*.msgpack.lz4
+fog_save_*.msgpack.zst
+fog_save_*.bincode.gz
+fog_save_*.bincode.lz4
+fog_save_*.bincode.zst
+
+# Example save files
+simple_demo.*
+player_save.*
+character_save.*

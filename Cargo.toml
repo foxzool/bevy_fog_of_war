@@ -57,6 +57,25 @@ async-channel = "2.3.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+# Optional compression dependencies
+flate2 = { version = "1.0", optional = true }
+lz4 = { version = "1.28", optional = true }
+zstd = { version = "0.13", optional = true }
+
+# Optional serialization format dependencies
+rmp-serde = { version = "1.3", optional = true }
+bincode = { version = "1.3", optional = true }
+
+[features]
+default = []
+compression-gzip = ["flate2"]
+compression-lz4 = ["lz4"]
+compression-zstd = ["zstd"]
+all-compression = ["compression-gzip", "compression-lz4", "compression-zstd"]
+format-messagepack = ["rmp-serde"]
+format-bincode = ["bincode"]
+all-formats = ["format-messagepack", "format-bincode", "all-compression"]
+
 [dev-dependencies]
 bevy = { version = "0.16" }
 #bevy-inspector-egui = { version = "0.31" }

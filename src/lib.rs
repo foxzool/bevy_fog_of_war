@@ -16,6 +16,7 @@ mod components;
 mod data_transfer;
 mod managers;
 pub mod persistence;
+pub mod persistence_utils;
 pub mod prelude;
 mod render;
 mod settings;

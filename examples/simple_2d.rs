@@ -1,16 +1,27 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
     Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailed, FogResetSuccess,
-    VisionSource,
+    VisionSource, SaveFogOfWarRequest, FogOfWarSaved, LoadFogOfWarRequest, FogOfWarLoaded,
+    FileFormat, save_data_to_file, load_data_from_file, FogOfWarSaveData,
 };
 
 fn main() {
+    // Controls:
+    // WASD - Move camera
+    // S - Save fog data (demonstrates multiple serialization formats)
+    // L - Load fog data (auto-detects format)
+    // 
+    // This example demonstrates the different serialization formats:
+    // - JSON (human-readable, larger)
+    // - MessagePack (binary, compact) - requires 'format-messagepack' feature
+    // - bincode (Rust-native, fastest) - requires 'format-bincode' feature
+    
     App::new()
         .insert_resource(ClearColor(Color::WHITE))
         .init_gizmo_group::<MyRoundGizmos>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Simple 2d Fog of War ".into(),
+                title: "Simple 2d Fog of War - Serialization Demo".into(),
                 ..default()
             }),
             ..default()
@@ -19,7 +30,14 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (draw_gizmos, camera_movement, handle_fog_reset_events),
+            (
+                draw_gizmos, 
+                camera_movement, 
+                handle_fog_reset_events,
+                handle_save_load_input,
+                handle_saved_event,
+                handle_loaded_event,
+            ),
         )
         .run();
 }
@@ -157,5 +175,148 @@ fn handle_fog_reset_events(
             "❌ Fog reset failed! Duration: {}ms, Error: {}",
             event.duration_ms, event.error
         );
+    }
+}
+
+/// 处理保存和加载输入（演示不同序列化格式）
+/// Handle save and load input (demonstrate different serialization formats)
+fn handle_save_load_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut save_events: EventWriter<SaveFogOfWarRequest>,
+    mut load_events: EventWriter<LoadFogOfWarRequest>,
+) {
+    // S键 - 保存雾效数据
+    // S key - Save fog data
+    if keyboard.just_pressed(KeyCode::KeyS) {
+        info!("Saving fog data in multiple formats...");
+        save_events.write(SaveFogOfWarRequest {
+            character_id: "simple_demo".to_string(),
+            include_texture_data: true,
+        });
+    }
+
+    // L键 - 加载雾效数据
+    // L key - Load fog data  
+    if keyboard.just_pressed(KeyCode::KeyL) {
+        info!("Loading fog data (auto-detect format)...");
+        
+        // 尝试不同格式的文件（优先二进制格式）
+        // Try different format files (prefer binary formats)
+        let format_priorities = vec![
+            #[cfg(feature = "format-bincode")]
+            "simple_demo.bincode",
+            #[cfg(feature = "format-messagepack")]
+            "simple_demo.msgpack",
+            "simple_demo.json",
+        ];
+        
+        let mut loaded = false;
+        for filename in format_priorities {
+            if std::path::Path::new(filename).exists() {
+                // 对于二进制格式，直接加载并转换为JSON
+                // For binary formats, load directly and convert to JSON
+                let result = if filename.ends_with(".bincode") || filename.ends_with(".msgpack") {
+                    match load_data_from_file::<FogOfWarSaveData>(filename, None) {
+                        Ok(save_data) => {
+                            match serde_json::to_string(&save_data) {
+                                Ok(json_data) => Ok(json_data),
+                                Err(e) => Err(format!("JSON conversion failed: {}", e)),
+                            }
+                        }
+                        Err(e) => Err(e.to_string()),
+                    }
+                } else {
+                    std::fs::read_to_string(filename).map_err(|e| e.to_string())
+                };
+                
+                match result {
+                    Ok(data) => {
+                        info!("Loading from '{}' (format auto-detected)", filename);
+                        load_events.write(LoadFogOfWarRequest {
+                            character_id: "simple_demo".to_string(),
+                            data,
+                        });
+                        loaded = true;
+                        break;
+                    }
+                    Err(e) => {
+                        warn!("Failed to load '{}': {}", filename, e);
+                    }
+                }
+            }
+        }
+        
+        if !loaded {
+            warn!("No save file found. Press S to save first.");
+        }
+    }
+}
+
+/// 处理保存完成事件（演示多格式保存）
+/// Handle save completion event (demonstrate multi-format saving)
+fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
+    for event in events.read() {
+        // 将JSON数据反序列化为结构体
+        // Deserialize JSON data to struct
+        let save_data: Result<FogOfWarSaveData, _> = serde_json::from_str(&event.data);
+        
+        match save_data {
+            Ok(data) => {
+                // 演示不同格式的保存
+                // Demonstrate saving in different formats
+                let demo_formats = vec![
+                    (FileFormat::Json, "json"),
+                    #[cfg(feature = "format-messagepack")]
+                    (FileFormat::MessagePack, "msgpack"),
+                    #[cfg(feature = "format-bincode")]
+                    (FileFormat::Bincode, "bincode"),
+                ];
+                
+                info!("Demonstrating {} serialization formats:", demo_formats.len());
+                
+                for (format, ext) in demo_formats {
+                    let filename = format!("{}.{}", event.character_id, ext);
+                    
+                    match save_data_to_file(&data, &filename, format) {
+                        Ok(_) => {
+                            if let Ok(metadata) = std::fs::metadata(&filename) {
+                                let size = metadata.len();
+                                let size_kb = size as f64 / 1024.0;
+                                info!(
+                                    "  ✓ {}: {:.2} KB ({} bytes) - {:?}",
+                                    filename, size_kb, size, format
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            error!("  ✗ Failed to save {}: {}", filename, e);
+                        }
+                    }
+                }
+                
+                info!("Format comparison complete! Use L to load back.");
+            }
+            Err(e) => {
+                error!("Failed to parse save data: {}", e);
+            }
+        }
+    }
+}
+
+/// 处理加载完成事件
+/// Handle load completion event
+fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
+    for event in events.read() {
+        info!(
+            "✅ Successfully loaded {} chunks for '{}'",
+            event.chunk_count, event.character_id
+        );
+        
+        if !event.warnings.is_empty() {
+            warn!("Load warnings:");
+            for warning in &event.warnings {
+                warn!("  - {}", warning);
+            }
+        }
     }
 }
