@@ -1,3 +1,57 @@
+//! # Bevy Fog of War Plugin
+//!
+//! A comprehensive 2D fog of war implementation for the Bevy game engine.
+//! This plugin provides chunk-based fog processing with GPU compute shaders,
+//! multiple vision shapes, explored area tracking, and persistence functionality.
+//!
+//! ## Architecture
+//!
+//! The plugin uses a chunk-based system where the world is divided into configurable
+//! chunks (default 256x256 units). Each chunk can be in different visibility states:
+//! - **Unexplored**: Not yet discovered by any vision source
+//! - **Explored**: Previously visible but currently out of sight  
+//! - **Visible**: Currently within range of an active vision source
+//!
+//! ## Memory Management
+//!
+//! Chunks are dynamically managed between CPU and GPU memory based on visibility
+//! and camera view. This allows for efficient handling of large worlds while
+//! maintaining good performance.
+//!
+//! ## Core Systems
+//!
+//! The plugin orchestrates several key systems in a specific order:
+//! 1. **UpdateChunkState**: Updates chunk visibility based on vision sources and camera
+//! 2. **ManageEntities**: Creates and manages chunk entities
+//! 3. **Persistence**: Handles save/load operations
+//! 4. **PrepareTransfers**: Manages CPU/GPU memory transfers
+//!
+//! ## Usage Example
+//!
+//! ```rust
+//! use bevy::prelude::*;
+//! use bevy_fog_of_war::prelude::*;
+//!
+//! fn main() {
+//!     App::new()
+//!         .add_plugins(DefaultPlugins)
+//!         .add_plugins(FogOfWarPlugin)
+//!         .add_systems(Startup, setup)
+//!         .run();
+//! }
+//!
+//! fn setup(mut commands: Commands) {
+//!     // Add camera with fog of war support
+//!     commands.spawn((Camera2d, FogOfWarCamera));
+//!
+//!     // Add entities with vision
+//!     commands.spawn((
+//!         Transform::from_xyz(0.0, 0.0, 0.0),
+//!         VisionSource::circle(200.0)
+//!     ));
+//! }
+//! ```
+
 use self::prelude::*;
 use crate::persistence::FogOfWarPersistencePlugin;
 use crate::render::FogOfWarRenderPlugin;
@@ -25,28 +79,141 @@ mod texture_handles;
 
 /// Event to request a snapshot for a specific chunk.
 /// 请求为特定区块生成快照的事件。
+///
+/// This event is used to trigger snapshot capture for chunks that have changed
+/// visibility state, allowing the system to preserve the visual state of explored
+/// areas when they become no longer visible.
+///
+/// # Performance Considerations
+/// - **Complexity**: O(1) - Single chunk snapshot
+/// - **Frequency**: Triggered when chunks transition visibility states
+/// - **Cost**: Moderate - requires render-to-texture operation
+///
+/// # Usage
+/// The system automatically sends this event when:
+/// - A chunk becomes explored for the first time
+/// - A chunk transitions from explored to visible
+/// - A chunk re-enters visibility after being out of sight
 #[derive(Event, Debug, Clone, Copy)]
 pub struct RequestChunkSnapshot(pub IVec2);
 
+/// System sets that define the execution order of fog of war systems.
+/// 定义雾效系统执行顺序的系统集。
+///
+/// These system sets are configured to run in a specific order using `.chain()`,
+/// ensuring that data dependencies are respected and the fog of war state
+/// remains consistent throughout each frame.
+///
+/// # Execution Order
+/// The systems run in this order within each frame:
+/// 1. **UpdateChunkState** - Processes vision sources and updates visibility
+/// 2. **ManageEntities** - Creates/destroys chunk entities as needed  
+/// 3. **Persistence** - Handles save/load operations
+/// 4. **PrepareTransfers** - Queues memory transfers between CPU and GPU
+///
+/// # Performance Considerations
+/// - **Total Complexity**: O(V×C + E) where V=vision sources, C=chunks in range, E=entities
+/// - **Frame Cost**: Varies based on vision source movement and chunk transitions
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum FogSystems {
-    /// Update chunk states based on vision and camera
+    /// Update chunk states based on vision and camera position.
     /// 更新区块状态 (基于视野和相机)
+    ///
+    /// This system set includes:
+    /// - `clear_per_frame_caches` - Clears frame-specific data
+    /// - `update_chunk_visibility` - Processes vision sources
+    /// - `update_camera_view_chunks` - Updates camera view area
+    /// - `update_chunk_component_state` - Syncs cache to components
+    ///
+    /// **Complexity**: O(V×C) where V=vision sources, C=chunks in vision range
     UpdateChunkState,
-    /// Manage chunk entities (creation, activation)
+    
+    /// Manage chunk entities (creation, activation, deactivation).
     /// 管理区块实体 (创建, 激活)
+    ///
+    /// This system set includes:
+    /// - `manage_chunk_entities` - Creates entities for new chunks
+    ///
+    /// **Complexity**: O(E) where E=number of required chunk entities
     ManageEntities,
-    /// Handle persistence operations (save/load)
+    
+    /// Handle persistence operations (save/load).
     /// 处理持久化操作 (保存/加载)
+    ///
+    /// This system set includes:
+    /// - `save_fog_of_war_system` - Processes save requests
+    /// - `handle_gpu_data_ready_system` - Handles GPU data completion
+    /// - `load_fog_of_war_system` - Processes load requests
+    ///
+    /// **Complexity**: O(S) where S=number of chunks being saved/loaded
     Persistence,
-    /// Handle CPU <-> GPU memory transfer logic
+    
+    /// Handle CPU <-> GPU memory transfer logic.
     /// 处理 CPU <-> GPU 内存传输逻辑
+    ///
+    /// This system set includes:
+    /// - `manage_chunk_texture_transfer` - Orchestrates memory transfers
+    ///
+    /// **Complexity**: O(T) where T=number of chunks being transferred
     PrepareTransfers,
 }
 
+/// The main fog of war plugin for Bevy applications.
+/// 主要的Bevy应用程序雾效插件。
+///
+/// This plugin orchestrates all fog of war functionality including:
+/// - Chunk-based visibility processing
+/// - GPU compute shader rendering  
+/// - Memory management between CPU and GPU
+/// - Persistence and serialization
+/// - Event handling and state management
+///
+/// # Dependencies
+/// This plugin depends on and integrates with:
+/// - `FogOfWarRenderPlugin` - Handles GPU rendering and compute shaders
+/// - `SnapshotPlugin` - Manages explored area snapshots
+/// - `FogOfWarPersistencePlugin` - Provides save/load functionality
+///
+/// # Resource Initialization
+/// The plugin automatically initializes all required resources:
+/// - `FogMapSettings` - Configuration settings
+/// - `ChunkEntityManager` - Manages chunk entities
+/// - `ChunkStateCache` - Caches chunk visibility states
+/// - Texture arrays for fog, visibility, and snapshots
+/// - Memory transfer request queues
+///
+/// # Performance Impact
+/// - **Startup Cost**: O(T) where T=texture array size
+/// - **Per-Frame Cost**: O(V×C) where V=vision sources, C=visible chunks
+/// - **Memory Usage**: Scales with number of active chunks and texture resolution
+///
+/// # Example Usage
+/// ```rust
+/// use bevy::prelude::*;
+/// use bevy_fog_of_war::FogOfWarPlugin;
+///
+/// App::new()
+///     .add_plugins(DefaultPlugins)
+///     .add_plugins(FogOfWarPlugin)
+///     .run();
+/// ```
 pub struct FogOfWarPlugin;
 
 impl Plugin for FogOfWarPlugin {
+    /// Builds the fog of war plugin, registering all systems, resources, and events.
+    /// 构建雾效插件，注册所有系统、资源和事件。
+    ///
+    /// This method sets up the complete fog of war infrastructure:
+    /// 1. Registers reflection types for editor support
+    /// 2. Initializes core resources and caches
+    /// 3. Adds events for system communication
+    /// 4. Configures extraction plugins for render world
+    /// 5. Sets up system execution order with dependencies
+    /// 6. Adds child plugins for rendering, snapshots, and persistence
+    ///
+    /// # Complexity
+    /// **Time**: O(1) - Setup cost is constant
+    /// **Space**: O(T) where T=maximum texture array layers
     fn build(&self, app: &mut App) {
         app.register_type::<VisionSource>()
             .register_type::<FogChunk>()
@@ -128,6 +295,35 @@ impl Plugin for FogOfWarPlugin {
     }
 }
 
+/// Initializes core fog of war texture resources and managers.
+/// 初始化核心雾效纹理资源和管理器。
+///
+/// This function sets up the fundamental texture arrays required for fog of war:
+/// - **Fog Texture Array**: R8Unorm format for fog visibility (0=visible, 1=unexplored)
+/// - **Visibility Texture Array**: R8Unorm format for current frame visibility
+/// - **Snapshot Texture Array**: Rgba8UnormSrgb format for explored area snapshots
+///
+/// Each texture array supports `MAX_LAYERS` concurrent chunks in GPU memory.
+/// Textures are configured with appropriate usage flags for compute shaders,
+/// sampling, and CPU/GPU transfers.
+///
+/// # Safety
+/// Uses checked arithmetic to prevent integer overflow when calculating texture sizes.
+/// Will panic if texture dimensions would cause overflow, indicating invalid settings.
+///
+/// # Performance Considerations
+/// - **Complexity**: O(T×R²) where T=MAX_LAYERS, R=resolution per chunk
+/// - **Memory Usage**: ~(R² × T × 6) bytes for all texture arrays combined
+/// - **GPU Memory**: All textures are created in GPU memory with render asset usage
+///
+/// # Panics
+/// - If texture size calculations overflow (indicates invalid configuration)
+/// - If required texture formats are not supported by the GPU
+///
+/// # Dependencies
+/// - Requires `FogMapSettings` resource to be initialized
+/// - Modifies `Assets<Image>` to add texture resources
+/// - Creates `TextureArrayManager` with `MAX_LAYERS` capacity
 fn setup_fog_resources(
     mut commands: Commands,
     settings: Res<FogMapSettings>,
@@ -232,8 +428,31 @@ fn setup_fog_resources(
     info!("Fog of War resources initialized");
 }
 
-/// Clears caches that are rebuilt each frame.
+/// Clears frame-specific caches that need to be rebuilt each frame.
 /// 清除每帧重建的缓存。
+///
+/// This function resets the visibility and camera view caches at the start of each frame,
+/// ensuring that they accurately reflect the current frame's state. The explored chunks
+/// cache is preserved as it represents persistent discovery state.
+///
+/// # Cleared Caches
+/// - `visible_chunks`: Chunks currently within vision source range
+/// - `camera_view_chunks`: Chunks within the camera's viewport
+///
+/// # Preserved Caches  
+/// - `explored_chunks`: Permanently discovered chunks (persistent across frames)
+/// - `gpu_resident_chunks`: Chunks currently in GPU memory (managed separately)
+///
+/// # Performance
+/// - **Complexity**: O(1) - Hash set clear operations
+/// - **Memory**: Frees temporary allocations from previous frame
+/// - **Frequency**: Called once per frame before visibility updates
+///
+/// # System Dependencies
+/// Must run before:
+/// - `update_chunk_visibility`
+/// - `update_camera_view_chunks`
+/// - `update_chunk_component_state`
 fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
     cache.visible_chunks.clear();
     cache.camera_view_chunks.clear();
@@ -241,6 +460,37 @@ fn clear_per_frame_caches(mut cache: ResMut<ChunkStateCache>) {
 
 /// Updates visible and explored chunk sets based on VisionSource positions.
 /// 根据 VisionSource 位置更新可见和已探索的区块集合。
+///
+/// This function is the core visibility calculation system that determines which
+/// chunks should be visible based on the position and range of all active vision sources.
+/// It uses efficient spatial partitioning to only check chunks within the bounding
+/// box of each vision source.
+///
+/// # Algorithm
+/// For each enabled vision source:
+/// 1. Calculate bounding box around the vision range
+/// 2. Convert world coordinates to chunk coordinates
+/// 3. Test intersection between vision circle and chunk rectangles
+/// 4. Mark intersecting chunks as both visible and explored
+///
+/// # Performance Optimizations
+/// - **Spatial Culling**: Only tests chunks within vision source bounding box
+/// - **Circle-Rectangle Intersection**: Efficient geometric test
+/// - **Early Termination**: Skips disabled vision sources
+///
+/// # Complexity Analysis
+/// - **Time**: O(V × C) where V=vision sources, C=average chunks per vision range
+/// - **Space**: O(E) where E=total explored chunks (accumulated over time)
+/// - **Per Vision Source**: O((2R/S)²) where R=range, S=chunk size
+///
+/// # Visibility Rules
+/// - Chunks intersecting any vision source become visible and explored
+/// - Once explored, chunks remain in the explored set permanently
+/// - Visibility is recalculated each frame based on current vision source positions
+///
+/// # Dependencies
+/// - Must run after `clear_per_frame_caches`
+/// - Must run before `update_chunk_component_state`
 fn update_chunk_visibility(
     settings: Res<FogMapSettings>,
     mut cache: ResMut<ChunkStateCache>,
@@ -437,8 +687,8 @@ fn manage_chunk_entities(
 
             if let Ok(chunk) = chunk_q.get_mut(*entity) {
                 if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
-                // Mark for transition to GPU
-                // 标记以转换到 GPU
+                    // Mark for transition to GPU
+                    // 标记以转换到 GPU
                     chunks_to_make_gpu.insert(coords);
                     // Actual data upload handled in manage_chunk_memory_logic or RenderApp
                     // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
@@ -510,8 +760,35 @@ fn manage_chunk_entities(
     }
 }
 
-/// Check if a circle intersects with a rectangle
-/// 检查圆形是否与矩形相交
+/// Efficiently tests if a circle intersects with an axis-aligned rectangle.
+/// 高效测试圆形是否与轴对齐矩形相交。
+///
+/// This function implements the standard circle-rectangle intersection algorithm
+/// by finding the closest point on the rectangle to the circle center and
+/// comparing the distance to the circle radius.
+///
+/// # Algorithm
+/// 1. Clamp circle center to rectangle bounds (finds closest point)
+/// 2. Calculate squared distance from circle center to closest point
+/// 3. Compare with squared radius (avoids expensive sqrt operation)
+///
+/// # Parameters
+/// - `circle_center`: Center position of the vision source
+/// - `range_sq`: Squared radius of the vision source (for performance)
+/// - `rect_min`: Bottom-left corner of the chunk rectangle
+/// - `rect_max`: Top-right corner of the chunk rectangle
+///
+/// # Performance
+/// - **Complexity**: O(1) - Constant time geometric calculation
+/// - **Optimizations**: Uses squared distance to avoid sqrt
+/// - **Precision**: Works with f32 precision, suitable for game coordinates
+///
+/// # Returns
+/// `true` if the circle intersects or overlaps the rectangle, `false` otherwise
+///
+/// # Mathematical Foundation
+/// Based on the principle that the closest point on a rectangle to any external
+/// point can be found by clamping coordinates to the rectangle's bounds.
 fn circle_intersects_rect(
     circle_center: Vec2,
     range_sq: f32,
@@ -533,8 +810,45 @@ fn circle_intersects_rect(
     (dx * dx + dy * dy) <= range_sq
 }
 
-/// 管理区块纹理数据在 CPU 和 GPU 之间的传输。
-/// Manages the transfer of chunk texture data between CPU and GPU.
+/// Orchestrates intelligent memory management between CPU and GPU for chunk textures.
+/// 协调区块纹理在CPU和GPU之间的智能内存管理。
+///
+/// This system implements a sophisticated memory management strategy that dynamically
+/// moves chunk texture data between CPU and GPU memory based on visibility requirements.
+/// It optimizes memory usage by keeping only necessary chunks in expensive GPU memory
+/// while preserving explored chunk data in CPU memory.
+///
+/// # Memory Management Strategy
+/// 
+/// ## GPU Memory Priority (chunks kept in GPU):
+/// 1. **Visible chunks** - Currently within vision source range
+/// 2. **Camera view explored chunks** - Explored chunks within camera viewport
+/// 3. **Buffer zone chunks** - Explored chunks within 2-chunk radius of other targets
+///
+/// ## Transfer Triggers
+/// - **CPU → GPU**: When chunks become visible or enter camera view
+/// - **GPU → CPU**: When explored chunks leave target areas (preserves data)
+/// - **Direct release**: When unexplored chunks are no longer needed
+///
+/// # Event Processing
+/// The system processes several types of events:
+/// - `ChunkGpuDataReady` - GPU→CPU transfer completion
+/// - `ChunkCpuDataUploaded` - CPU→GPU transfer completion
+///
+/// # Performance Characteristics
+/// - **Complexity**: O(C + E) where C=active chunks, E=transfer events
+/// - **Memory Efficiency**: Minimizes GPU memory usage while preserving data
+/// - **Transfer Cost**: Only moves chunks when necessary, with intelligent buffering
+///
+/// # Buffer Zone Strategy
+/// Maintains a 2-chunk radius buffer around explored areas to ensure smooth
+/// rendering during camera movement and reduce transfer frequency.
+///
+/// # Dependencies
+/// - Processes `ChunkGpuDataReady` and `ChunkCpuDataUploaded` events
+/// - Modifies chunk memory location states and layer indices
+/// - Queues new transfer requests via `GpuToCpuCopyRequests` and `CpuToGpuCopyRequests`
+/// - Triggers snapshot requests for chunks being moved from GPU to CPU
 #[allow(clippy::too_many_arguments)]
 pub fn manage_chunk_texture_transfer(
     mut commands: Commands,

@@ -104,37 +104,37 @@ impl FileFormat {
         // Check for double extensions (like .json.gz, .msgpack.lz4, etc.)
         if let Some(stem) = path.file_stem() {
             if let Some(stem_str) = stem.to_str() {
-            if stem_str.ends_with(".json") {
-                match ext {
-                    #[cfg(feature = "compression-gzip")]
-                    "gz" => return Some(FileFormat::JsonGzip),
-                    #[cfg(feature = "compression-lz4")]
-                    "lz4" => return Some(FileFormat::JsonLz4),
-                    #[cfg(feature = "compression-zstd")]
-                    "zst" => return Some(FileFormat::JsonZstd),
-                    _ => {}
+                if stem_str.ends_with(".json") {
+                    match ext {
+                        #[cfg(feature = "compression-gzip")]
+                        "gz" => return Some(FileFormat::JsonGzip),
+                        #[cfg(feature = "compression-lz4")]
+                        "lz4" => return Some(FileFormat::JsonLz4),
+                        #[cfg(feature = "compression-zstd")]
+                        "zst" => return Some(FileFormat::JsonZstd),
+                        _ => {}
+                    }
+                } else if stem_str.ends_with(".msgpack") {
+                    match ext {
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::MessagePackGzip),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::MessagePackLz4),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::MessagePackZstd),
+                        _ => {}
+                    }
+                } else if stem_str.ends_with(".bincode") {
+                    match ext {
+                        #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::BincodeGzip),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::BincodeLz4),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::BincodeZstd),
+                        _ => {}
+                    }
                 }
-            } else if stem_str.ends_with(".msgpack") {
-                match ext {
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::MessagePackGzip),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::MessagePackLz4),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::MessagePackZstd),
-                    _ => {}
-                }
-            } else if stem_str.ends_with(".bincode") {
-                match ext {
-                    #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::BincodeGzip),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::BincodeLz4),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::BincodeZstd),
-                    _ => {}
-                }
-            }
             }
         }
 

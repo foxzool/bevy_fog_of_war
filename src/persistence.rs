@@ -383,35 +383,37 @@ pub fn save_fog_of_war_system(mut params: SaveSystemParams) {
 
             // 获取层索引
             // Get layer indices
-            let (fog_idx, snap_idx) = if let Some(chunk) =
-                params.chunks.iter().find(|c| c.coords == coords)
-            {
-                (chunk.fog_layer_index, chunk.snapshot_layer_index)
-            } else {
-                // 如果找不到区块实体，尝试从纹理管理器获取
-                // If chunk entity not found, try to get from texture manager
-                if let Some((fog_idx, snap_idx)) = params.texture_manager.get_allocated_indices(coords) {
-                    (Some(fog_idx), Some(snap_idx))
+            let (fog_idx, snap_idx) =
+                if let Some(chunk) = params.chunks.iter().find(|c| c.coords == coords) {
+                    (chunk.fog_layer_index, chunk.snapshot_layer_index)
                 } else {
-                    (None, None)
-                }
-            };
+                    // 如果找不到区块实体，尝试从纹理管理器获取
+                    // If chunk entity not found, try to get from texture manager
+                    if let Some((fog_idx, snap_idx)) =
+                        params.texture_manager.get_allocated_indices(coords)
+                    {
+                        (Some(fog_idx), Some(snap_idx))
+                    } else {
+                        (None, None)
+                    }
+                };
 
             chunk_info.push((coords, visibility, fog_idx, snap_idx));
 
             // 如果需要纹理数据且区块在GPU上，请求GPU到CPU传输
             // If texture data needed and chunk is on GPU, request GPU-to-CPU transfer
-            if event.include_texture_data
-                && visibility != ChunkVisibility::Unexplored
-            {
+            if event.include_texture_data && visibility != ChunkVisibility::Unexplored {
                 if let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
-                // 请求GPU到CPU传输
-                // Request GPU-to-CPU transfer
-                params.gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
-                    chunk_coords: coords,
-                    fog_layer_index: fog_layer_idx,
-                    snapshot_layer_index: snap_layer_idx,
-                });
+                    // 请求GPU到CPU传输
+                    // Request GPU-to-CPU transfer
+                    params
+                        .gpu_to_cpu_requests
+                        .requests
+                        .push(GpuToCpuCopyRequest {
+                            chunk_coords: coords,
+                            fog_layer_index: fog_layer_idx,
+                            snapshot_layer_index: snap_layer_idx,
+                        });
 
                     awaiting_chunks.insert(coords);
                     info!(
@@ -502,7 +504,11 @@ pub fn handle_gpu_data_ready_system(
                             pending.include_texture_data,
                         ) {
                             Ok(save_data) => {
-                                complete_save_operation(save_data, pending.format, &mut saved_events);
+                                complete_save_operation(
+                                    save_data,
+                                    pending.format,
+                                    &mut saved_events,
+                                );
                             }
                             Err(e) => {
                                 error!("Failed to complete save: {}", e);
