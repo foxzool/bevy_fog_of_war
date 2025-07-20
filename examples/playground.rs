@@ -774,7 +774,7 @@ fn handle_persistence_input(
         let mut loaded = false;
         for ext in format_priorities {
             let filename = format!("fog_save.{}", ext);
-            
+
             // 直接读取文件为字节数据
             // Read file as bytes directly
             match std::fs::read(&filename) {
@@ -810,7 +810,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
         let filename = match event.format {
             SerializationFormat::Json => "fog_save.json",
             #[cfg(feature = "format-messagepack")]
-            SerializationFormat::MessagePack => "fog_save.msgpack", 
+            SerializationFormat::MessagePack => "fog_save.msgpack",
             #[cfg(feature = "format-bincode")]
             SerializationFormat::Bincode => "fog_save.bincode",
         };

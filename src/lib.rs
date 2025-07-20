@@ -436,15 +436,16 @@ fn manage_chunk_entities(
             // 区块实体存在，检查其内存状态
 
             if let Ok(chunk) = chunk_q.get_mut(*entity)
-                && chunk.state.memory_location == ChunkMemoryLocation::Cpu {
-                    // Mark for transition to GPU
-                    // 标记以转换到 GPU
-                    chunks_to_make_gpu.insert(coords);
-                    // Actual data upload handled in manage_chunk_memory_logic or RenderApp
-                    // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
-                    // Ensure it's marked as GPU resident in cache (will be done in memory logic)
-                    // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
-                }
+                && chunk.state.memory_location == ChunkMemoryLocation::Cpu
+            {
+                // Mark for transition to GPU
+                // 标记以转换到 GPU
+                chunks_to_make_gpu.insert(coords);
+                // Actual data upload handled in manage_chunk_memory_logic or RenderApp
+                // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
+                // Ensure it's marked as GPU resident in cache (will be done in memory logic)
+                // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
+            }
         } else {
             // Chunk entity doesn't exist, create it
             // 区块实体不存在，创建它
@@ -649,12 +650,12 @@ pub fn manage_chunk_texture_transfer(
             target_gpu_chunks.insert(coords);
         }
     }
-    
+
     // 为已探索区域添加缓冲区，确保持久化加载后的区域能被渲染
     // Add buffer zone for explored areas to ensure persistence-loaded areas are rendered
     let buffer_radius = 2; // 缓冲区半径（以chunk为单位）/ Buffer radius in chunks
     let mut buffered_coords = std::collections::HashSet::new();
-    
+
     // 为所有已探索的chunk添加缓冲区
     // Add buffer zone around all explored chunks
     for &explored_coord in &chunk_cache.explored_chunks {
@@ -667,7 +668,7 @@ pub fn manage_chunk_texture_transfer(
             }
         }
     }
-    
+
     // 将缓冲区内的已探索chunk添加到GPU目标列表
     // Add buffered explored chunks to GPU target list
     for &coords in &buffered_coords {

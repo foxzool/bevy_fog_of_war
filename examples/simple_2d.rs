@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
-    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailed, FogResetSuccess,
-    VisionSource, SaveFogOfWarRequest, FogOfWarSaved, LoadFogOfWarRequest, FogOfWarLoaded,
-    SerializationFormat,
+    Capturable, FogMapSettings, FogOfWarCamera, FogOfWarLoaded, FogOfWarPlugin, FogOfWarSaved,
+    FogResetFailed, FogResetSuccess, LoadFogOfWarRequest, SaveFogOfWarRequest, SerializationFormat,
+    VisionSource,
 };
 
 fn main() {
@@ -10,12 +10,12 @@ fn main() {
     // WASD - Move camera
     // F5 - Save fog data (demonstrates multiple serialization formats)
     // F9 - Load fog data (auto-detects format)
-    // 
+    //
     // This example demonstrates the different serialization formats:
     // - JSON (human-readable, larger)
     // - MessagePack (binary, compact) - requires 'format-messagepack' feature
     // - bincode (Rust-native, fastest) - requires 'format-bincode' feature
-    
+
     App::new()
         .insert_resource(ClearColor(Color::WHITE))
         .init_gizmo_group::<MyRoundGizmos>()
@@ -31,8 +31,8 @@ fn main() {
         .add_systems(
             Update,
             (
-                draw_gizmos, 
-                camera_movement, 
+                draw_gizmos,
+                camera_movement,
                 handle_fog_reset_events,
                 handle_save_load_input,
                 handle_saved_event,
@@ -196,10 +196,10 @@ fn handle_save_load_input(
     }
 
     // F9键 - 加载雾效数据
-    // F9 key - Load fog data  
+    // F9 key - Load fog data
     if keyboard.just_pressed(KeyCode::F9) {
         info!("Loading fog data (auto-detect format)...");
-        
+
         // 尝试不同格式的文件（优先二进制格式）
         // Try different format files (prefer binary formats)
         let format_priorities = vec![
@@ -209,7 +209,7 @@ fn handle_save_load_input(
             "simple_demo.msgpack",
             "simple_demo.json",
         ];
-        
+
         let mut loaded = false;
         for filename in format_priorities {
             if std::path::Path::new(filename).exists() {
@@ -231,7 +231,7 @@ fn handle_save_load_input(
                 }
             }
         }
-        
+
         if !loaded {
             warn!("No save file found. Press F5 to save first.");
         }
@@ -247,7 +247,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
         let primary_filename = match event.format {
             SerializationFormat::Json => "simple_demo.json",
             #[cfg(feature = "format-messagepack")]
-            SerializationFormat::MessagePack => "simple_demo.msgpack", 
+            SerializationFormat::MessagePack => "simple_demo.msgpack",
             #[cfg(feature = "format-bincode")]
             SerializationFormat::Bincode => "simple_demo.bincode",
         };
@@ -266,7 +266,10 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
                 }
             }
             Err(e) => {
-                error!("❌ Failed to save fog data to '{}': {}", primary_filename, e);
+                error!(
+                    "❌ Failed to save fog data to '{}': {}",
+                    primary_filename, e
+                );
             }
         }
     }
@@ -277,7 +280,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
 fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
     for event in events.read() {
         info!("✅ Successfully loaded {} chunks", event.chunk_count);
-        
+
         if !event.warnings.is_empty() {
             warn!("Load warnings:");
             for warning in &event.warnings {

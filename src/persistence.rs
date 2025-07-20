@@ -6,8 +6,14 @@ use std::collections::HashMap;
 /// 序列化格式
 /// Serialization format  
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "format-messagepack", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "format-bincode", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "format-messagepack",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "format-bincode",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum SerializationFormat {
     /// JSON格式 - 人类可读但体积较大
     /// JSON format - human readable but larger
@@ -22,16 +28,17 @@ pub enum SerializationFormat {
     Bincode,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for SerializationFormat {
     fn default() -> Self {
         // 优先使用高效的二进制格式
         // Prefer efficient binary formats
         #[cfg(feature = "format-bincode")]
         return SerializationFormat::Bincode;
-        
+
         #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
         return SerializationFormat::MessagePack;
-        
+
         SerializationFormat::Json
     }
 }
@@ -203,10 +210,7 @@ impl std::fmt::Display for PersistenceError {
                 write!(f, "Deserialization failed: {msg}")
             }
             PersistenceError::VersionMismatch { expected, found } => {
-                write!(
-                    f,
-                    "Version mismatch: expected {expected}, found {found}"
-                )
+                write!(f, "Version mismatch: expected {expected}, found {found}")
             }
             PersistenceError::InvalidChunkSize { expected, found } => {
                 write!(
@@ -225,7 +229,6 @@ impl std::fmt::Display for PersistenceError {
 }
 
 impl std::error::Error for PersistenceError {}
-
 
 /// 从保存的数据恢复雾效状态
 /// Restore fog of war state from saved data
@@ -274,17 +277,21 @@ pub fn load_save_data(
 
         // 如果需要，创建区块实体
         // Create chunk entity if needed
-        let layer_indices = if let (Some(fog_idx), Some(snap_idx)) = 
-            (chunk_data.fog_layer_index, chunk_data.snapshot_layer_index) {
+        let layer_indices = if let (Some(fog_idx), Some(snap_idx)) =
+            (chunk_data.fog_layer_index, chunk_data.snapshot_layer_index)
+        {
             // 尝试恢复到原始层索引
             // Try to restore to original layer indices
-            if texture_manager.allocate_specific_layer_indices(chunk_data.coords, fog_idx, snap_idx) {
+            if texture_manager.allocate_specific_layer_indices(chunk_data.coords, fog_idx, snap_idx)
+            {
                 Some((fog_idx, snap_idx))
             } else {
                 // 如果原始索引不可用，分配新的索引
                 // If original indices not available, allocate new ones
-                warn!("Original layer indices F{} S{} not available for chunk {:?}, allocating new ones", 
-                      fog_idx, snap_idx, chunk_data.coords);
+                warn!(
+                    "Original layer indices F{} S{} not available for chunk {:?}, allocating new ones",
+                    fog_idx, snap_idx, chunk_data.coords
+                );
                 texture_manager.allocate_layer_indices(chunk_data.coords)
             }
         } else {
@@ -303,14 +310,16 @@ pub fn load_save_data(
             // 恢复纹理数据（如果有）
             // Restore texture data (if available)
             if let Some(fog_data) = &chunk_data.fog_data
-                && let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
-                    fog_image.data = Some(fog_data.clone());
-                }
+                && let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle)
+            {
+                fog_image.data = Some(fog_data.clone());
+            }
 
             if let Some(snapshot_data) = &chunk_data.snapshot_data
-                && let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
-                    snapshot_image.data = Some(snapshot_data.clone());
-                }
+                && let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle)
+            {
+                snapshot_image.data = Some(snapshot_data.clone());
+            }
 
             let entity = commands
                 .spawn((
@@ -349,8 +358,10 @@ pub fn save_fog_of_war_system(
     texture_manager: Res<TextureArrayManager>,
 ) {
     for event in save_events.read() {
-        info!("Starting save (include_texture_data: {})", 
-              event.include_texture_data);
+        info!(
+            "Starting save (include_texture_data: {})",
+            event.include_texture_data
+        );
 
         // 收集需要保存的区块信息
         // Collect chunk information to save
@@ -363,10 +374,12 @@ pub fn save_fog_of_war_system(
             } else {
                 ChunkVisibility::Explored
             };
-            
+
             // 获取层索引
             // Get layer indices
-            let (fog_idx, snap_idx) = if let Some(chunk) = chunks.iter().find(|c| c.coords == coords) {
+            let (fog_idx, snap_idx) = if let Some(chunk) =
+                chunks.iter().find(|c| c.coords == coords)
+            {
                 (chunk.fog_layer_index, chunk.snapshot_layer_index)
             } else {
                 // 如果找不到区块实体，尝试从纹理管理器获取
@@ -377,26 +390,29 @@ pub fn save_fog_of_war_system(
                     (None, None)
                 }
             };
-            
+
             chunk_info.push((coords, visibility, fog_idx, snap_idx));
 
             // 如果需要纹理数据且区块在GPU上，请求GPU到CPU传输
             // If texture data needed and chunk is on GPU, request GPU-to-CPU transfer
-            if event.include_texture_data && visibility != ChunkVisibility::Unexplored
-                && let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
-                        
-                    // 请求GPU到CPU传输
-                    // Request GPU-to-CPU transfer
-                    gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
-                        chunk_coords: coords,
-                        fog_layer_index: fog_layer_idx,
-                        snapshot_layer_index: snap_layer_idx,
-                    });
-                    
-                    awaiting_chunks.insert(coords);
-                    info!("Requesting GPU-to-CPU transfer for chunk {:?} (F{}, S{})", 
-                          coords, fog_layer_idx, snap_layer_idx);
-                }
+            if event.include_texture_data
+                && visibility != ChunkVisibility::Unexplored
+                && let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx)
+            {
+                // 请求GPU到CPU传输
+                // Request GPU-to-CPU transfer
+                gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
+                    chunk_coords: coords,
+                    fog_layer_index: fog_layer_idx,
+                    snapshot_layer_index: snap_layer_idx,
+                });
+
+                awaiting_chunks.insert(coords);
+                info!(
+                    "Requesting GPU-to-CPU transfer for chunk {:?} (F{}, S{})",
+                    coords, fog_layer_idx, snap_layer_idx
+                );
+            }
         }
 
         // 如果不需要等待GPU数据，立即保存
@@ -426,9 +442,12 @@ pub fn save_fog_of_war_system(
                 received_data: HashMap::new(),
                 chunk_info,
             };
-            
+
             pending_saves.pending_save = Some(pending);
-            info!("Created pending save, waiting for {} chunks", awaiting_chunks.len());
+            info!(
+                "Created pending save, waiting for {} chunks",
+                awaiting_chunks.len()
+            );
         }
     }
 }
@@ -445,43 +464,47 @@ pub fn handle_gpu_data_ready_system(
         // 检查是否有挂起的保存操作等待此数据
         // Check if there's a pending save operation waiting for this data
         if let Some(pending) = &mut pending_saves.pending_save
-            && pending.awaiting_chunks.contains(&event.chunk_coords) {
-                // 存储接收到的数据
-                // Store received data
-                pending.received_data.insert(
-                    event.chunk_coords, 
-                    (event.fog_data.clone(), event.snapshot_data.clone())
-                );
-                
-                // 从等待列表中移除
-                // Remove from awaiting list
-                pending.awaiting_chunks.remove(&event.chunk_coords);
-                
-                info!("Received GPU data for chunk {:?}. Still waiting for {} chunks",
-                      event.chunk_coords, pending.awaiting_chunks.len());
-                
-                // 检查是否所有数据都已就绪
-                // Check if all data is ready
-                if pending.awaiting_chunks.is_empty() {
-                    // 完成保存操作
-                    // Complete save operation
-                    if let Some(pending) = pending_saves.pending_save.take() {
-                        match create_save_data_immediate(
-                            &settings,
-                            pending.chunk_info,
-                            pending.received_data,
-                            pending.include_texture_data,
-                        ) {
-                            Ok(save_data) => {
-                                complete_save_operation(save_data, pending.format, &mut saved_events);
-                            }
-                            Err(e) => {
-                                error!("Failed to complete save: {}", e);
-                            }
+            && pending.awaiting_chunks.contains(&event.chunk_coords)
+        {
+            // 存储接收到的数据
+            // Store received data
+            pending.received_data.insert(
+                event.chunk_coords,
+                (event.fog_data.clone(), event.snapshot_data.clone()),
+            );
+
+            // 从等待列表中移除
+            // Remove from awaiting list
+            pending.awaiting_chunks.remove(&event.chunk_coords);
+
+            info!(
+                "Received GPU data for chunk {:?}. Still waiting for {} chunks",
+                event.chunk_coords,
+                pending.awaiting_chunks.len()
+            );
+
+            // 检查是否所有数据都已就绪
+            // Check if all data is ready
+            if pending.awaiting_chunks.is_empty() {
+                // 完成保存操作
+                // Complete save operation
+                if let Some(pending) = pending_saves.pending_save.take() {
+                    match create_save_data_immediate(
+                        &settings,
+                        pending.chunk_info,
+                        pending.received_data,
+                        pending.include_texture_data,
+                    ) {
+                        Ok(save_data) => {
+                            complete_save_operation(save_data, pending.format, &mut saved_events);
+                        }
+                        Err(e) => {
+                            error!("Failed to complete save: {}", e);
                         }
                     }
                 }
             }
+        }
     }
 }
 
@@ -494,7 +517,7 @@ fn create_save_data_immediate(
     include_texture_data: bool,
 ) -> Result<FogOfWarSaveData, PersistenceError> {
     let mut chunk_data = Vec::new();
-    
+
     for (coords, visibility, fog_idx, snap_idx) in chunk_info {
         let (fog_data, snapshot_data) = if include_texture_data {
             // 使用从GPU传输的真实数据
@@ -505,13 +528,13 @@ fn create_save_data_immediate(
                 } else {
                     None
                 };
-                
+
                 let snapshot_data = if visibility == ChunkVisibility::Explored {
                     Some(snap_bytes.clone())
                 } else {
                     None
                 };
-                
+
                 (fog_data, snapshot_data)
             } else {
                 // 如果没有GPU数据，则不包含纹理数据
@@ -521,7 +544,7 @@ fn create_save_data_immediate(
         } else {
             (None, None)
         };
-        
+
         chunk_data.push(ChunkSaveData {
             coords,
             visibility,
@@ -531,7 +554,7 @@ fn create_save_data_immediate(
             snapshot_data,
         });
     }
-    
+
     Ok(FogOfWarSaveData {
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -555,28 +578,26 @@ fn complete_save_operation(
     saved_events: &mut EventWriter<FogOfWarSaved>,
 ) {
     let result = match format {
-        SerializationFormat::Json => {
-            serde_json::to_vec(&save_data)
-                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
-        }
+        SerializationFormat::Json => serde_json::to_vec(&save_data)
+            .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
         #[cfg(feature = "format-messagepack")]
-        SerializationFormat::MessagePack => {
-            rmp_serde::to_vec(&save_data)
-                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
-        }
+        SerializationFormat::MessagePack => rmp_serde::to_vec(&save_data)
+            .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
         #[cfg(feature = "format-bincode")]
-        SerializationFormat::Bincode => {
-            bincode::serialize(&save_data)
-                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
-        }
+        SerializationFormat::Bincode => bincode::serialize(&save_data)
+            .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
     };
 
     match result {
         Ok(data) => {
             let chunk_count = save_data.chunks.len();
-            info!("Save completed successfully using {:?} format: {} chunks, {} bytes", 
-                  format, chunk_count, data.len());
-            
+            info!(
+                "Save completed successfully using {:?} format: {} chunks, {} bytes",
+                format,
+                chunk_count,
+                data.len()
+            );
+
             saved_events.write(FogOfWarSaved {
                 data,
                 format,
@@ -584,7 +605,10 @@ fn complete_save_operation(
             });
         }
         Err(e) => {
-            error!("Failed to serialize save data using {:?} format: {}", format, e);
+            error!(
+                "Failed to serialize save data using {:?} format: {}",
+                format, e
+            );
         }
     }
 }
@@ -610,7 +634,7 @@ pub fn load_fog_of_war_system(
         let format = event.format.unwrap_or_else(|| {
             // 尝试自动检测格式
             // Try to auto-detect format
-            if event.data.starts_with(&[b'{']) || event.data.starts_with(&[b'[']) {
+            if event.data.starts_with(b"{") || event.data.starts_with(b"[") {
                 SerializationFormat::Json
             } else {
                 // 默认假设为bincode
@@ -621,24 +645,20 @@ pub fn load_fog_of_war_system(
                 return SerializationFormat::Json;
             }
         });
-        
+
         let result = match format {
-            SerializationFormat::Json => {
-                serde_json::from_slice::<FogOfWarSaveData>(&event.data)
-                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
-            }
+            SerializationFormat::Json => serde_json::from_slice::<FogOfWarSaveData>(&event.data)
+                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string())),
             #[cfg(feature = "format-messagepack")]
             SerializationFormat::MessagePack => {
                 rmp_serde::from_slice::<FogOfWarSaveData>(&event.data)
                     .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
             }
             #[cfg(feature = "format-bincode")]
-            SerializationFormat::Bincode => {
-                bincode::deserialize::<FogOfWarSaveData>(&event.data)
-                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
-            }
+            SerializationFormat::Bincode => bincode::deserialize::<FogOfWarSaveData>(&event.data)
+                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string())),
         };
-        
+
         match result {
             Ok(save_data) => {
                 // 清除现有的区块实体
@@ -684,7 +704,10 @@ pub fn load_fog_of_war_system(
                 }
             }
             Err(e) => {
-                error!("Failed to deserialize fog of war data using {:?} format: {}", format, e);
+                error!(
+                    "Failed to deserialize fog of war data using {:?} format: {}",
+                    format, e
+                );
             }
         }
     }
@@ -704,10 +727,11 @@ impl Plugin for FogOfWarPersistencePlugin {
             .add_systems(
                 Update,
                 (
-                    save_fog_of_war_system, 
+                    save_fog_of_war_system,
                     handle_gpu_data_ready_system,
-                    load_fog_of_war_system
-                ).in_set(FogSystems::Persistence),
+                    load_fog_of_war_system,
+                )
+                    .in_set(FogSystems::Persistence),
             );
     }
 }

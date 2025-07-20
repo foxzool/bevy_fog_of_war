@@ -224,7 +224,7 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        // NOTE: Removed texture clearing operation here as it was incorrectly 
+        // NOTE: Removed texture clearing operation here as it was incorrectly
         // resetting explored areas during save operations. GPU-to-CPU readback
         // should not modify the original texture data.
         // 注意：移除了这里的纹理清除操作，因为它在保存操作时错误地重置了已探索区域。
@@ -261,7 +261,7 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
             },
         );
 
-        // NOTE: Removed snapshot texture clearing operation here as it was incorrectly 
+        // NOTE: Removed snapshot texture clearing operation here as it was incorrectly
         // resetting explored areas during save operations. GPU-to-CPU readback
         // should not modify the original texture data.
         // 注意：移除了这里的快照纹理清除操作，因为它在保存操作时错误地重置了已探索区域。
@@ -287,7 +287,7 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
 
         render_queue.submit(std::iter::once(command_encoder.finish()));
     }
-    
+
     // Clear the requests after processing them
     // 处理完请求后清除它们
     gpu_read_requests.requests.clear();

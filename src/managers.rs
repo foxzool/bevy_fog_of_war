@@ -239,17 +239,29 @@ impl TextureArrayManager {
 
     /// 尝试为指定坐标分配特定的层索引（用于持久化恢复）
     /// Try to allocate specific layer indices for a coordinate (used for persistence restoration)
-    pub fn allocate_specific_layer_indices(&mut self, coords: IVec2, fog_idx: u32, snap_idx: u32) -> bool {
+    pub fn allocate_specific_layer_indices(
+        &mut self,
+        coords: IVec2,
+        fog_idx: u32,
+        snap_idx: u32,
+    ) -> bool {
         // Check if these indices are available
-        if !self.free_fog_indices.contains(&fog_idx) || !self.free_snapshot_indices.contains(&snap_idx) {
-            warn!("Cannot allocate specific indices F{} S{} for {:?} - indices not available", 
-                  fog_idx, snap_idx, coords);
+        if !self.free_fog_indices.contains(&fog_idx)
+            || !self.free_snapshot_indices.contains(&snap_idx)
+        {
+            warn!(
+                "Cannot allocate specific indices F{} S{} for {:?} - indices not available",
+                fog_idx, snap_idx, coords
+            );
             return false;
         }
 
         // Check if coord already has layers
         if self.coord_to_layers.contains_key(&coords) {
-            warn!("Cannot allocate specific indices for {:?} - coord already has layers", coords);
+            warn!(
+                "Cannot allocate specific indices for {:?} - coord already has layers",
+                coords
+            );
             return false;
         }
 
@@ -260,7 +272,10 @@ impl TextureArrayManager {
         // Add to mapping
         self.coord_to_layers.insert(coords, (fog_idx, snap_idx));
 
-        debug!("Allocated specific layers for coord {:?}: F{} S{}", coords, fog_idx, snap_idx);
+        debug!(
+            "Allocated specific layers for coord {:?}: F{} S{}",
+            coords, fog_idx, snap_idx
+        );
         true
     }
 
