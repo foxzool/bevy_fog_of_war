@@ -1,5 +1,5 @@
 use crate::{FogSystems, prelude::*};
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -346,19 +346,24 @@ pub fn load_save_data(
     Ok(loaded_count)
 }
 
+/// 保存系统参数组合
+/// Save system parameter bundle
+#[derive(SystemParam)]
+pub struct SaveSystemParams<'w, 's> {
+    save_events: EventReader<'w, 's, SaveFogOfWarRequest>,
+    pending_saves: ResMut<'w, PendingSaveOperations>,
+    gpu_to_cpu_requests: ResMut<'w, GpuToCpuCopyRequests>,
+    saved_events: EventWriter<'w, FogOfWarSaved>,
+    settings: Res<'w, FogMapSettings>,
+    cache: Res<'w, ChunkStateCache>,
+    chunks: Query<'w, 's, &'static FogChunk>,
+    texture_manager: Res<'w, TextureArrayManager>,
+}
+
 /// 系统：处理保存雾效数据的请求
 /// System: Handle fog of war save requests
-pub fn save_fog_of_war_system(
-    mut save_events: EventReader<SaveFogOfWarRequest>,
-    mut pending_saves: ResMut<PendingSaveOperations>,
-    mut gpu_to_cpu_requests: ResMut<GpuToCpuCopyRequests>,
-    mut saved_events: EventWriter<FogOfWarSaved>,
-    settings: Res<FogMapSettings>,
-    cache: Res<ChunkStateCache>,
-    chunks: Query<&FogChunk>,
-    texture_manager: Res<TextureArrayManager>,
-) {
-    for event in save_events.read() {
+pub fn save_fog_of_war_system(mut params: SaveSystemParams) {
+    for event in params.save_events.read() {
         info!(
             "Starting save (include_texture_data: {})",
             event.include_texture_data
@@ -369,8 +374,8 @@ pub fn save_fog_of_war_system(
         let mut chunk_info = Vec::new();
         let mut awaiting_chunks = std::collections::HashSet::new();
 
-        for &coords in &cache.explored_chunks {
-            let visibility = if cache.visible_chunks.contains(&coords) {
+        for &coords in &params.cache.explored_chunks {
+            let visibility = if params.cache.visible_chunks.contains(&coords) {
                 ChunkVisibility::Visible
             } else {
                 ChunkVisibility::Explored
@@ -379,13 +384,13 @@ pub fn save_fog_of_war_system(
             // 获取层索引
             // Get layer indices
             let (fog_idx, snap_idx) = if let Some(chunk) =
-                chunks.iter().find(|c| c.coords == coords)
+                params.chunks.iter().find(|c| c.coords == coords)
             {
                 (chunk.fog_layer_index, chunk.snapshot_layer_index)
             } else {
                 // 如果找不到区块实体，尝试从纹理管理器获取
                 // If chunk entity not found, try to get from texture manager
-                if let Some((fog_idx, snap_idx)) = texture_manager.get_allocated_indices(coords) {
+                if let Some((fog_idx, snap_idx)) = params.texture_manager.get_allocated_indices(coords) {
                     (Some(fog_idx), Some(snap_idx))
                 } else {
                     (None, None)
@@ -402,7 +407,7 @@ pub fn save_fog_of_war_system(
             {
                 // 请求GPU到CPU传输
                 // Request GPU-to-CPU transfer
-                gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
+                params.gpu_to_cpu_requests.requests.push(GpuToCpuCopyRequest {
                     chunk_coords: coords,
                     fog_layer_index: fog_layer_idx,
                     snapshot_layer_index: snap_layer_idx,
@@ -420,14 +425,14 @@ pub fn save_fog_of_war_system(
         // If no GPU data needed, save immediately
         if awaiting_chunks.is_empty() {
             match create_save_data_immediate(
-                &settings,
+                &params.settings,
                 chunk_info,
                 HashMap::new(),
                 event.include_texture_data,
             ) {
                 Ok(save_data) => {
                     let format = event.format.unwrap_or_default();
-                    complete_save_operation(save_data, format, &mut saved_events);
+                    complete_save_operation(save_data, format, &mut params.saved_events);
                 }
                 Err(e) => {
                     error!("Failed to create save data: {}", e);
@@ -444,7 +449,7 @@ pub fn save_fog_of_war_system(
                 chunk_info,
             };
 
-            pending_saves.pending_save = Some(pending);
+            params.pending_saves.pending_save = Some(pending);
             info!(
                 "Created pending save, waiting for {} chunks",
                 awaiting_chunks.len()
@@ -614,20 +619,25 @@ fn complete_save_operation(
     }
 }
 
+/// 加载系统参数组合
+/// Load system parameter bundle
+#[derive(SystemParam)]
+pub struct LoadSystemParams<'w, 's> {
+    load_events: EventReader<'w, 's, LoadFogOfWarRequest>,
+    loaded_events: EventWriter<'w, FogOfWarLoaded>,
+    commands: Commands<'w, 's>,
+    settings: Res<'w, FogMapSettings>,
+    cache: ResMut<'w, ChunkStateCache>,
+    chunk_manager: ResMut<'w, ChunkEntityManager>,
+    texture_manager: ResMut<'w, TextureArrayManager>,
+    images: ResMut<'w, Assets<Image>>,
+    existing_chunks: Query<'w, 's, Entity, With<FogChunk>>,
+}
+
 /// 系统：处理加载雾效数据的请求
 /// System: Handle fog of war load requests
-pub fn load_fog_of_war_system(
-    mut load_events: EventReader<LoadFogOfWarRequest>,
-    mut loaded_events: EventWriter<FogOfWarLoaded>,
-    mut commands: Commands,
-    settings: Res<FogMapSettings>,
-    mut cache: ResMut<ChunkStateCache>,
-    mut chunk_manager: ResMut<ChunkEntityManager>,
-    mut texture_manager: ResMut<TextureArrayManager>,
-    mut images: ResMut<Assets<Image>>,
-    existing_chunks: Query<Entity, With<FogChunk>>,
-) {
-    for event in load_events.read() {
+pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
+    for event in params.load_events.read() {
         let mut warnings = Vec::new();
 
         // 根据格式反序列化数据
@@ -664,22 +674,22 @@ pub fn load_fog_of_war_system(
             Ok(save_data) => {
                 // 清除现有的区块实体
                 // Clear existing chunk entities
-                for entity in existing_chunks.iter() {
-                    commands.entity(entity).despawn();
+                for entity in params.existing_chunks.iter() {
+                    params.commands.entity(entity).despawn();
                 }
-                chunk_manager.map.clear();
-                texture_manager.clear_all_layers();
+                params.chunk_manager.map.clear();
+                params.texture_manager.clear_all_layers();
 
                 // 加载保存的数据
                 // Load saved data
                 match load_save_data(
                     &save_data,
-                    &settings,
-                    &mut cache,
-                    &mut commands,
-                    &mut chunk_manager,
-                    &mut texture_manager,
-                    &mut images,
+                    &params.settings,
+                    &mut params.cache,
+                    &mut params.commands,
+                    &mut params.chunk_manager,
+                    &mut params.texture_manager,
+                    &mut params.images,
                 ) {
                     Ok(loaded_count) => {
                         info!("Loaded fog of war data: {} chunks", loaded_count);
@@ -694,7 +704,7 @@ pub fn load_fog_of_war_system(
                             ));
                         }
 
-                        loaded_events.write(FogOfWarLoaded {
+                        params.loaded_events.write(FogOfWarLoaded {
                             chunk_count: loaded_count,
                             warnings,
                         });

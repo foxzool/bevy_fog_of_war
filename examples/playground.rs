@@ -550,8 +550,7 @@ fn movable_vision_control(
                     // Handle target point on 2D plane
                     // 为简单起见，直接使用原始 x,y 坐标
                     // For simplicity, directly use original x,y coordinates
-                    let target_pos =
-                        Vec3::new(ray.origin.x, ray.origin.y, transform.translation.z);
+                    let target_pos = Vec3::new(ray.origin.x, ray.origin.y, transform.translation.z);
 
                     // 设置移动目标点
                     // Set movement target point

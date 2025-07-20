@@ -3,7 +3,11 @@
 
 use crate::persistence::{FogOfWarSaveData, PersistenceError};
 use serde::{Deserialize, Serialize};
-#[cfg(any(feature = "compression-gzip", feature = "compression-lz4", feature = "compression-zstd"))]
+#[cfg(any(
+    feature = "compression-gzip",
+    feature = "compression-lz4",
+    feature = "compression-zstd"
+))]
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -331,7 +335,11 @@ pub fn save_data_to_file<T: Serialize>(
 
         // 其他格式回退到字符串处理
         // Other formats fall back to string handling
-        #[cfg(any(feature = "compression-gzip", feature = "compression-lz4", feature = "compression-zstd"))]
+        #[cfg(any(
+            feature = "compression-gzip",
+            feature = "compression-lz4",
+            feature = "compression-zstd"
+        ))]
         _ => {
             let json = serde_json::to_string(data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -451,7 +459,11 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
 
         // 其他格式回退到JSON字符串处理
         // Other formats fall back to JSON string handling
-        #[cfg(any(feature = "compression-gzip", feature = "compression-lz4", feature = "compression-zstd"))]
+        #[cfg(any(
+            feature = "compression-gzip",
+            feature = "compression-lz4",
+            feature = "compression-zstd"
+        ))]
         _ => {
             let json_str = load_from_file(path, Some(format))?;
             serde_json::from_str(&json_str)
