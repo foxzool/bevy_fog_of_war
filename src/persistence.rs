@@ -7,11 +7,7 @@ use std::collections::HashMap;
 /// Serialization format  
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(
-    feature = "format-messagepack",
-    derive(serde::Serialize, serde::Deserialize)
-)]
-#[cfg_attr(
-    feature = "format-bincode",
+    any(feature = "format-messagepack", feature = "format-bincode"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum SerializationFormat {
@@ -34,12 +30,17 @@ impl Default for SerializationFormat {
         // 优先使用高效的二进制格式
         // Prefer efficient binary formats
         #[cfg(feature = "format-bincode")]
-        return SerializationFormat::Bincode;
-
+        {
+            SerializationFormat::Bincode
+        }
         #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
-        return SerializationFormat::MessagePack;
-
-        SerializationFormat::Json
+        {
+            SerializationFormat::MessagePack
+        }
+        #[cfg(not(any(feature = "format-bincode", feature = "format-messagepack")))]
+        {
+            SerializationFormat::Json
+        }
     }
 }
 

@@ -11,20 +11,34 @@ Cargo.lock
 .DS_Store
 /dist
 # Fog of war save files (all formats)
-fog_save_*.json
-fog_save_*.msgpack
-fog_save_*.bincode
-fog_save_*.json.gz
-fog_save_*.json.lz4
-fog_save_*.json.zst
-fog_save_*.msgpack.gz
-fog_save_*.msgpack.lz4
-fog_save_*.msgpack.zst
-fog_save_*.bincode.gz
-fog_save_*.bincode.lz4
-fog_save_*.bincode.zst
-
-# Example save files
+fog_save.*
+fog_save_*.*
 simple_demo.*
+demo_save.*
+
+# Legacy save file patterns
 player_save.*
 character_save.*
+
+# All supported serialization formats
+*.json
+*.msgpack
+*.bincode
+
+# Compressed formats
+*.json.gz
+*.json.lz4
+*.json.zst
+*.msgpack.gz
+*.msgpack.lz4
+*.msgpack.zst
+*.bincode.gz
+*.bincode.lz4
+*.bincode.zst
+
+# Exclude from above patterns (allow legitimate config files)
+!Cargo.toml
+!package.json
+!tsconfig.json
+!.vscode/*.json
+!.cargo/*.toml
