@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// 序列化格式
-/// Serialization format  
+/// Serialization format
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(
     any(feature = "format-messagepack", feature = "format-bincode"),
@@ -19,7 +19,7 @@ pub enum SerializationFormat {
     #[cfg(feature = "format-messagepack")]
     MessagePack,
     /// Bincode格式 - Rust原生二进制格式
-    /// Bincode format - Rust native binary format  
+    /// Bincode format - Rust native binary format
     #[cfg(feature = "format-bincode")]
     Bincode,
 }

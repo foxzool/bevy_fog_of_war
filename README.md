@@ -231,7 +231,11 @@ Add the desired formats to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy_fog_of_war = { version = "0.2.1", features = ["format-messagepack", "format-bincode"] }
+# Default includes bincode for optimal performance with binary data
+bevy_fog_of_war = "0.2.1"
+
+# Add additional formats:
+bevy_fog_of_war = { version = "0.2.1", features = ["format-messagepack"] }
 
 # Or enable everything:
 bevy_fog_of_war = { version = "0.2.1", features = ["all-formats"] }

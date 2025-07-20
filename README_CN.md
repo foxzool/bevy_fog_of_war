@@ -224,7 +224,11 @@ fn main() {
 
 ```toml
 [dependencies]
-bevy_fog_of_war = { version = "0.2.1", features = ["format-messagepack", "format-bincode"] }
+# 默认包含bincode以获得二进制数据的最佳性能
+bevy_fog_of_war = "0.2.1"
+
+# 添加额外格式：
+bevy_fog_of_war = { version = "0.2.1", features = ["format-messagepack"] }
 
 # 或启用所有功能：
 bevy_fog_of_war = { version = "0.2.1", features = ["all-formats"] }
