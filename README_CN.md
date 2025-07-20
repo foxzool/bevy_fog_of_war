@@ -141,11 +141,11 @@ use bevy_fog_of_war::prelude::*;
 
 fn reset_on_keypress(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut reset_events: EventWriter<ResetFogOfWarEvent>,
+    mut reset_events: EventWriter<ResetFogOfWar>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         // 重置所有战争迷雾数据
-        reset_events.write(ResetFogOfWarEvent);
+        reset_events.write(ResetFogOfWar);
     }
 }
 
@@ -168,8 +168,8 @@ use bevy::prelude::*;
 use bevy_fog_of_war::prelude::*;
 
 fn handle_fog_reset_events(
-    mut success_events: EventReader<FogResetSuccessEvent>,
-    mut failure_events: EventReader<FogResetFailedEvent>,
+    mut success_events: EventReader<FogResetSuccess>,
+    mut failure_events: EventReader<FogResetFailed>,
 ) {
     for event in success_events.read() {
         info!("✅ 迷雾重置成功完成！持续时间：{}ms，重置区块数：{}", 
@@ -255,26 +255,36 @@ bincode + Zstandard  | 25%      | 20%      | 25%
 ```rust
 use bevy_fog_of_war::prelude::*;
 
-// 以不同格式保存
-save_data_to_file(&fog_data, "save.json", FileFormat::Json)?;
-save_data_to_file(&fog_data, "save.msgpack", FileFormat::MessagePack)?;
-save_data_to_file(&fog_data, "save.bincode", FileFormat::Bincode)?;
+// 请求保存并指定格式
+save_events.write(SaveFogOfWarRequest {
+    include_texture_data: true,
+    format: Some(SerializationFormat::Json), // 或 MessagePack、Bincode
+});
 
-// 自动格式检测加载
-let data = load_data_from_file::<FogOfWarSaveData>("save.msgpack", None)?;
+// 通过读取文件字节数据加载
+let data = std::fs::read("fog_save.msgpack")?;
+load_events.write(LoadFogOfWarRequest {
+    data,
+    format: None, // 自动检测格式
+});
 ```
 
 #### 压缩格式
 
 ```rust
-// 高压缩存储
-save_data_to_file(&fog_data, "save.msgpack.zst", FileFormat::MessagePackZstd)?;
+// 插件根据可用功能自动选择最优格式
+// 优先级：bincode > messagepack > json
+save_events.write(SaveFogOfWarRequest {
+    include_texture_data: true,
+    format: None, // 使用最佳可用格式
+});
 
-// 快速压缩，适合频繁保存
-save_data_to_file(&fog_data, "save.bincode.lz4", FileFormat::BincodeLz4)?;
-
-// 压缩格式也支持自动检测
-let data = load_data_from_file::<FogOfWarSaveData>("save.msgpack.zst", None)?;
+// 加载时自动从文件内容检测格式
+let data = std::fs::read("fog_save.bincode")?;
+load_events.write(LoadFogOfWarRequest {
+    data,
+    format: None, // 自动检测bincode格式
+});
 ```
 
 #### 智能加载优先级
@@ -282,8 +292,10 @@ let data = load_data_from_file::<FogOfWarSaveData>("save.msgpack.zst", None)?;
 插件自动按最优顺序尝试格式：
 
 ```rust
-// 尝试顺序：.bincode.zst → .msgpack.zst → .bincode → .msgpack → .json
-let result = load_fog_data("character_save", None)?;
+// 插件自动按最优顺序尝试格式
+// 优先级：bincode.zst → msgpack.lz4 → bincode → msgpack → json
+let data = std::fs::read("fog_save.bincode")?;
+load_events.write(LoadFogOfWarRequest { data, format: None });
 ```
 
 ### 格式建议
@@ -310,6 +322,7 @@ fn save_fog_data(
     // 请求保存雾效数据
     save_events.write(SaveFogOfWarRequest {
         include_texture_data: true, // 包含纹理数据以保存部分可见性
+        format: None, // 使用默认格式（优先级：bincode -> messagepack -> json）
     });
 }
 
@@ -317,24 +330,21 @@ fn handle_save_complete(
     mut events: EventReader<FogOfWarSaved>,
 ) {
     for event in events.read() {
-        println!("保存了 {} 个区块", event.chunk_count);
-        
-        // 将JSON数据解析为结构体以便灵活保存
-        let save_data: FogOfWarSaveData = serde_json::from_str(&event.data).unwrap();
-        
-        // 演示多种格式保存
-        let formats = vec![
-            (FileFormat::Json, "json"),
-            (FileFormat::MessagePack, "msgpack"),
-            (FileFormat::BincodeZstd, "bincode.zst"), // 压缩存储
-        ];
-        
-        for (format, ext) in formats {
-            let filename = format!("fog_save.{}", ext);
-            if let Err(e) = save_data_to_file(&save_data, &filename, format) {
-                eprintln!("保存 {} 失败: {}", filename, e);
-            } else {
-                println!("已保存到 {} ({:?})", filename, format);
+        let filename = match event.format {
+            SerializationFormat::Json => "fog_save.json",
+            #[cfg(feature = "format-messagepack")]
+            SerializationFormat::MessagePack => "fog_save.msgpack",
+            #[cfg(feature = "format-bincode")]
+            SerializationFormat::Bincode => "fog_save.bincode",
+        };
+
+        match std::fs::write(filename, &event.data) {
+            Ok(_) => {
+                println!("✅ 保存了 {} 个区块到 '{}' - 格式：{:?}", 
+                        event.chunk_count, filename, event.format);
+            }
+            Err(e) => {
+                eprintln!("❌ 保存雾效数据到 '{}' 失败：{}", filename, e);
             }
         }
     }
@@ -350,38 +360,41 @@ use bevy_fog_of_war::prelude::*;
 fn load_fog_data(
     mut load_events: EventWriter<LoadFogOfWarRequest>,
 ) {
-    // 选项1：自动格式检测加载
-    match load_data_from_file::<FogOfWarSaveData>("player_save.msgpack", None) {
-        Ok(save_data) => {
-            let json_data = serde_json::to_string(&save_data).unwrap();
-            load_events.write(LoadFogOfWarRequest {
-                data: json_data,
-            });
-        }
-        Err(e) => eprintln!("加载失败: {}", e),
-    }
-    
-    // 选项2：按优先级尝试多种格式（最快的优先）
+    // 按优先级顺序尝试加载不同格式的文件
     let format_priorities = [
-        ("player_save.bincode.zst", Some(FileFormat::BincodeZstd)),
-        ("player_save.msgpack", Some(FileFormat::MessagePack)),
-        ("player_save.json", Some(FileFormat::Json)),
+        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+        "fog_save.bincode.zst",
+        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+        "fog_save.msgpack.lz4",
+        #[cfg(feature = "format-bincode")]
+        "fog_save.bincode",
+        #[cfg(feature = "format-messagepack")]
+        "fog_save.msgpack",
+        "fog_save.json",
     ];
-    
-    for (filename, format) in format_priorities {
-        if std::path::Path::new(filename).exists() {
-            match load_data_from_file::<FogOfWarSaveData>(filename, format) {
-                Ok(save_data) => {
-                    println!("从 '{}' 加载（自动检测格式）", filename);
-                    let json_data = serde_json::to_string(&save_data).unwrap();
-                    load_events.write(LoadFogOfWarRequest {
-                        data: json_data,
-                    });
-                    break;
-                }
-                Err(e) => println!("加载 {} 失败: {}", filename, e),
+
+    let mut loaded = false;
+    for filename in format_priorities {
+        // 直接读取文件为字节数据
+        match std::fs::read(filename) {
+            Ok(data) => {
+                println!("✅ 从 '{}' 加载雾效数据", filename);
+                load_events.write(LoadFogOfWarRequest {
+                    data,
+                    format: None, // 从数据内容自动检测格式
+                });
+                loaded = true;
+                break;
+            }
+            Err(_) => {
+                // 文件不存在或加载失败，尝试下一个格式
+                continue;
             }
         }
+    }
+
+    if !loaded {
+        eprintln!("⚠️ 未找到保存文件");
     }
 }
 
@@ -403,32 +416,32 @@ fn handle_load_complete(
 持久化系统设计用于与服务器端存储配合使用：
 
 ```rust
-// 服务器集成示例
-async fn save_to_server(fog_data: &str) {
-    // 将雾效数据发送到你的游戏服务器
+// 使用二进制数据的服务器集成示例
+async fn save_to_server(fog_data: &[u8], format: SerializationFormat) {
+    // 将二进制雾效数据发送到你的游戏服务器
     let response = reqwest::Client::new()
         .post("https://api.yourgame.com/fog-of-war/save")
-        .json(&serde_json::json!({
-            "fog_data": fog_data,
-        }))
+        .header("Content-Type", "application/octet-stream")
+        .header("X-Fog-Format", format!("{:?}", format))
+        .body(fog_data.to_vec())
         .send()
         .await
         .unwrap();
 }
 
-async fn load_from_server() -> String {
-    // 从你的游戏服务器获取雾效数据
+async fn load_from_server() -> Vec<u8> {
+    // 从你的游戏服务器获取二进制雾效数据
     let response = reqwest::Client::new()
         .get("https://api.yourgame.com/fog-of-war")
         .send()
         .await
         .unwrap();
     
-    response.text().await.unwrap()
+    response.bytes().await.unwrap().to_vec()
 }
 ```
 
-查看 [`persistence.rs`](examples/persistence.rs) 示例了解保存和加载雾效数据的完整演示。
+查看 [`playground.rs`](examples/playground.rs) 示例了解保存和加载雾效数据的完整演示。
 
 ## 兼容性
 
