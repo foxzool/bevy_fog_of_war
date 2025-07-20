@@ -7,9 +7,6 @@ use std::collections::HashMap;
 /// Fog of war persistence save data
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FogOfWarSaveData {
-    /// 角色 ID
-    /// Character ID
-    pub character_id: String,
     /// 保存时间戳
     /// Save timestamp
     pub timestamp: u64,
@@ -65,9 +62,6 @@ pub struct SaveMetadata {
 /// Event to request saving fog of war data
 #[derive(Event, Debug, Clone)]
 pub struct SaveFogOfWarRequest {
-    /// 角色 ID
-    /// Character ID
-    pub character_id: String,
     /// 是否包含纹理数据
     /// Whether to include texture data
     pub include_texture_data: bool,
@@ -77,9 +71,6 @@ pub struct SaveFogOfWarRequest {
 /// Event to request loading fog of war data
 #[derive(Event, Debug, Clone)]
 pub struct LoadFogOfWarRequest {
-    /// 角色 ID
-    /// Character ID
-    pub character_id: String,
     /// 要加载的序列化数据
     /// Serialized data to load
     pub data: String,
@@ -89,9 +80,6 @@ pub struct LoadFogOfWarRequest {
 /// Event emitted when fog of war data is saved
 #[derive(Event, Debug, Clone)]
 pub struct FogOfWarSaved {
-    /// 角色 ID
-    /// Character ID
-    pub character_id: String,
     /// 序列化的数据（JSON 字符串）
     /// Serialized data (JSON string)
     pub data: String,
@@ -104,9 +92,6 @@ pub struct FogOfWarSaved {
 /// Event emitted when fog of war data is loaded
 #[derive(Event, Debug, Clone)]
 pub struct FogOfWarLoaded {
-    /// 角色 ID
-    /// Character ID
-    pub character_id: String,
     /// 加载的区块数量
     /// Number of chunks loaded
     pub chunk_count: usize,
@@ -119,18 +104,15 @@ pub struct FogOfWarLoaded {
 /// Ongoing save operation state
 #[derive(Resource, Debug, Default)]
 pub struct PendingSaveOperations {
-    /// 等待GPU数据的保存操作
-    /// Save operations waiting for GPU data
-    pub pending_saves: HashMap<String, PendingSaveData>,
+    /// 当前等待GPU数据的保存操作（单一操作）
+    /// Current save operation waiting for GPU data (single operation)
+    pub pending_save: Option<PendingSaveData>,
 }
 
 /// 单个保存操作的状态
 /// State of a single save operation
 #[derive(Debug)]
 pub struct PendingSaveData {
-    /// 请求保存的角色ID
-    /// Character ID for the save request
-    pub character_id: String,
     /// 是否包含纹理数据
     /// Whether to include texture data
     pub include_texture_data: bool,
@@ -170,30 +152,27 @@ impl std::fmt::Display for PersistenceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PersistenceError::SerializationFailed(msg) => {
-                write!(f, "Serialization failed: {}", msg)
+                write!(f, "Serialization failed: {msg}")
             }
             PersistenceError::DeserializationFailed(msg) => {
-                write!(f, "Deserialization failed: {}", msg)
+                write!(f, "Deserialization failed: {msg}")
             }
             PersistenceError::VersionMismatch { expected, found } => {
                 write!(
                     f,
-                    "Version mismatch: expected {}, found {}",
-                    expected, found
+                    "Version mismatch: expected {expected}, found {found}"
                 )
             }
             PersistenceError::InvalidChunkSize { expected, found } => {
                 write!(
                     f,
-                    "Invalid chunk size: expected {:?}, found {:?}",
-                    expected, found
+                    "Invalid chunk size: expected {expected:?}, found {found:?}"
                 )
             }
             PersistenceError::InvalidTextureResolution { expected, found } => {
                 write!(
                     f,
-                    "Invalid texture resolution: expected {:?}, found {:?}",
-                    expected, found
+                    "Invalid texture resolution: expected {expected:?}, found {found:?}"
                 )
             }
         }
@@ -278,17 +257,15 @@ pub fn load_save_data(
 
             // 恢复纹理数据（如果有）
             // Restore texture data (if available)
-            if let Some(fog_data) = &chunk_data.fog_data {
-                if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+            if let Some(fog_data) = &chunk_data.fog_data
+                && let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
                     fog_image.data = Some(fog_data.clone());
                 }
-            }
 
-            if let Some(snapshot_data) = &chunk_data.snapshot_data {
-                if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+            if let Some(snapshot_data) = &chunk_data.snapshot_data
+                && let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
                     snapshot_image.data = Some(snapshot_data.clone());
                 }
-            }
 
             let entity = commands
                 .spawn((
@@ -327,8 +304,8 @@ pub fn save_fog_of_war_system(
     texture_manager: Res<TextureArrayManager>,
 ) {
     for event in save_events.read() {
-        info!("Starting save for character '{}' (include_texture_data: {})", 
-              event.character_id, event.include_texture_data);
+        info!("Starting save (include_texture_data: {})", 
+              event.include_texture_data);
 
         // 收集需要保存的区块信息
         // Collect chunk information to save
@@ -360,8 +337,8 @@ pub fn save_fog_of_war_system(
 
             // 如果需要纹理数据且区块在GPU上，请求GPU到CPU传输
             // If texture data needed and chunk is on GPU, request GPU-to-CPU transfer
-            if event.include_texture_data && visibility != ChunkVisibility::Unexplored {
-                if let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
+            if event.include_texture_data && visibility != ChunkVisibility::Unexplored
+                && let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
                         
                     // 请求GPU到CPU传输
                     // Request GPU-to-CPU transfer
@@ -375,41 +352,36 @@ pub fn save_fog_of_war_system(
                     info!("Requesting GPU-to-CPU transfer for chunk {:?} (F{}, S{})", 
                           coords, fog_layer_idx, snap_layer_idx);
                 }
-            }
         }
 
         // 如果不需要等待GPU数据，立即保存
         // If no GPU data needed, save immediately
         if awaiting_chunks.is_empty() {
             match create_save_data_immediate(
-                event.character_id.clone(),
                 &settings,
                 chunk_info,
                 HashMap::new(),
                 event.include_texture_data,
             ) {
                 Ok(save_data) => {
-                    complete_save_operation(save_data, event.character_id.clone(), &mut saved_events);
+                    complete_save_operation(save_data, &mut saved_events);
                 }
                 Err(e) => {
-                    error!("Failed to create save data for character '{}': {}", 
-                           event.character_id, e);
+                    error!("Failed to create save data: {}", e);
                 }
             }
         } else {
             // 创建挂起的保存操作
             // Create pending save operation
             let pending = PendingSaveData {
-                character_id: event.character_id.clone(),
                 include_texture_data: event.include_texture_data,
-                awaiting_chunks,
+                awaiting_chunks: awaiting_chunks.clone(),
                 received_data: HashMap::new(),
                 chunk_info,
             };
             
-            pending_saves.pending_saves.insert(event.character_id.clone(), pending);
-            info!("Created pending save for character '{}', waiting for {} chunks", 
-                  event.character_id, pending_saves.pending_saves[&event.character_id].awaiting_chunks.len());
+            pending_saves.pending_save = Some(pending);
+            info!("Created pending save, waiting for {} chunks", awaiting_chunks.len());
         }
     }
 }
@@ -423,12 +395,10 @@ pub fn handle_gpu_data_ready_system(
     settings: Res<FogMapSettings>,
 ) {
     for event in gpu_ready_events.read() {
-        // 查找等待此数据的保存操作
-        // Find save operations waiting for this data
-        let mut completed_saves = Vec::new();
-        
-        for (character_id, pending) in pending_saves.pending_saves.iter_mut() {
-            if pending.awaiting_chunks.contains(&event.chunk_coords) {
+        // 检查是否有挂起的保存操作等待此数据
+        // Check if there's a pending save operation waiting for this data
+        if let Some(pending) = &mut pending_saves.pending_save
+            && pending.awaiting_chunks.contains(&event.chunk_coords) {
                 // 存储接收到的数据
                 // Store received data
                 pending.received_data.insert(
@@ -440,44 +410,37 @@ pub fn handle_gpu_data_ready_system(
                 // Remove from awaiting list
                 pending.awaiting_chunks.remove(&event.chunk_coords);
                 
-                info!("Received GPU data for chunk {:?}, character '{}'. Still waiting for {} chunks",
-                      event.chunk_coords, character_id, pending.awaiting_chunks.len());
+                info!("Received GPU data for chunk {:?}. Still waiting for {} chunks",
+                      event.chunk_coords, pending.awaiting_chunks.len());
                 
                 // 检查是否所有数据都已就绪
                 // Check if all data is ready
                 if pending.awaiting_chunks.is_empty() {
-                    completed_saves.push(character_id.clone());
-                }
-            }
-        }
-        
-        // 完成已就绪的保存操作
-        // Complete ready save operations
-        for character_id in completed_saves {
-            if let Some(pending) = pending_saves.pending_saves.remove(&character_id) {
-                match create_save_data_immediate(
-                    pending.character_id.clone(),
-                    &settings,
-                    pending.chunk_info,
-                    pending.received_data,
-                    pending.include_texture_data,
-                ) {
-                    Ok(save_data) => {
-                        complete_save_operation(save_data, character_id, &mut saved_events);
-                    }
-                    Err(e) => {
-                        error!("Failed to complete save for character '{}': {}", character_id, e);
+                    // 完成保存操作
+                    // Complete save operation
+                    if let Some(pending) = pending_saves.pending_save.take() {
+                        match create_save_data_immediate(
+                            &settings,
+                            pending.chunk_info,
+                            pending.received_data,
+                            pending.include_texture_data,
+                        ) {
+                            Ok(save_data) => {
+                                complete_save_operation(save_data, &mut saved_events);
+                            }
+                            Err(e) => {
+                                error!("Failed to complete save: {}", e);
+                            }
+                        }
                     }
                 }
             }
-        }
     }
 }
 
 /// 立即创建保存数据（使用已有的纹理数据）
 /// Create save data immediately (using available texture data)
 fn create_save_data_immediate(
-    character_id: String,
     settings: &FogMapSettings,
     chunk_info: Vec<(IVec2, ChunkVisibility, Option<u32>, Option<u32>)>, // (coords, visibility, fog_idx, snap_idx)
     texture_data: HashMap<IVec2, (Vec<u8>, Vec<u8>)>, // (fog_data, snapshot_data)
@@ -523,7 +486,6 @@ fn create_save_data_immediate(
     }
     
     Ok(FogOfWarSaveData {
-        character_id,
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -542,7 +504,6 @@ fn create_save_data_immediate(
 /// Complete save operation and emit event
 fn complete_save_operation(
     save_data: FogOfWarSaveData,
-    character_id: String,
     saved_events: &mut EventWriter<FogOfWarSaved>,
 ) {
     let chunk_count = save_data.chunks.len();
@@ -551,16 +512,15 @@ fn complete_save_operation(
     // Serialize to JSON
     match serde_json::to_string(&save_data) {
         Ok(json_data) => {
-            info!("Completed save for character '{}': {} chunks", character_id, chunk_count);
+            info!("Completed save: {} chunks", chunk_count);
             
             saved_events.write(FogOfWarSaved {
-                character_id,
                 data: json_data,
                 chunk_count,
             });
         }
         Err(e) => {
-            error!("Failed to serialize fog data for character '{}': {}", character_id, e);
+            error!("Failed to serialize fog data: {}", e);
         }
     }
 }
@@ -605,10 +565,7 @@ pub fn load_fog_of_war_system(
                     &mut images,
                 ) {
                     Ok(loaded_count) => {
-                        info!(
-                            "Loaded fog of war data for character '{}': {} chunks",
-                            event.character_id, loaded_count
-                        );
+                        info!("Loaded fog of war data: {} chunks", loaded_count);
 
                         // 检查是否有区块未能加载
                         // Check if any chunks failed to load
@@ -621,24 +578,17 @@ pub fn load_fog_of_war_system(
                         }
 
                         loaded_events.write(FogOfWarLoaded {
-                            character_id: event.character_id.clone(),
                             chunk_count: loaded_count,
                             warnings,
                         });
                     }
                     Err(e) => {
-                        error!(
-                            "Failed to load fog of war data for character '{}': {}",
-                            event.character_id, e
-                        );
+                        error!("Failed to load fog of war data: {}", e);
                     }
                 }
             }
             Err(e) => {
-                error!(
-                    "Failed to deserialize fog of war data for character '{}': {}",
-                    event.character_id, e
-                );
+                error!("Failed to deserialize fog of war data: {}", e);
             }
         }
     }

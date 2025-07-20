@@ -307,9 +307,8 @@ use bevy_fog_of_war::prelude::*;
 fn save_fog_data(
     mut save_events: EventWriter<SaveFogOfWarRequest>,
 ) {
-    // 请求保存特定角色的雾效数据
+    // 请求保存雾效数据
     save_events.write(SaveFogOfWarRequest {
-        character_id: "player_1".to_string(),
         include_texture_data: true, // 包含纹理数据以保存部分可见性
     });
 }
@@ -318,8 +317,7 @@ fn handle_save_complete(
     mut events: EventReader<FogOfWarSaved>,
 ) {
     for event in events.read() {
-        println!("为角色 {} 保存了 {} 个区块", 
-                 event.character_id, event.chunk_count);
+        println!("保存了 {} 个区块", event.chunk_count);
         
         // 将JSON数据解析为结构体以便灵活保存
         let save_data: FogOfWarSaveData = serde_json::from_str(&event.data).unwrap();
@@ -332,7 +330,7 @@ fn handle_save_complete(
         ];
         
         for (format, ext) in formats {
-            let filename = format!("fog_save_{}.{}", event.character_id, ext);
+            let filename = format!("fog_save.{}", ext);
             if let Err(e) = save_data_to_file(&save_data, &filename, format) {
                 eprintln!("保存 {} 失败: {}", filename, e);
             } else {
@@ -357,7 +355,6 @@ fn load_fog_data(
         Ok(save_data) => {
             let json_data = serde_json::to_string(&save_data).unwrap();
             load_events.write(LoadFogOfWarRequest {
-                character_id: "player_1".to_string(),
                 data: json_data,
             });
         }
@@ -378,7 +375,6 @@ fn load_fog_data(
                     println!("从 '{}' 加载（自动检测格式）", filename);
                     let json_data = serde_json::to_string(&save_data).unwrap();
                     load_events.write(LoadFogOfWarRequest {
-                        character_id: "player_1".to_string(),
                         data: json_data,
                     });
                     break;
@@ -393,8 +389,7 @@ fn handle_load_complete(
     mut events: EventReader<FogOfWarLoaded>,
 ) {
     for event in events.read() {
-        println!("为角色 {} 加载了 {} 个区块", 
-                 event.character_id, event.chunk_count);
+        println!("加载了 {} 个区块", event.chunk_count);
         
         if !event.warnings.is_empty() {
             println!("警告: {:?}", event.warnings);
@@ -409,12 +404,11 @@ fn handle_load_complete(
 
 ```rust
 // 服务器集成示例
-async fn save_to_server(character_id: &str, fog_data: &str) {
+async fn save_to_server(fog_data: &str) {
     // 将雾效数据发送到你的游戏服务器
     let response = reqwest::Client::new()
         .post("https://api.yourgame.com/fog-of-war/save")
         .json(&serde_json::json!({
-            "character_id": character_id,
             "fog_data": fog_data,
         }))
         .send()
@@ -422,10 +416,10 @@ async fn save_to_server(character_id: &str, fog_data: &str) {
         .unwrap();
 }
 
-async fn load_from_server(character_id: &str) -> String {
+async fn load_from_server() -> String {
     // 从你的游戏服务器获取雾效数据
     let response = reqwest::Client::new()
-        .get(format!("https://api.yourgame.com/fog-of-war/{}", character_id))
+        .get("https://api.yourgame.com/fog-of-war")
         .send()
         .await
         .unwrap();

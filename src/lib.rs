@@ -435,8 +435,8 @@ fn manage_chunk_entities(
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
 
-            if let Ok(chunk) = chunk_q.get_mut(*entity) {
-                if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
+            if let Ok(chunk) = chunk_q.get_mut(*entity)
+                && chunk.state.memory_location == ChunkMemoryLocation::Cpu {
                     // Mark for transition to GPU
                     // 标记以转换到 GPU
                     chunks_to_make_gpu.insert(coords);
@@ -445,7 +445,6 @@ fn manage_chunk_entities(
                     // Ensure it's marked as GPU resident in cache (will be done in memory logic)
                     // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
                 }
-            }
         } else {
             // Chunk entity doesn't exist, create it
             // 区块实体不存在，创建它

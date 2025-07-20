@@ -94,11 +94,11 @@ impl FileFormat {
     /// Infer format from file extension
     pub fn from_extension(path: &Path) -> Option<Self> {
         let ext = path.extension()?.to_str()?;
-        
+
         // 检查双扩展名（如 .json.gz, .msgpack.lz4等）
         // Check for double extensions (like .json.gz, .msgpack.lz4, etc.)
-        if let Some(stem) = path.file_stem() {
-            if let Some(stem_str) = stem.to_str() {
+        if let Some(stem) = path.file_stem()
+            && let Some(stem_str) = stem.to_str() {
                 if stem_str.ends_with(".json") {
                     match ext {
                         #[cfg(feature = "compression-gzip")]
@@ -131,8 +131,7 @@ impl FileFormat {
                     }
                 }
             }
-        }
-        
+
         // 单扩展名
         // Single extension
         match ext {
@@ -154,18 +153,18 @@ pub fn save_to_file(
     format: FileFormat,
 ) -> Result<(), PersistenceError> {
     let path = path.as_ref();
-    
+
     match format {
         FileFormat::Json => {
             std::fs::write(path, data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
-        
+
         #[cfg(feature = "compression-gzip")]
         FileFormat::JsonGzip => {
             use flate2::write::GzEncoder;
             use flate2::Compression;
-            
+
             let file = std::fs::File::create(path)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             let mut encoder = GzEncoder::new(file, Compression::default());
@@ -174,7 +173,7 @@ pub fn save_to_file(
             encoder.finish()
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
-        
+
         #[cfg(feature = "compression-lz4")]
         FileFormat::JsonLz4 => {
             let compressed = lz4::block::compress(data.as_bytes(), None, true)
@@ -182,7 +181,7 @@ pub fn save_to_file(
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
-        
+
         #[cfg(feature = "compression-zstd")]
         FileFormat::JsonZstd => {
             let compressed = zstd::encode_all(data.as_bytes(), 3) // 压缩级别3（平衡）
@@ -190,18 +189,18 @@ pub fn save_to_file(
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
-        
+
         // 对于二进制格式，回退到通用处理
         // For binary formats, fall back to generic handling
         _ => {
             // 这些格式应该通过save_data_to_file处理
             // These formats should be handled by save_data_to_file
             return Err(PersistenceError::SerializationFailed(
-                format!("Format {:?} not supported by save_to_file, use save_data_to_file instead", format)
+                format!("Format {format:?} not supported by save_to_file, use save_data_to_file instead")
             ));
         }
     }
-    
+
     Ok(())
 }
 
@@ -213,14 +212,14 @@ pub fn save_data_to_file<T: Serialize>(
     format: FileFormat,
 ) -> Result<(), PersistenceError> {
     let path = path.as_ref();
-    
+
     match format {
         FileFormat::Json => {
             let json = serde_json::to_string(data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             save_to_file(&json, path, format)
         }
-        
+
         #[cfg(feature = "format-messagepack")]
         FileFormat::MessagePack => {
             let msgpack_data = rmp_serde::to_vec(data)
@@ -229,7 +228,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(feature = "format-bincode")]
         FileFormat::Bincode => {
             let bincode_data = bincode::serialize(data)
@@ -238,17 +237,17 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         // 压缩格式处理
         // Compressed format handling
         #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
         FileFormat::MessagePackGzip => {
             let msgpack_data = rmp_serde::to_vec(data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            
+
             use flate2::write::GzEncoder;
             use flate2::Compression;
-            
+
             let file = std::fs::File::create(path)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             let mut encoder = GzEncoder::new(file, Compression::default());
@@ -258,7 +257,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
         FileFormat::MessagePackLz4 => {
             let msgpack_data = rmp_serde::to_vec(data)
@@ -269,7 +268,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
         FileFormat::MessagePackZstd => {
             let msgpack_data = rmp_serde::to_vec(data)
@@ -280,15 +279,15 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
         FileFormat::BincodeGzip => {
             let bincode_data = bincode::serialize(data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            
+
             use flate2::write::GzEncoder;
             use flate2::Compression;
-            
+
             let file = std::fs::File::create(path)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             let mut encoder = GzEncoder::new(file, Compression::default());
@@ -298,7 +297,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
         FileFormat::BincodeLz4 => {
             let bincode_data = bincode::serialize(data)
@@ -309,7 +308,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
         FileFormat::BincodeZstd => {
             let bincode_data = bincode::serialize(data)
@@ -320,7 +319,7 @@ pub fn save_data_to_file<T: Serialize>(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             Ok(())
         }
-        
+
         // 其他格式回退到字符串处理
         // Other formats fall back to string handling
         _ => {
@@ -338,13 +337,13 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
     format: Option<FileFormat>,
 ) -> Result<T, PersistenceError> {
     let path = path.as_ref();
-    
+
     // 如果没有指定格式，尝试从扩展名推断
     // If format not specified, try to infer from extension
     let format = format.unwrap_or_else(|| {
         FileFormat::from_extension(path).unwrap_or(FileFormat::Json)
     });
-    
+
     match format {
         FileFormat::Json => {
             let json_str = std::fs::read_to_string(path)
@@ -352,7 +351,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             serde_json::from_str(&json_str)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(feature = "format-messagepack")]
         FileFormat::MessagePack => {
             let msgpack_data = std::fs::read(path)
@@ -360,7 +359,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             rmp_serde::from_slice(&msgpack_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(feature = "format-bincode")]
         FileFormat::Bincode => {
             let bincode_data = std::fs::read(path)
@@ -368,13 +367,13 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             bincode::deserialize(&bincode_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         // 压缩格式处理
         // Compressed format handling
         #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
         FileFormat::MessagePackGzip => {
             use flate2::read::GzDecoder;
-            
+
             let file = std::fs::File::open(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let mut decoder = GzDecoder::new(file);
@@ -384,7 +383,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             rmp_serde::from_slice(&msgpack_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
         FileFormat::MessagePackLz4 => {
             let compressed = std::fs::read(path)
@@ -394,7 +393,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             rmp_serde::from_slice(&msgpack_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
         FileFormat::MessagePackZstd => {
             let compressed = std::fs::read(path)
@@ -404,11 +403,11 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             rmp_serde::from_slice(&msgpack_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
         FileFormat::BincodeGzip => {
             use flate2::read::GzDecoder;
-            
+
             let file = std::fs::File::open(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let mut decoder = GzDecoder::new(file);
@@ -418,7 +417,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             bincode::deserialize(&bincode_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
         FileFormat::BincodeLz4 => {
             let compressed = std::fs::read(path)
@@ -428,7 +427,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             bincode::deserialize(&bincode_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
         FileFormat::BincodeZstd => {
             let compressed = std::fs::read(path)
@@ -438,7 +437,7 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             bincode::deserialize(&bincode_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
         }
-        
+
         // 其他格式回退到JSON字符串处理
         // Other formats fall back to JSON string handling
         _ => {
@@ -456,23 +455,23 @@ pub fn load_from_file(
     format: Option<FileFormat>,
 ) -> Result<String, PersistenceError> {
     let path = path.as_ref();
-    
+
     // 如果没有指定格式，尝试从扩展名推断
     // If format not specified, try to infer from extension
     let format = format.unwrap_or_else(|| {
         FileFormat::from_extension(path).unwrap_or(FileFormat::Json)
     });
-    
+
     let data = match format {
         FileFormat::Json => {
             std::fs::read_to_string(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
         }
-        
+
         #[cfg(feature = "compression-gzip")]
         FileFormat::JsonGzip => {
             use flate2::read::GzDecoder;
-            
+
             let file = std::fs::File::open(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let mut decoder = GzDecoder::new(file);
@@ -481,7 +480,7 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             data
         }
-        
+
         #[cfg(feature = "compression-lz4")]
         FileFormat::JsonLz4 => {
             let compressed = std::fs::read(path)
@@ -491,7 +490,7 @@ pub fn load_from_file(
             String::from_utf8(decompressed)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
         }
-        
+
         #[cfg(feature = "compression-zstd")]
         FileFormat::JsonZstd => {
             let compressed = std::fs::read(path)
@@ -501,18 +500,18 @@ pub fn load_from_file(
             String::from_utf8(decompressed)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
         }
-        
+
         // 对于二进制格式，回退到通用处理
         // For binary formats, fall back to generic handling
         _ => {
             // 这些格式应该通过load_data_from_file处理
             // These formats should be handled by load_data_from_file
             return Err(PersistenceError::DeserializationFailed(
-                format!("Format {:?} not supported by load_from_file, use load_data_from_file instead", format)
+                format!("Format {format:?} not supported by load_from_file, use load_data_from_file instead")
             ));
         }
     };
-    
+
     Ok(data)
 }
 
@@ -540,63 +539,63 @@ pub fn load_fog_data(
 pub fn get_file_size_info(path: impl AsRef<Path>) -> Result<String, std::io::Error> {
     let metadata = std::fs::metadata(path)?;
     let size = metadata.len();
-    
+
     let size_str = if size < 1024 {
-        format!("{} B", size)
+        format!("{size} B")
     } else if size < 1024 * 1024 {
         format!("{:.2} KB", size as f64 / 1024.0)
     } else {
         format!("{:.2} MB", size as f64 / (1024.0 * 1024.0))
     };
-    
+
     Ok(size_str)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_file_format_extension() {
         assert_eq!(FileFormat::Json.extension(), "json");
-        
+
         #[cfg(feature = "compression-gzip")]
         assert_eq!(FileFormat::JsonGzip.extension(), "json.gz");
-        
+
         #[cfg(feature = "format-messagepack")]
         assert_eq!(FileFormat::MessagePack.extension(), "msgpack");
-        
+
         #[cfg(feature = "format-bincode")]
         assert_eq!(FileFormat::Bincode.extension(), "bincode");
     }
-    
+
     #[test]
     fn test_format_from_extension() {
         use std::path::PathBuf;
-        
+
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.json")),
             Some(FileFormat::Json)
         );
-        
+
         #[cfg(feature = "compression-gzip")]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.json.gz")),
             Some(FileFormat::JsonGzip)
         );
-        
+
         #[cfg(feature = "format-messagepack")]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.msgpack")),
             Some(FileFormat::MessagePack)
         );
-        
+
         #[cfg(feature = "format-bincode")]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.bincode")),
             Some(FileFormat::Bincode)
         );
-        
+
         #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.msgpack.lz4")),

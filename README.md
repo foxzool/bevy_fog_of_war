@@ -314,9 +314,8 @@ use bevy_fog_of_war::prelude::*;
 fn save_fog_data(
     mut save_events: EventWriter<SaveFogOfWarRequest>,
 ) {
-    // Request to save fog data for a specific character
+    // Request to save fog data
     save_events.write(SaveFogOfWarRequest {
-        character_id: "player_1".to_string(),
         include_texture_data: true, // Include texture data for partial visibility
     });
 }
@@ -325,8 +324,7 @@ fn handle_save_complete(
     mut events: EventReader<FogOfWarSaved>,
 ) {
     for event in events.read() {
-        println!("Saved {} chunks for character {}", 
-                 event.chunk_count, event.character_id);
+        println!("Saved {} chunks", event.chunk_count);
         
         // Parse the JSON data to a struct for flexible saving
         let save_data: FogOfWarSaveData = serde_json::from_str(&event.data).unwrap();
@@ -339,7 +337,7 @@ fn handle_save_complete(
         ];
         
         for (format, ext) in formats {
-            let filename = format!("fog_save_{}.{}", event.character_id, ext);
+            let filename = format!("fog_save.{}", ext);
             if let Err(e) = save_data_to_file(&save_data, &filename, format) {
                 eprintln!("Failed to save {}: {}", filename, e);
             } else {
@@ -364,7 +362,6 @@ fn load_fog_data(
         Ok(save_data) => {
             let json_data = serde_json::to_string(&save_data).unwrap();
             load_events.write(LoadFogOfWarRequest {
-                character_id: "player_1".to_string(),
                 data: json_data,
             });
         }
@@ -385,7 +382,6 @@ fn load_fog_data(
                     println!("Loading from '{}' (auto-detected format)", filename);
                     let json_data = serde_json::to_string(&save_data).unwrap();
                     load_events.write(LoadFogOfWarRequest {
-                        character_id: "player_1".to_string(),
                         data: json_data,
                     });
                     break;
@@ -400,8 +396,7 @@ fn handle_load_complete(
     mut events: EventReader<FogOfWarLoaded>,
 ) {
     for event in events.read() {
-        println!("Loaded {} chunks for character {}", 
-                 event.chunk_count, event.character_id);
+        println!("Loaded {} chunks", event.chunk_count);
         
         if !event.warnings.is_empty() {
             println!("Warnings: {:?}", event.warnings);
@@ -416,12 +411,11 @@ The persistence system is designed to work with server-side storage:
 
 ```rust
 // Example server integration
-async fn save_to_server(character_id: &str, fog_data: &str) {
+async fn save_to_server(fog_data: &str) {
     // Send fog data to your game server
     let response = reqwest::Client::new()
         .post("https://api.yourgame.com/fog-of-war/save")
         .json(&serde_json::json!({
-            "character_id": character_id,
             "fog_data": fog_data,
         }))
         .send()
@@ -429,10 +423,10 @@ async fn save_to_server(character_id: &str, fog_data: &str) {
         .unwrap();
 }
 
-async fn load_from_server(character_id: &str) -> String {
+async fn load_from_server() -> String {
     // Fetch fog data from your game server
     let response = reqwest::Client::new()
-        .get(format!("https://api.yourgame.com/fog-of-war/{}", character_id))
+        .get("https://api.yourgame.com/fog-of-war")
         .send()
         .await
         .unwrap();

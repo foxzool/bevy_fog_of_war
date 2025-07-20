@@ -190,7 +190,6 @@ fn handle_save_load_input(
     if keyboard.just_pressed(KeyCode::F5) {
         info!("Saving fog data in multiple formats...");
         save_events.write(SaveFogOfWarRequest {
-            character_id: "simple_demo".to_string(),
             include_texture_data: true,
         });
     }
@@ -233,8 +232,7 @@ fn handle_save_load_input(
                     Ok(data) => {
                         info!("Loading from '{}' (format auto-detected)", filename);
                         load_events.write(LoadFogOfWarRequest {
-                            character_id: "simple_demo".to_string(),
-                            data,
+                                            data,
                         });
                         loaded = true;
                         break;
@@ -275,7 +273,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
                 info!("Demonstrating {} serialization formats:", demo_formats.len());
                 
                 for (format, ext) in demo_formats {
-                    let filename = format!("{}.{}", event.character_id, ext);
+                    let filename = format!("fog_save.{}", ext);
                     
                     match save_data_to_file(&data, &filename, format) {
                         Ok(_) => {
@@ -307,10 +305,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
 /// Handle load completion event
 fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
     for event in events.read() {
-        info!(
-            "✅ Successfully loaded {} chunks for '{}'",
-            event.chunk_count, event.character_id
-        );
+        info!("✅ Successfully loaded {} chunks", event.chunk_count);
         
         if !event.warnings.is_empty() {
             warn!("Load warnings:");

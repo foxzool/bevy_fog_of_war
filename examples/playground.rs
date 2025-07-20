@@ -5,7 +5,6 @@ use bevy::{
     prelude::*,
 };
 use bevy_fog_of_war::prelude::*;
-use std::fs;
 
 /// 移动目标位置资源
 /// Movement target position resource
@@ -15,9 +14,7 @@ struct TargetPosition(Option<Vec3>);
 /// 玩家标记组件
 /// Player marker component
 #[derive(Component)]
-struct Player {
-    character_id: String,
-}
+struct Player;
 
 fn main() {
     App::new()
@@ -190,9 +187,7 @@ fn setup(
             transition_ratio: 0.2,
         },
         MovableVision,
-        Player {
-            character_id: "player_1".to_string(),
-        },
+        Player,
     ));
 
     // 生成水平来回移动的 Sprite
@@ -442,10 +437,9 @@ fn setup_ui(mut commands: Commands) {
              R - Reset fog of war\n\
              PageUp/Down - Adjust fog alpha\n\
              Left Click - Set target for blue vision source\n\
-             P - Save fog data (multiple formats)\n\
+             P - Save fog data (best format auto-selected)\n\
              L - Load fog data (auto-detects format)\n\
-             1-3 - Load different character saves\n\
-             Supports: JSON, MessagePack, bincode + compression",
+             Automatic format selection & compression",
         ),
         TextFont {
             font_size: 14.0,
@@ -748,128 +742,64 @@ fn handle_persistence_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut save_events: EventWriter<SaveFogOfWarRequest>,
     mut load_events: EventWriter<LoadFogOfWarRequest>,
-    player_query: Query<&Player>,
+    _player_query: Query<&Player>,
 ) {
-    // 保存当前玩家的雾效数据
-    // Save current player's fog data
+    // 保存雾效数据
+    // Save fog data
     if keyboard_input.just_pressed(KeyCode::KeyP) {
-        if let Ok(player) = player_query.single() {
-            info!("Saving fog data for character: {}", player.character_id);
-            save_events.write(SaveFogOfWarRequest {
-                character_id: player.character_id.clone(),
-                include_texture_data: true,
-            });
-        }
+        info!("Saving fog data");
+        save_events.write(SaveFogOfWarRequest {
+            include_texture_data: true,
+        });
     }
 
-    // 加载当前玩家的雾效数据
-    // Load current player's fog data
+    // 加载雾效数据
+    // Load fog data
     if keyboard_input.just_pressed(KeyCode::KeyL) {
-        if let Ok(player) = player_query.single() {
-            // 尝试加载不同格式的文件（按优先级排序：二进制压缩 > 二进制 > JSON压缩 > JSON）
-            // Try loading different file formats (priority: binary compressed > binary > JSON compressed > JSON)
-            let format_priorities = vec![
-                // 最高优先级：二进制压缩格式
-                // Highest priority: binary compressed formats
-                #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                "bincode.zst",
-                #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-                "msgpack.zst",
-                #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-                "bincode.lz4",
-                #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-                "msgpack.lz4",
-                #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-                "bincode.gz",
-                #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-                "msgpack.gz",
-                
-                // 二进制格式
-                // Binary formats
-                #[cfg(feature = "format-bincode")]
-                "bincode",
-                #[cfg(feature = "format-messagepack")]
-                "msgpack",
-                
-                // JSON压缩格式
-                // JSON compressed formats
-                #[cfg(feature = "compression-zstd")]
-                "json.zst",
-                #[cfg(feature = "compression-lz4")]
-                "json.lz4", 
-                #[cfg(feature = "compression-gzip")]
-                "json.gz",
-                
-                // 基础JSON格式
-                // Basic JSON format
-                "json",
-            ];
+        // 尝试按优先级顺序加载不同格式的文件
+        // Try loading different format files in priority order
+        let format_priorities = [
+            #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+            "bincode.zst",
+            #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+            "msgpack.lz4",
+            #[cfg(feature = "format-bincode")]
+            "bincode",
+            #[cfg(feature = "format-messagepack")]
+            "msgpack",
+            "json",
+        ];
+
+        let mut loaded = false;
+        for ext in format_priorities {
+            let filename = format!("fog_save.{}", ext);
             
-            let mut loaded = false;
-            for ext in format_priorities {
-                let filename = format!("fog_save_{}.{}", player.character_id, ext);
-                if std::path::Path::new(&filename).exists() {
-                    // 对于二进制格式，使用新的load_data_from_file函数直接加载
-                    // For binary formats, use the new load_data_from_file function to load directly
-                    let result = if ext.contains("msgpack") || ext.contains("bincode") {
-                        match load_data_from_file::<FogOfWarSaveData>(&filename, None) {
-                            Ok(save_data) => {
-                                match serde_json::to_string(&save_data) {
-                                    Ok(json_data) => Ok(json_data),
-                                    Err(e) => Err(PersistenceError::SerializationFailed(e.to_string())),
-                                }
-                            }
-                            Err(e) => Err(e),
-                        }
-                    } else {
-                        load_from_file(&filename, None)
-                    };
-                    
-                    match result {
-                        Ok(data) => {
-                            info!("Loading fog data from '{}' for character: {} (Format: auto-detected)", 
-                                  filename, player.character_id);
+            match load_fog_data(&filename, None) {
+                Ok(save_data) => {
+                    match serde_json::to_string(&save_data) {
+                        Ok(json_data) => {
+                            info!("✅ Loaded fog data from '{}'", filename);
                             load_events.write(LoadFogOfWarRequest {
-                                character_id: player.character_id.clone(),
-                                data,
+                                data: json_data,
                             });
                             loaded = true;
                             break;
                         }
                         Err(e) => {
-                            error!("Failed to read save file '{}': {}", filename, e);
+                            error!("❌ Failed to convert save data to JSON: {}", e);
                         }
                     }
                 }
-            }
-            
-            if !loaded {
-                warn!("No save file found for character: {}", player.character_id);
+                Err(_) => {
+                    // 文件不存在或加载失败，尝试下一个格式
+                    // File doesn't exist or failed to load, try next format
+                    continue;
+                }
             }
         }
-    }
 
-    // 加载不同角色的存档
-    // Load different character saves
-    for (key, character_id) in [
-        (KeyCode::Digit1, "player_1"),
-        (KeyCode::Digit2, "player_2"),
-        (KeyCode::Digit3, "player_3"),
-    ] {
-        if keyboard_input.just_pressed(key) {
-            let filename = format!("fog_save_{}.json", character_id);
-            match fs::read_to_string(&filename) {
-                Ok(data) => {
-                    info!("Loading fog data for character: {}", character_id);
-                    load_events.write(LoadFogOfWarRequest {
-                        character_id: character_id.to_string(),
-                        data,
-                    });
-                }
-                Err(_) => {
-                    warn!("No save file found for character: {}", character_id);
-                }
-            }
+        if !loaded {
+            warn!("⚠️ No save file found");
         }
     }
 }
@@ -878,72 +808,55 @@ fn handle_persistence_input(
 // Handle saved event
 fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
     for event in events.read() {
-        // 使用便利函数保存到文件
-        // Use utility function to save to file
-        
-        // 尝试不同的序列化格式和压缩组合
-        // Try different serialization formats and compression combinations
-        let formats = vec![
-            (FileFormat::Json, "json"),
-            
-            // 压缩的JSON格式
-            // Compressed JSON formats
-            #[cfg(feature = "compression-gzip")]
-            (FileFormat::JsonGzip, "json.gz"),
-            #[cfg(feature = "compression-lz4")]
-            (FileFormat::JsonLz4, "json.lz4"),
-            #[cfg(feature = "compression-zstd")]
-            (FileFormat::JsonZstd, "json.zst"),
-            
-            // MessagePack格式
-            // MessagePack formats
-            #[cfg(feature = "format-messagepack")]
-            (FileFormat::MessagePack, "msgpack"),
-            #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-            (FileFormat::MessagePackGzip, "msgpack.gz"),
-            #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-            (FileFormat::MessagePackLz4, "msgpack.lz4"),
-            #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-            (FileFormat::MessagePackZstd, "msgpack.zst"),
-            
-            // bincode格式
-            // bincode formats
-            #[cfg(feature = "format-bincode")]
-            (FileFormat::Bincode, "bincode"),
-            #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-            (FileFormat::BincodeGzip, "bincode.gz"),
-            #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-            (FileFormat::BincodeLz4, "bincode.lz4"),
-            #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-            (FileFormat::BincodeZstd, "bincode.zst"),
-        ];
-        
-        // 首先将JSON字符串反序列化为结构体
-        // First deserialize JSON string to struct
+        // 将JSON字符串反序列化为结构体
+        // Deserialize JSON string to struct
         let save_data: Result<FogOfWarSaveData, _> = serde_json::from_str(&event.data);
-        
+
         match save_data {
             Ok(data) => {
-                for (format, ext) in formats {
-                    let filename = format!("fog_save_{}.{}", event.character_id, ext);
-                    
-                    match save_data_to_file(&data, &filename, format) {
-                        Ok(_) => {
-                            if let Ok(size) = get_file_size_info(&filename) {
-                                info!(
-                                    "Saved {} chunks to '{}' ({}) - Format: {:?}",
-                                    event.chunk_count, filename, size, format
-                                );
-                            }
+                // 选择最佳格式：优先压缩的bincode，然后是MessagePack，最后是JSON
+                // Choose best format: prefer compressed bincode, then MessagePack, finally JSON
+                let (format, ext) = {
+                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+                    {
+                        (FileFormat::BincodeZstd, "bincode.zst")
+                    }
+                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), feature = "format-messagepack", feature = "compression-lz4"))]
+                    {
+                        (FileFormat::MessagePackLz4, "msgpack.lz4")
+                    }
+                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), feature = "format-bincode"))]
+                    {
+                        (FileFormat::Bincode, "bincode")
+                    }
+                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), not(feature = "format-bincode"), feature = "format-messagepack"))]
+                    {
+                        (FileFormat::MessagePack, "msgpack")
+                    }
+                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), not(feature = "format-bincode"), not(feature = "format-messagepack")))]
+                    {
+                        (FileFormat::Json, "json")
+                    }
+                };
+
+                let filename = format!("fog_save.{}", ext);
+
+                match save_data_to_file(&data, &filename, format) {
+                    Ok(_) => {
+                        if let Ok(size) = get_file_size_info(&filename) {
+                            info!(
+                                "✅ Saved {} chunks to '{}' ({}) - Format: {:?}",
+                                event.chunk_count, filename, size, format
+                            );
                         }
-                        Err(e) => {
-                            error!("Failed to save as {}: {}", ext, e);
-                        }
+                    }
+                    Err(e) => {
+                        error!("❌ Failed to save fog data: {}", e);
                     }
                 }
             }
             Err(e) => {
-                error!("Failed to parse save data: {}", e);
+                error!("❌ Failed to parse save data: {}", e);
             }
         }
     }
@@ -953,10 +866,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
 // Handle loaded event
 fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
     for event in events.read() {
-        info!(
-            "Successfully loaded {} chunks for character '{}'",
-            event.chunk_count, event.character_id
-        );
+        info!("Successfully loaded {} chunks", event.chunk_count);
 
         if !event.warnings.is_empty() {
             warn!("Load warnings:");

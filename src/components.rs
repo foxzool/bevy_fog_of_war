@@ -196,7 +196,7 @@ pub struct FogChunkImage {
 
 impl FogChunkImage {
     pub fn from_setting(images: &mut ResMut<Assets<Image>>, setting: &FogMapSettings) -> Self {
-        Self::from_setting_raw(&mut **images, setting)
+        Self::from_setting_raw(images, setting)
     }
 
     pub fn from_setting_raw(images: &mut Assets<Image>, setting: &FogMapSettings) -> Self {
