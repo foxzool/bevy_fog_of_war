@@ -7,7 +7,7 @@ pub use crate::data_transfer::{
 pub use crate::managers::*;
 pub use crate::persistence::{
     FogOfWarLoaded, FogOfWarPersistencePlugin, FogOfWarSaveData, FogOfWarSaved,
-    LoadFogOfWarRequest, PersistenceError, SaveFogOfWarRequest,
+    LoadFogOfWarRequest, PersistenceError, SaveFogOfWarRequest, SerializationFormat,
 };
 pub use crate::persistence_utils::{
     FileFormat, get_file_size_info, load_fog_data, load_from_file, save_fog_data, save_to_file,

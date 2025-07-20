@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
     Capturable, FogMapSettings, FogOfWarCamera, FogOfWarPlugin, FogResetFailed, FogResetSuccess,
     VisionSource, SaveFogOfWarRequest, FogOfWarSaved, LoadFogOfWarRequest, FogOfWarLoaded,
-    FileFormat, save_data_to_file, load_data_from_file, FogOfWarSaveData,
+    SerializationFormat,
 };
 
 fn main() {
@@ -191,6 +191,7 @@ fn handle_save_load_input(
         info!("Saving fog data in multiple formats...");
         save_events.write(SaveFogOfWarRequest {
             include_texture_data: true,
+            format: None, // Use default format (prioritizes bincode -> messagepack -> json)
         });
     }
 
@@ -212,27 +213,14 @@ fn handle_save_load_input(
         let mut loaded = false;
         for filename in format_priorities {
             if std::path::Path::new(filename).exists() {
-                // 对于二进制格式，直接加载并转换为JSON
-                // For binary formats, load directly and convert to JSON
-                let result = if filename.ends_with(".bincode") || filename.ends_with(".msgpack") {
-                    match load_data_from_file::<FogOfWarSaveData>(filename, None) {
-                        Ok(save_data) => {
-                            match serde_json::to_string(&save_data) {
-                                Ok(json_data) => Ok(json_data),
-                                Err(e) => Err(format!("JSON conversion failed: {}", e)),
-                            }
-                        }
-                        Err(e) => Err(e.to_string()),
-                    }
-                } else {
-                    std::fs::read_to_string(filename).map_err(|e| e.to_string())
-                };
-                
-                match result {
+                // 直接读取文件为字节数据
+                // Read file as bytes directly
+                match std::fs::read(filename) {
                     Ok(data) => {
                         info!("Loading from '{}' (format auto-detected)", filename);
                         load_events.write(LoadFogOfWarRequest {
-                                            data,
+                            data,
+                            format: None, // Auto-detect format from data content
                         });
                         loaded = true;
                         break;
@@ -254,48 +242,31 @@ fn handle_save_load_input(
 /// Handle save completion event (demonstrate multi-format saving)
 fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
     for event in events.read() {
-        // 将JSON数据反序列化为结构体
-        // Deserialize JSON data to struct
-        let save_data: Result<FogOfWarSaveData, _> = serde_json::from_str(&event.data);
-        
-        match save_data {
-            Ok(data) => {
-                // 演示不同格式的保存
-                // Demonstrate saving in different formats
-                let demo_formats = vec![
-                    (FileFormat::Json, "json"),
-                    #[cfg(feature = "format-messagepack")]
-                    (FileFormat::MessagePack, "msgpack"),
-                    #[cfg(feature = "format-bincode")]
-                    (FileFormat::Bincode, "bincode"),
-                ];
-                
-                info!("Demonstrating {} serialization formats:", demo_formats.len());
-                
-                for (format, ext) in demo_formats {
-                    let filename = format!("fog_save.{}", ext);
-                    
-                    match save_data_to_file(&data, &filename, format) {
-                        Ok(_) => {
-                            if let Ok(metadata) = std::fs::metadata(&filename) {
-                                let size = metadata.len();
-                                let size_kb = size as f64 / 1024.0;
-                                info!(
-                                    "  ✓ {}: {:.2} KB ({} bytes) - {:?}",
-                                    filename, size_kb, size, format
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            error!("  ✗ Failed to save {}: {}", filename, e);
-                        }
-                    }
+        // 直接使用序列化后的二进制数据
+        // Use the serialized binary data directly
+        let primary_filename = match event.format {
+            SerializationFormat::Json => "simple_demo.json",
+            #[cfg(feature = "format-messagepack")]
+            SerializationFormat::MessagePack => "simple_demo.msgpack", 
+            #[cfg(feature = "format-bincode")]
+            SerializationFormat::Bincode => "simple_demo.bincode",
+        };
+
+        // 保存主要文件（使用当前格式）
+        // Save primary file (using current format)
+        match std::fs::write(primary_filename, &event.data) {
+            Ok(_) => {
+                if let Ok(metadata) = std::fs::metadata(primary_filename) {
+                    let size = metadata.len();
+                    let size_kb = size as f64 / 1024.0;
+                    info!(
+                        "✅ Saved {} chunks to '{}': {:.2} KB ({} bytes) - Format: {:?}",
+                        event.chunk_count, primary_filename, size_kb, size, event.format
+                    );
                 }
-                
-                info!("Format comparison complete! Use F9 to load back.");
             }
             Err(e) => {
-                error!("Failed to parse save data: {}", e);
+                error!("❌ Failed to save fog data to '{}': {}", primary_filename, e);
             }
         }
     }

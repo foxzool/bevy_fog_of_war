@@ -750,6 +750,7 @@ fn handle_persistence_input(
         info!("Saving fog data");
         save_events.write(SaveFogOfWarRequest {
             include_texture_data: true,
+            format: None, // Use default format (prioritizes bincode -> messagepack -> json)
         });
     }
 
@@ -774,21 +775,17 @@ fn handle_persistence_input(
         for ext in format_priorities {
             let filename = format!("fog_save.{}", ext);
             
-            match load_fog_data(&filename, None) {
-                Ok(save_data) => {
-                    match serde_json::to_string(&save_data) {
-                        Ok(json_data) => {
-                            info!("✅ Loaded fog data from '{}'", filename);
-                            load_events.write(LoadFogOfWarRequest {
-                                data: json_data,
-                            });
-                            loaded = true;
-                            break;
-                        }
-                        Err(e) => {
-                            error!("❌ Failed to convert save data to JSON: {}", e);
-                        }
-                    }
+            // 直接读取文件为字节数据
+            // Read file as bytes directly
+            match std::fs::read(&filename) {
+                Ok(data) => {
+                    info!("✅ Loaded fog data from '{}'", filename);
+                    load_events.write(LoadFogOfWarRequest {
+                        data,
+                        format: None, // Auto-detect format from data content
+                    });
+                    loaded = true;
+                    break;
                 }
                 Err(_) => {
                     // 文件不存在或加载失败，尝试下一个格式
@@ -808,55 +805,27 @@ fn handle_persistence_input(
 // Handle saved event
 fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
     for event in events.read() {
-        // 将JSON字符串反序列化为结构体
-        // Deserialize JSON string to struct
-        let save_data: Result<FogOfWarSaveData, _> = serde_json::from_str(&event.data);
+        // 直接使用序列化后的二进制数据
+        // Use the serialized binary data directly
+        let filename = match event.format {
+            SerializationFormat::Json => "fog_save.json",
+            #[cfg(feature = "format-messagepack")]
+            SerializationFormat::MessagePack => "fog_save.msgpack", 
+            #[cfg(feature = "format-bincode")]
+            SerializationFormat::Bincode => "fog_save.bincode",
+        };
 
-        match save_data {
-            Ok(data) => {
-                // 选择最佳格式：优先压缩的bincode，然后是MessagePack，最后是JSON
-                // Choose best format: prefer compressed bincode, then MessagePack, finally JSON
-                let (format, ext) = {
-                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                    {
-                        (FileFormat::BincodeZstd, "bincode.zst")
-                    }
-                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), feature = "format-messagepack", feature = "compression-lz4"))]
-                    {
-                        (FileFormat::MessagePackLz4, "msgpack.lz4")
-                    }
-                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), feature = "format-bincode"))]
-                    {
-                        (FileFormat::Bincode, "bincode")
-                    }
-                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), not(feature = "format-bincode"), feature = "format-messagepack"))]
-                    {
-                        (FileFormat::MessagePack, "msgpack")
-                    }
-                    #[cfg(all(not(all(feature = "format-bincode", feature = "compression-zstd")), not(all(feature = "format-messagepack", feature = "compression-lz4")), not(feature = "format-bincode"), not(feature = "format-messagepack")))]
-                    {
-                        (FileFormat::Json, "json")
-                    }
-                };
-
-                let filename = format!("fog_save.{}", ext);
-
-                match save_data_to_file(&data, &filename, format) {
-                    Ok(_) => {
-                        if let Ok(size) = get_file_size_info(&filename) {
-                            info!(
-                                "✅ Saved {} chunks to '{}' ({}) - Format: {:?}",
-                                event.chunk_count, filename, size, format
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        error!("❌ Failed to save fog data: {}", e);
-                    }
+        match std::fs::write(filename, &event.data) {
+            Ok(_) => {
+                if let Ok(size) = get_file_size_info(filename) {
+                    info!(
+                        "✅ Saved {} chunks to '{}' ({}) - Format: {:?}",
+                        event.chunk_count, filename, size, event.format
+                    );
                 }
             }
             Err(e) => {
-                error!("❌ Failed to parse save data: {}", e);
+                error!("❌ Failed to save fog data to '{}': {}", filename, e);
             }
         }
     }

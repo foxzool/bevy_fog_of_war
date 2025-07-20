@@ -3,6 +3,39 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// 序列化格式
+/// Serialization format  
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "format-messagepack", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "format-bincode", derive(serde::Serialize, serde::Deserialize))]
+pub enum SerializationFormat {
+    /// JSON格式 - 人类可读但体积较大
+    /// JSON format - human readable but larger
+    Json,
+    /// MessagePack格式 - 二进制高效格式
+    /// MessagePack format - binary efficient format
+    #[cfg(feature = "format-messagepack")]
+    MessagePack,
+    /// Bincode格式 - Rust原生二进制格式
+    /// Bincode format - Rust native binary format  
+    #[cfg(feature = "format-bincode")]
+    Bincode,
+}
+
+impl Default for SerializationFormat {
+    fn default() -> Self {
+        // 优先使用高效的二进制格式
+        // Prefer efficient binary formats
+        #[cfg(feature = "format-bincode")]
+        return SerializationFormat::Bincode;
+        
+        #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
+        return SerializationFormat::MessagePack;
+        
+        SerializationFormat::Json
+    }
+}
+
 /// 雾效持久化保存数据
 /// Fog of war persistence save data
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -65,6 +98,9 @@ pub struct SaveFogOfWarRequest {
     /// 是否包含纹理数据
     /// Whether to include texture data
     pub include_texture_data: bool,
+    /// 序列化格式（None使用默认格式）
+    /// Serialization format (None uses default)
+    pub format: Option<SerializationFormat>,
 }
 
 /// 请求加载雾效数据的事件
@@ -73,16 +109,22 @@ pub struct SaveFogOfWarRequest {
 pub struct LoadFogOfWarRequest {
     /// 要加载的序列化数据
     /// Serialized data to load
-    pub data: String,
+    pub data: Vec<u8>,
+    /// 数据格式（None会尝试自动检测）
+    /// Data format (None will try auto-detection)
+    pub format: Option<SerializationFormat>,
 }
 
 /// 雾效数据保存完成事件
 /// Event emitted when fog of war data is saved
 #[derive(Event, Debug, Clone)]
 pub struct FogOfWarSaved {
-    /// 序列化的数据（JSON 字符串）
-    /// Serialized data (JSON string)
-    pub data: String,
+    /// 序列化的数据
+    /// Serialized data
+    pub data: Vec<u8>,
+    /// 使用的序列化格式
+    /// Serialization format used
+    pub format: SerializationFormat,
     /// 保存的区块数量
     /// Number of chunks saved
     pub chunk_count: usize,
@@ -116,6 +158,9 @@ pub struct PendingSaveData {
     /// 是否包含纹理数据
     /// Whether to include texture data
     pub include_texture_data: bool,
+    /// 序列化格式
+    /// Serialization format
+    pub format: SerializationFormat,
     /// 需要等待的区块坐标
     /// Chunk coordinates to wait for
     pub awaiting_chunks: std::collections::HashSet<IVec2>,
@@ -364,7 +409,8 @@ pub fn save_fog_of_war_system(
                 event.include_texture_data,
             ) {
                 Ok(save_data) => {
-                    complete_save_operation(save_data, &mut saved_events);
+                    let format = event.format.unwrap_or_default();
+                    complete_save_operation(save_data, format, &mut saved_events);
                 }
                 Err(e) => {
                     error!("Failed to create save data: {}", e);
@@ -375,6 +421,7 @@ pub fn save_fog_of_war_system(
             // Create pending save operation
             let pending = PendingSaveData {
                 include_texture_data: event.include_texture_data,
+                format: event.format.unwrap_or_default(),
                 awaiting_chunks: awaiting_chunks.clone(),
                 received_data: HashMap::new(),
                 chunk_info,
@@ -426,7 +473,7 @@ pub fn handle_gpu_data_ready_system(
                             pending.include_texture_data,
                         ) {
                             Ok(save_data) => {
-                                complete_save_operation(save_data, &mut saved_events);
+                                complete_save_operation(save_data, pending.format, &mut saved_events);
                             }
                             Err(e) => {
                                 error!("Failed to complete save: {}", e);
@@ -500,27 +547,44 @@ fn create_save_data_immediate(
     })
 }
 
-/// 完成保存操作并发送事件
-/// Complete save operation and emit event
+/// 完成保存操作，序列化数据并发送事件
+/// Complete save operation, serialize data and send event
 fn complete_save_operation(
     save_data: FogOfWarSaveData,
+    format: SerializationFormat,
     saved_events: &mut EventWriter<FogOfWarSaved>,
 ) {
-    let chunk_count = save_data.chunks.len();
-    
-    // 序列化为 JSON
-    // Serialize to JSON
-    match serde_json::to_string(&save_data) {
-        Ok(json_data) => {
-            info!("Completed save: {} chunks", chunk_count);
+    let result = match format {
+        SerializationFormat::Json => {
+            serde_json::to_vec(&save_data)
+                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
+        }
+        #[cfg(feature = "format-messagepack")]
+        SerializationFormat::MessagePack => {
+            rmp_serde::to_vec(&save_data)
+                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
+        }
+        #[cfg(feature = "format-bincode")]
+        SerializationFormat::Bincode => {
+            bincode::serialize(&save_data)
+                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
+        }
+    };
+
+    match result {
+        Ok(data) => {
+            let chunk_count = save_data.chunks.len();
+            info!("Save completed successfully using {:?} format: {} chunks, {} bytes", 
+                  format, chunk_count, data.len());
             
             saved_events.write(FogOfWarSaved {
-                data: json_data,
+                data,
+                format,
                 chunk_count,
             });
         }
         Err(e) => {
-            error!("Failed to serialize fog data: {}", e);
+            error!("Failed to serialize save data using {:?} format: {}", format, e);
         }
     }
 }
@@ -541,9 +605,41 @@ pub fn load_fog_of_war_system(
     for event in load_events.read() {
         let mut warnings = Vec::new();
 
-        // 反序列化 JSON 数据
-        // Deserialize JSON data
-        match serde_json::from_str::<FogOfWarSaveData>(&event.data) {
+        // 根据格式反序列化数据
+        // Deserialize data based on format
+        let format = event.format.unwrap_or_else(|| {
+            // 尝试自动检测格式
+            // Try to auto-detect format
+            if event.data.starts_with(&[b'{']) || event.data.starts_with(&[b'[']) {
+                SerializationFormat::Json
+            } else {
+                // 默认假设为bincode
+                // Default assume bincode
+                #[cfg(feature = "format-bincode")]
+                return SerializationFormat::Bincode;
+                #[cfg(not(feature = "format-bincode"))]
+                return SerializationFormat::Json;
+            }
+        });
+        
+        let result = match format {
+            SerializationFormat::Json => {
+                serde_json::from_slice::<FogOfWarSaveData>(&event.data)
+                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            }
+            #[cfg(feature = "format-messagepack")]
+            SerializationFormat::MessagePack => {
+                rmp_serde::from_slice::<FogOfWarSaveData>(&event.data)
+                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            }
+            #[cfg(feature = "format-bincode")]
+            SerializationFormat::Bincode => {
+                bincode::deserialize::<FogOfWarSaveData>(&event.data)
+                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            }
+        };
+        
+        match result {
             Ok(save_data) => {
                 // 清除现有的区块实体
                 // Clear existing chunk entities
@@ -588,7 +684,7 @@ pub fn load_fog_of_war_system(
                 }
             }
             Err(e) => {
-                error!("Failed to deserialize fog of war data: {}", e);
+                error!("Failed to deserialize fog of war data using {:?} format: {}", format, e);
             }
         }
     }
