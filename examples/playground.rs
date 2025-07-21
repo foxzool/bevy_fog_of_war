@@ -137,76 +137,15 @@ use bevy::{
 };
 use bevy_fog_of_war::prelude::*;
 
-/// Global resource tracking the target position for player movement via mouse clicks.
-/// 全局资源，跟踪通过鼠标点击进行玩家移动的目标位置
-///
-/// This resource enables click-to-move functionality for the player entity.
-/// When the user clicks somewhere in the world, the world coordinates are
-/// stored here and the movable vision control system smoothly moves the
-/// player toward that target.
-///
-/// # State Management
-/// - **Some(Vec3)**: Active target position, player moving toward it
-/// - **None**: No active target, player stationary or under manual control
-///
-/// # Integration Points
-/// - **movable_vision_control**: Reads target and moves player entity
-/// - **Mouse Input**: Sets target when left mouse button clicked
-/// - **Keyboard Input**: Clears target when arrow keys pressed (manual control)
-///
-/// # Performance Characteristics
-/// - **Memory**: Minimal - single Optional Vec3
-/// - **Update Frequency**: Only when mouse clicked or target reached
-/// - **Time Complexity**: O(1) access and modification
+/// Target position for click-to-move functionality.
 #[derive(Resource, Default)]
 struct TargetPosition(Option<Vec3>);
 
-/// Marker component identifying the main player entity in the fog of war example.
-/// 标识战争迷雾示例中主要玩家实体的标记组件
-///
-/// This component marks the entity that represents the player character,
-/// which typically has controllable vision and movement capabilities.
-/// Used for queries that need to specifically target the player entity.
-///
-/// # Usage Pattern
-/// - **Player Entity**: Spawned with MovableVision, VisionSource, and Player components
-/// - **System Queries**: Used to filter player-specific logic
-/// - **Visual Distinction**: Player entity has unique color and behavior
-///
-/// # Integration
-/// - **Movement Systems**: Arrow key and mouse control target this entity
-/// - **Vision System**: Player provides primary exploration capability
-/// - **Event Handlers**: Player-specific persistence or reset logic
+/// Marks the player entity.
 #[derive(Component)]
 struct Player;
 
 /// Main entry point for the fog of war playground example.
-/// 战争迷雾游乐场示例的主入口点
-///
-/// Sets up a complete Bevy application with:
-/// 1. **Window Configuration**: 1280x720 resolution with custom title
-/// 2. **Rendering Setup**: Nearest neighbor filtering for pixel-perfect sprites
-/// 3. **Diagnostics**: Frame time monitoring for performance analysis
-/// 4. **Fog of War**: Complete plugin with all features enabled
-/// 5. **Systems**: All interactive, UI, debug, and persistence systems
-///
-/// # Plugin Configuration
-/// - **DefaultPlugins**: Standard Bevy functionality with custom settings
-/// - **FrameTimeDiagnosticsPlugin**: FPS monitoring and display
-/// - **FogOfWarPlugin**: Core fog of war functionality
-///
-/// # System Scheduling
-/// - **Startup**: `setup`, `setup_ui` - Initialize world content and UI
-/// - **Update**: All interactive and monitoring systems run each frame
-///
-/// # Performance Expectations
-/// - **Target FPS**: 60 FPS with smooth fog updates
-/// - **Entity Count**: ~15 entities total
-/// - **Memory Usage**: Dynamic based on explored area
-/// - **GPU Load**: Moderate for compute shader fog calculations
-///
-/// # Error Handling
-/// The application will panic if essential resources (fonts, etc.) cannot be loaded.
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::WHITE))
@@ -270,213 +209,38 @@ fn main() {
 #[derive(Default, Reflect, GizmoConfigGroup)]
 struct MyRoundGizmos {}
 
-/// Marker component for entities that should have fog material applied.
-/// 应该应用雾效材质的实体的标记组件
-///
-/// This component marks camera entities that need fog material management.
-/// Used by fog settings systems to identify which cameras should have
-/// their fog rendering properties updated.
-///
-/// # Usage Pattern
-/// - **Camera Marking**: Applied to cameras that render fog effects
-/// - **Material Management**: Enables dynamic fog material addition/removal
-/// - **Settings Integration**: Used by `update_fog_settings` for fog toggling
-///
-/// # System Integration
-/// The `update_fog_settings` system queries for entities with this component
-/// to apply or remove fog materials based on user input and settings.
+/// Marks cameras that need fog material management.
 #[derive(Component)]
 struct FogMaterialComponent;
 
-/// Marker component for UI text elements that display frame rate information.
-/// 显示帧率信息的UI文本元素的标记组件
-///
-/// This component identifies text spans that should be updated with current
-/// FPS values. Used by the `update_fps_text` system to target specific
-/// UI elements for real-time performance monitoring.
-///
-/// # UI Integration
-/// - **Text Location**: Typically positioned in top-left corner
-/// - **Update Frequency**: Updated every frame with smoothed FPS values
-/// - **Format**: Displays FPS with one decimal place precision
-///
-/// # Performance Monitoring
-/// Provides real-time feedback on application performance, useful for:
-/// - **Optimization**: Identifying performance bottlenecks
-/// - **Debugging**: Monitoring impact of fog operations
-/// - **User Feedback**: Visual indication of application responsiveness
+/// Marks UI text elements that display FPS.
 #[derive(Component)]
 struct FpsText;
 
-/// Marker component for UI text elements that display fog configuration and statistics.
-/// 显示雾效配置和统计信息的UI文本元素的标记组件
-///
-/// This component identifies text elements that should be updated with current
-/// fog settings, including enabled state, transparency levels, and chunk statistics.
-/// Multiple systems update this text with different types of information.
-///
-/// # Content Types
-/// - **Fog Status**: Enabled/Disabled state
-/// - **Alpha Levels**: Current transparency percentage
-/// - **Control Instructions**: Key bindings for fog manipulation
-/// - **Chunk Statistics**: Total chunks and chunks in camera view
-///
-/// # System Integration
-/// - **update_fog_settings**: Updates fog status and alpha information
-/// - **debug_draw_chunks**: Adds chunk count statistics
-/// - **Real-time Updates**: Text refreshed every frame when relevant settings change
-///
-/// # Performance Impact
-/// - **Update Cost**: Minimal string formatting overhead
-/// - **Memory**: Small string allocations for text updates
-/// - **Frequency**: Only updates when settings change or in debug mode
+/// Marks UI text elements that display fog settings and statistics.
 #[derive(Component)]
 struct FogSettingsText;
 
-/// Marker component for UI text elements that have animated color effects.
-/// 具有动画颜色效果的UI文本元素的标记组件
-///
-/// This component identifies text elements that should have their colors
-/// animated over time, typically used for visual flair in UI titles or
-/// important information displays.
-///
-/// # Animation Properties
-/// - **Color Cycling**: Text color changes over time
-/// - **Visual Appeal**: Adds dynamic visual interest to static UI
-/// - **Attention Drawing**: Helps highlight important information
-///
-/// # Usage Context
-/// Currently applied to the "Fog of War" title text in the bottom-right
-/// corner of the screen, though the animation system is not yet implemented
-/// in this example (placeholder for future enhancement).
-///
-/// # Performance Considerations
-/// - **CPU Cost**: Minimal color interpolation calculations
-/// - **Update Frequency**: Would run every frame when implemented
-/// - **Memory**: No additional memory overhead beyond component storage
+/// Marks UI text elements for color animation (not yet implemented).
 #[derive(Component)]
 struct ColorAnimatedText;
 
-/// Marker component for UI text elements that display frame count information.
-/// 显示帧计数信息的UI文本元素的标记组件
-///
-/// This component identifies text elements that should be updated with the
-/// current frame count from Bevy's FrameCount resource. Provides a simple
-/// way to track application runtime and frame progression.
-///
-/// # Display Properties
-/// - **Format**: "Count: {frame_number}"
-/// - **Update Frequency**: Every frame
-/// - **Location**: Positioned in world space near other debug information
-///
-/// # Use Cases
-/// - **Debug Information**: Track frame progression during testing
-/// - **Performance Analysis**: Correlate events with specific frame numbers
-/// - **Animation Timing**: Reference point for frame-based animations
-///
-/// # System Integration
-/// Updated by the `update_count_text` system which reads from Bevy's
-/// built-in FrameCount resource and formats the display text.
+/// Marks UI text elements that display frame count.
 #[derive(Component)]
 struct CountText;
 
-/// Marker component for vision source entities that can be controlled by user input.
-/// 可以由用户输入控制的视野源实体的标记组件
-///
-/// This component identifies entities that should respond to movement controls,
-/// including both keyboard input (arrow keys) and mouse click-to-move targeting.
-/// Typically applied to the player entity for interactive exploration.
-///
-/// # Control Methods
-/// - **Arrow Keys**: Direct movement in cardinal directions
-/// - **Mouse Clicks**: Click-to-move targeting with smooth pathfinding
-/// - **Hybrid Control**: Arrow keys cancel mouse targets for immediate control
-///
-/// # Movement Characteristics
-/// - **Speed**: 200.0 units per second
-/// - **Smoothing**: Gradual acceleration/deceleration for click-to-move
-/// - **Precision**: 5.0 unit tolerance for reaching click targets
-///
-/// # System Integration
-/// - **movable_vision_control**: Primary movement system for this component
-/// - **TargetPosition**: Resource coordination for click-to-move functionality
-/// - **VisionSource**: Usually combined with vision capabilities
-/// - **Player**: Often combined for player character identification
-///
-/// # Performance Impact
-/// - **Input Processing**: Arrow key polling every frame
-/// - **Mouse Handling**: Ray casting for world position conversion
-/// - **Movement Calculation**: Vector math for smooth interpolation
+/// Marks vision sources that can be controlled by user input (arrows/mouse).
 #[derive(Component)]
 struct MovableVision;
 
-/// Marker component for entities that should continuously rotate around their Z-axis.
-/// 应该围绕其Z轴连续旋转的实体的标记组件
-///
-/// This component identifies entities that should have automatic rotation
-/// animation applied. Used for visual variety and to test fog of war
-/// behavior with moving/changing entities.
-///
-/// # Rotation Properties
-/// - **Rotation Rate**: π/2 radians per second (90 degrees per second)
-/// - **Axis**: Z-axis rotation (2D plane rotation)
-/// - **Continuity**: Smooth, continuous rotation without stopping
-///
-/// # Visual Effects
-/// - **Entity Animation**: Provides visual movement for static entities
-/// - **Fog Testing**: Tests how fog responds to entity orientation changes
-/// - **Scene Dynamics**: Adds life to otherwise static scene elements
-///
-/// # System Integration
-/// Processed by the `rotate_entities_system` which applies time-based
-/// rotation to all entities marked with this component.
-///
-/// # Performance Characteristics
-/// - **CPU Cost**: Minimal trigonometric calculations per entity
-/// - **Memory**: No additional data, just marker component
-/// - **Update Frequency**: Every frame for smooth rotation
+/// Marks entities that should rotate continuously around Z-axis.
 #[derive(Component)]
 struct RotationAble;
 
-/// Component for entities that move horizontally back and forth within defined boundaries.
-/// 在定义边界内水平来回移动的实体的组件
-///
-/// This component enables automatic horizontal movement with collision detection
-/// at predefined boundaries. The entity bounces between left and right limits,
-/// creating predictable patrol-like behavior.
-///
-/// # Movement Parameters
-/// - **Speed**: 150.0 units per second (configurable in system)
-/// - **Boundaries**: -450.0 (left) to +450.0 (right) world units
-/// - **Direction**: 1.0 for rightward, -1.0 for leftward movement
-/// - **Collision**: Instant direction reversal at boundaries
-///
-/// # Behavior Pattern
-/// ```text
-/// [Left Boundary] ←→ Entity Movement ←→ [Right Boundary]
-///      -450.0              ↕                +450.0
-///                    Direction Reversal
-/// ```
-///
-/// # Use Cases
-/// - **Moving Targets**: Creates dynamic entities for fog testing
-/// - **Scene Animation**: Adds movement to otherwise static scenes
-/// - **Interaction Testing**: Tests fog behavior with predictable movement patterns
-///
-/// # System Integration
-/// Processed by `horizontal_movement_system` which handles:
-/// - Position updates based on direction and speed
-/// - Boundary collision detection and direction reversal
-/// - Smooth movement with delta-time compensation
-///
-/// # Performance Characteristics
-/// - **Update Frequency**: Every frame for smooth movement
-/// - **CPU Cost**: Simple arithmetic operations per entity
-/// - **Memory**: Single f32 for direction state
+/// Component for entities that move horizontally back and forth.
 #[derive(Component)]
 struct HorizontalMover {
-    /// Movement direction: 1.0 for rightward, -1.0 for leftward movement.
-    /// 移动方向：1.0表示向右移动，-1.0表示向左移动
+    /// Movement direction: 1.0 for right, -1.0 for left.
     direction: f32,
 }
 
@@ -694,40 +458,7 @@ fn setup(
     }
 }
 
-/// System for handling camera movement via keyboard input (WASD keys).
-/// 处理通过键盘输入（WASD键）进行相机移动的系统
-///
-/// This system enables smooth camera movement for exploring the fog of war world.
-/// Players can move the camera in all four cardinal directions using WASD keys,
-/// with movement speed and direction calculated based on elapsed time.
-///
-/// # Controls
-/// - **W**: Move camera up (positive Y direction)
-/// - **A**: Move camera left (negative X direction)
-/// - **S**: Move camera down (negative Y direction)
-/// - **D**: Move camera right (positive X direction)
-/// - **Diagonal**: Multiple key combinations for diagonal movement
-///
-/// # Movement Mechanics
-/// - **Speed**: 500.0 units per second
-/// - **Normalization**: Diagonal movement normalized to prevent speed boost
-/// - **Time-based**: Uses delta time for frame-rate independent movement
-/// - **Smooth**: Continuous movement while keys are held
-///
-/// # Performance Characteristics
-/// - **Input Polling**: Checks 4 keys every frame
-/// - **Vector Math**: Simple addition and normalization operations
-/// - **Transform Update**: Single transform modification per frame
-/// - **Time Complexity**: O(1) per frame
-///
-/// # Integration Points
-/// - **FogOfWarCamera**: Queries specifically for the fog camera entity
-/// - **Fog System**: Camera movement triggers fog chunk loading/unloading
-/// - **Exploration**: Moving camera reveals new areas for fog of war
-///
-/// # Future Enhancements
-/// The commented code shows potential mouse-edge movement implementation
-/// for RTS-style camera controls, which could be enabled in future versions.
+/// Handles camera movement via WASD keys.
 fn camera_movement(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -736,21 +467,20 @@ fn camera_movement(
 ) {
     if let Ok(mut camera_transform) = camera_query.single_mut() {
         let mut direction = Vec3::ZERO;
-        let speed = 500.0; // 移动速度 / Movement speed
+        let speed = 500.0;
 
-        // WASD 键控制移动
         // WASD keys control movement
         if keyboard.pressed(KeyCode::KeyW) {
-            direction.y += 1.0; // 向上移动 / Move up
+            direction.y += 1.0;
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            direction.y -= 1.0; // 向下移动 / Move down
+            direction.y -= 1.0;
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0; // 向左移动 / Move left
+            direction.x -= 1.0;
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            direction.x += 1.0; // 向右移动 / Move right
+            direction.x += 1.0;
         }
 
         // // 获取主窗口和鼠标位置
@@ -797,43 +527,8 @@ fn camera_movement(
     }
 }
 
-/// System for updating fog of war settings based on keyboard input.
-/// 基于键盘输入更新战争迷雾设置的系统
-///
-/// This system provides real-time control over fog rendering properties,
-/// allowing users to toggle fog visibility and adjust transparency levels
-/// during runtime for testing and demonstration purposes.
-///
-/// # Controls
-/// - **F Key**: Toggle fog enabled/disabled state
-/// - **Page Up**: Increase fog transparency (make fog more opaque)
-/// - **Page Down**: Decrease fog transparency (make fog more transparent)
-///
-/// # Fog Properties Modified
-/// - **enabled**: Boolean flag controlling overall fog rendering
-/// - **fog_color_unexplored.alpha**: Transparency of unexplored areas (0.0-1.0)
-///
-/// # UI Integration
-/// Updates the fog settings text display with:
-/// - Current enabled/disabled status
-/// - Current alpha percentage (0-100%)
-/// - Control instructions for user reference
-///
-/// # Performance Characteristics
-/// - **Input Processing**: Minimal key state checking
-/// - **Setting Updates**: Direct resource modification
-/// - **UI Updates**: String formatting only when changes occur
-/// - **Alpha Adjustment**: Smooth 0.5 units per second change rate
-///
-/// # Real-time Effects
-/// Changes take effect immediately:
-/// - **Toggle**: Fog disappears/appears instantly
-/// - **Alpha**: Transparency changes smoothly over frames
-/// - **Visual Feedback**: UI text updates reflect current state
-///
-/// # Clamping
-/// Alpha values are properly clamped to [0.0, 1.0] range to prevent
-/// invalid transparency values that could cause rendering issues.
+/// Updates fog settings based on keyboard input.
+/// F: toggle fog, PageUp/Down: adjust transparency.
 fn update_fog_settings(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -1195,7 +890,7 @@ fn movable_vision_control(
 ) {
     if let Ok(mut transform) = query.single_mut() {
         let mut movement = Vec3::ZERO;
-        let speed = 200.0; // 移动速度 / Movement speed
+        let speed = 200.0;
         let dt = time.delta_secs();
 
         // 箭头键控制移动
@@ -1331,9 +1026,9 @@ fn horizontal_movement_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut HorizontalMover)>,
 ) {
-    let speed = 150.0; // 移动速度 / Movement speed
-    let left_bound = -450.0; // 左边界 / Left boundary
-    let right_bound = 450.0; // 右边界 / Right boundary
+    let speed = 150.0;
+    let left_bound = -450.0;
+    let right_bound = 450.0;
 
     for (mut transform, mut mover) in query.iter_mut() {
         // 根据方向和速度更新位置

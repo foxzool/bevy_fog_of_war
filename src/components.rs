@@ -36,83 +36,12 @@ use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 use std::fmt::Display;
 
-/// Camera marker component for fog of war rendering.
-/// 摄像机组件
-///
-/// This component should be added to any camera entity that should display the fog of war effect.
-/// The fog of war system uses this marker to identify which cameras need fog overlay rendering
-/// and to calculate the camera's view area for chunk management optimization.
-///
-/// # Usage
-/// ```rust
-/// # use bevy::prelude::*;
-/// # use bevy_fog_of_war::prelude::*;
-/// # fn setup(mut commands: Commands) {
-/// commands.spawn((
-///     Camera2d,
-///     FogOfWarCamera, // Enable fog of war for this camera
-/// ));
-/// # }
-/// ```
-///
-/// # Performance Impact
-/// - **Overhead**: Minimal - marker component with no data
-/// - **Rendering**: Adds fog overlay pass to camera's render pipeline
-/// - **Chunk Culling**: Enables view-based chunk optimization
-///
-/// # Compatibility
-/// Works with any Bevy camera type:
-/// - `Camera2d` for 2D games (primary use case)
-/// - `Camera3d` for 3D games with 2D fog overlay
-/// - Multiple cameras supported with independent fog states
+/// Marks cameras that should render fog of war.
 #[derive(Component)]
 pub struct FogOfWarCamera;
 
-/// Vision source component that reveals fog of war in a specified area.
-/// 视野源组件
-///
-/// Entities with this component act as "light sources" that reveal areas of the map,
-/// creating visibility for players. Vision sources support multiple shapes and can be
-/// dynamically enabled/disabled, moved, and reconfigured during gameplay.
-///
-/// # Vision Shapes
-/// - **Circle**: Omnidirectional vision (most common for units)
-/// - **Cone**: Directional vision with angle (spotlights, unit facing)  
-/// - **Square**: Rectangular vision area (buildings, watchtowers)
-///
-/// # Performance Characteristics
-/// - **Complexity**: O(C) where C = chunks intersecting vision area
-/// - **GPU Transfer**: Component data extracted to render world each frame
-/// - **Memory**: ~48 bytes per vision source (small, cache-friendly)
-///
-/// # Usage Examples
-/// ```rust
-/// # use bevy::prelude::*;
-/// # use bevy_fog_of_war::prelude::*;
-/// # fn setup(mut commands: Commands) {
-/// // Simple circular vision
-/// commands.spawn((
-///     Transform::from_xyz(100.0, 200.0, 0.0),
-///     VisionSource::circle(150.0), // 150 unit radius
-/// ));
-///
-/// // Directional cone vision (like a flashlight)
-/// commands.spawn((
-///     Transform::from_xyz(0.0, 0.0, 0.0),
-///     VisionSource::cone(
-///         200.0,                    // range
-///         0.0,                      // direction (facing right)
-///         std::f32::consts::PI / 3.0 // 60 degree angle
-///     ),
-/// ));
-///
-/// // Square watchtower vision
-/// commands.spawn((
-///     Transform::from_xyz(500.0, 500.0, 0.0),
-///     VisionSource::square(300.0),
-/// ));
-/// # }
-/// ```
+/// Component that reveals fog of war in a specified area.
+/// Supports circle, cone, and square vision shapes.
 #[derive(Component, Reflect, ExtractComponent, Clone)]
 #[reflect(Component)]
 pub struct VisionSource {
@@ -202,25 +131,7 @@ pub struct VisionSource {
 }
 
 impl VisionSource {
-    /// Creates a circular (omnidirectional) vision source.
-    /// 创建圆形（全方向）视野源。
-    ///
-    /// This is the most common vision type, providing 360-degree visibility
-    /// around the entity. Ideal for most units, NPCs, and light sources.
-    ///
-    /// # Parameters
-    /// - `range`: Vision radius in world units
-    ///
-    /// # Performance
-    /// - **Complexity**: O((R/S)²) where R=range, S=chunk_size
-    /// - **GPU Cost**: Moderate - circle intersection tests
-    ///
-    /// # Example
-    /// ```rust
-    /// # use bevy_fog_of_war::prelude::*;
-    /// let unit_vision = VisionSource::circle(120.0);
-    /// let torch_vision = VisionSource::circle(80.0);
-    /// ```
+    /// Creates a circular vision source with the given radius.
     pub fn circle(range: f32) -> Self {
         Self {
             range,
@@ -233,31 +144,9 @@ impl VisionSource {
         }
     }
 
-    /// Creates a cone-shaped (directional) vision source.
-    /// 创建扇形（方向性）视野源。
-    ///
-    /// Provides vision in a specific direction with a limited angle.
-    /// Useful for units with facing direction, spotlights, or security cameras.
-    ///
-    /// # Parameters
-    /// - `range`: Maximum vision distance from the entity
+    /// Creates a cone vision source.
     /// - `direction`: Center direction in radians (0 = right, π/2 = up)
-    /// - `angle`: Total cone angle in radians (not half-angle)
-    ///
-    /// # Performance
-    /// - **Complexity**: O((R/S)² × A/2π) where A=angle
-    /// - **GPU Cost**: Higher - requires angle calculations
-    ///
-    /// # Example
-    /// ```rust
-    /// # use bevy_fog_of_war::prelude::*;
-    /// // 60-degree cone facing northeast
-    /// let guard_vision = VisionSource::cone(
-    ///     150.0,                        // 150 unit range
-    ///     std::f32::consts::PI * 0.25,  // 45 degrees (northeast)
-    ///     std::f32::consts::PI / 3.0    // 60 degree cone
-    /// );
-    /// ```
+    /// - `angle`: Total cone angle in radians
     pub fn cone(range: f32, direction: f32, angle: f32) -> Self {
         Self {
             range,
@@ -270,25 +159,8 @@ impl VisionSource {
         }
     }
 
-    /// Creates a square (rectangular) vision source.
-    /// 创建正方形（矩形）视野源。
-    ///
-    /// Provides vision in a square area centered on the entity.
-    /// Useful for buildings, watchtowers, or area-of-effect abilities.
-    ///
-    /// # Parameters
-    /// - `range`: Half-width of the square (distance from center to edge)
-    ///
-    /// # Performance
-    /// - **Complexity**: O((2R/S)²) where R=range, S=chunk_size
-    /// - **GPU Cost**: Low - simple rectangle intersection tests
-    ///
-    /// # Example
-    /// ```rust
-    /// # use bevy_fog_of_war::prelude::*;
-    /// // 200x200 unit square vision area
-    /// let watchtower_vision = VisionSource::square(100.0);
-    /// ```
+    /// Creates a square vision source.
+    /// `range` is the half-width of the square.
     pub fn square(range: f32) -> Self {
         Self {
             range,

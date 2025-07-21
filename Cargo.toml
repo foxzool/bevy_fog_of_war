@@ -87,3 +87,12 @@ name = "playground"
 
 [[example]]
 name = "simple_2d"
+
+[profile.ci]
+inherits = "dev"
+opt-level = 0
+debug = false
+
+[profile.web]
+inherits = "dev"
+opt-level = "z"
