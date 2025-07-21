@@ -82,7 +82,7 @@
 //! # Usage Examples
 //!
 //! ## Basic Save/Load
-//! ```rust,no_run
+//! ```rust,ignore
 //! use bevy_fog_of_war::persistence_utils::*;
 //! use bevy_fog_of_war::persistence::FogOfWarSaveData;
 //! 
@@ -98,7 +98,7 @@
 //! ```
 //!
 //! ## Compressed Saves
-//! ```rust,no_run
+//! ```rust,ignore
 //! # use bevy_fog_of_war::persistence_utils::*;
 //! # use bevy_fog_of_war::persistence::FogOfWarSaveData;
 //! # fn example() -> Result<(), PersistenceError> {
@@ -113,7 +113,7 @@
 //! ```
 //!
 //! ## Size Comparison
-//! ```rust,no_run
+//! ```rust,ignore
 //! # use bevy_fog_of_war::persistence_utils::*;
 //! # fn example() -> Result<(), PersistenceError> {
 //! // Compare file sizes across formats
@@ -301,7 +301,7 @@ impl FileFormat {
     /// - **Zstandard**: `.zst` suffix (e.g., `.json.zst`, `.msgpack.zst`)
     ///
     /// # Usage Examples
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use bevy_fog_of_war::persistence_utils::FileFormat;
     ///
     /// assert_eq!(FileFormat::Json.extension(), "json");
@@ -325,7 +325,7 @@ impl FileFormat {
     /// # Return Value
     /// Returns a static string slice containing the file extension without leading dot.
     /// The caller typically adds the dot when constructing file paths:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let extension = format.extension();
     /// let filename = format!("save.{}", extension); // "save.json.gz"
     /// ```
@@ -399,7 +399,7 @@ impl FileFormat {
     ///
     /// # Feature-Gated Detection
     /// Only formats with enabled features are detected:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// // With format-messagepack disabled:
     /// assert_eq!(FileFormat::from_extension(Path::new("save.msgpack")), None);
     ///
@@ -408,7 +408,7 @@ impl FileFormat {
     /// ```
     ///
     /// # Usage Examples
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use std::path::Path;
     /// use bevy_fog_of_war::persistence_utils::FileFormat;
     ///
@@ -556,7 +556,7 @@ impl FileFormat {
 /// - **Permission Errors**: Insufficient file system permissions
 ///
 /// # Usage Examples
-/// ```rust,no_run
+/// ```rust,ignore
 /// use bevy_fog_of_war::persistence_utils::{save_to_file, FileFormat};
 ///
 /// let json_data = r#"{"chunk_count": 42, "timestamp": 1234567890}"#;

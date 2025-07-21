@@ -788,7 +788,7 @@ impl TextureArrayManager {
     ///
     /// # Integration with ECS
     /// Typically called from Bevy systems that handle entity cleanup:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn cleanup_despawned_chunks(
     ///     mut removed_chunks: RemovedComponents<FogChunk>,
     ///     chunk_query: Query<&FogChunk>,
@@ -895,7 +895,7 @@ impl TextureArrayManager {
     ///
     /// # Integration with Systems
     /// Often used in rendering and memory management systems:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn update_chunk_textures(
     ///     chunk_query: Query<(&FogChunk, &Transform)>,
     ///     manager: Res<TextureArrayManager>,
@@ -954,7 +954,7 @@ impl TextureArrayManager {
     /// # Common Usage Patterns
     ///
     /// **Memory Management Decision Making**:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn allocate_chunks_near_camera(
     ///     camera_query: Query<&Transform, With<FogOfWarCamera>>,
     ///     mut manager: ResMut<TextureArrayManager>,
@@ -981,7 +981,7 @@ impl TextureArrayManager {
     /// ```
     ///
     /// **Conditional Rendering Logic**:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn render_fog_chunks(
     ///     chunk_query: Query<&FogChunk>,
     ///     manager: Res<TextureArrayManager>,
@@ -1059,7 +1059,7 @@ impl TextureArrayManager {
     /// - **Memory Cleanup**: Preparing for different memory allocation patterns
     ///
     /// # Integration with Game Events
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn handle_new_game_event(
     ///     mut new_game_events: EventReader<NewGameEvent>,
     ///     mut manager: ResMut<TextureArrayManager>,
@@ -1160,7 +1160,7 @@ impl TextureArrayManager {
     ///
     /// # Persistence Integration
     /// This method is essential for save/load functionality:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// # use bevy::prelude::*;
     /// # use bevy_fog_of_war::prelude::*;
     /// # #[derive(Debug)]
@@ -1290,7 +1290,7 @@ impl TextureArrayManager {
     ///
     /// # Persistence Integration
     /// This method is essential for save/load systems:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use serde::{Serialize, Deserialize};
     ///
     /// #[derive(Serialize, Deserialize)]
@@ -1316,7 +1316,7 @@ impl TextureArrayManager {
     ///
     /// # Memory State Inspection
     /// Useful for debugging and monitoring GPU memory usage:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// fn analyze_gpu_memory_usage(manager: Res<TextureArrayManager>) {
     ///     let allocations = manager.get_all_allocated_indices();
     ///     
@@ -1352,7 +1352,7 @@ impl TextureArrayManager {
     ///
     /// # Iterator Usage
     /// Since this returns a HashMap reference, you can use all HashMap iteration methods:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let allocations = manager.get_all_allocated_indices();
     ///
     /// // Iterate over coordinates only

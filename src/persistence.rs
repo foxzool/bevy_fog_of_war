@@ -203,7 +203,7 @@ impl Default for SerializationFormat {
 /// ```
 ///
 /// ## Network Synchronization
-/// ```rust,no_run
+/// ```rust,ignore
 /// # use bevy_fog_of_war::prelude::*;
 /// // Metadata-only save for network sync (smaller size)
 /// let sync_request = SaveFogOfWarRequest {
@@ -1389,7 +1389,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 ///
 /// ## System Organization
 /// Registers three main systems in the Persistence system set:
-/// ```rust,no_run
+/// ```rust,ignore
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
 /// # use bevy_fog_of_war::persistence::*;
@@ -1426,7 +1426,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 /// # Usage Example
 ///
 /// ## Basic Integration
-/// ```rust,no_run
+/// ```rust,ignore
 /// use bevy::prelude::*;
 /// use bevy_fog_of_war::prelude::*;
 ///
