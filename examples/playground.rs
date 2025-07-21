@@ -1,5 +1,8 @@
 //! Interactive Fog of War Playground Example
 //! 交互式战争迷雾游乐场示例
+
+// Allow collapsible_if for stable Rust compatibility
+#![allow(clippy::collapsible_if)]
 //!
 //! This comprehensive example demonstrates the full capabilities of the bevy_fog_of_war
 //! plugin through an interactive playground with multiple vision sources, camera controls,

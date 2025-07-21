@@ -1,5 +1,8 @@
 //! Fog of war persistence system for saving and loading fog exploration data.
 //! 战争迷雾持久化系统，用于保存和加载雾效探索数据
+
+// Allow collapsible_if for stable Rust compatibility
+#![allow(clippy::collapsible_if)]
 //!
 //! This module provides comprehensive save/load functionality for fog of war exploration
 //! state, including texture data, chunk visibility states, and metadata. It supports
@@ -956,8 +959,8 @@ pub fn handle_gpu_data_ready_system(
     for event in gpu_ready_events.read() {
         // 检查是否有挂起的保存操作等待此数据
         // Check if there's a pending save operation waiting for this data
-        if let Some(pending) = &mut pending_saves.pending_save
-            && pending.awaiting_chunks.contains(&event.chunk_coords) {
+        if let Some(pending) = &mut pending_saves.pending_save {
+            if pending.awaiting_chunks.contains(&event.chunk_coords) {
                 // 存储接收到的数据
                 // Store received data
                 pending.received_data.insert(
@@ -1001,6 +1004,7 @@ pub fn handle_gpu_data_ready_system(
                     }
                 }
             }
+        }
     }
 }
 

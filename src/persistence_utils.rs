@@ -1,5 +1,8 @@
 //! Comprehensive persistence utility functions with multiple serialization formats and compression support.
 //! 包含多种序列化格式和压缩支持的全面持久化便利函数
+
+// Allow collapsible_if for stable Rust compatibility
+#![allow(clippy::collapsible_if)]
 //!
 //! This module provides high-level file I/O utilities for fog of war persistence, supporting
 //! multiple serialization formats (JSON, MessagePack, Bincode) with optional compression

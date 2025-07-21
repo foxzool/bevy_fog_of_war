@@ -1,4 +1,7 @@
 //! # Bevy Fog of War Plugin
+
+// Allow collapsible_if for stable Rust compatibility
+#![allow(clippy::collapsible_if)]
 //!
 //! A comprehensive 2D fog of war implementation for the Bevy game engine.
 //! This plugin provides chunk-based fog processing with GPU compute shaders,
