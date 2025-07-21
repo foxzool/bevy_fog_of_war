@@ -1,7 +1,7 @@
 /target
 crates/*/target
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock - Commented out to fix CI dependency sync issues
 .cargo/config
 .cargo/config.toml
 /.idea
