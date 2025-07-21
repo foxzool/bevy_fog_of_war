@@ -127,7 +127,7 @@ pub enum FogSystems {
     ///
     /// **Complexity**: O(V×C) where V=vision sources, C=chunks in vision range
     UpdateChunkState,
-    
+
     /// Manage chunk entities (creation, activation, deactivation).
     /// 管理区块实体 (创建, 激活)
     ///
@@ -136,7 +136,7 @@ pub enum FogSystems {
     ///
     /// **Complexity**: O(E) where E=number of required chunk entities
     ManageEntities,
-    
+
     /// Handle persistence operations (save/load).
     /// 处理持久化操作 (保存/加载)
     ///
@@ -147,7 +147,7 @@ pub enum FogSystems {
     ///
     /// **Complexity**: O(S) where S=number of chunks being saved/loaded
     Persistence,
-    
+
     /// Handle CPU <-> GPU memory transfer logic.
     /// 处理 CPU <-> GPU 内存传输逻辑
     ///
@@ -685,16 +685,16 @@ fn manage_chunk_entities(
             // Chunk entity exists, check its memory state
             // 区块实体存在，检查其内存状态
 
-            if let Ok(chunk) = chunk_q.get_mut(*entity) {
-                if chunk.state.memory_location == ChunkMemoryLocation::Cpu {
-                    // Mark for transition to GPU
-                    // 标记以转换到 GPU
-                    chunks_to_make_gpu.insert(coords);
-                    // Actual data upload handled in manage_chunk_memory_logic or RenderApp
-                    // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
-                    // Ensure it's marked as GPU resident in cache (will be done in memory logic)
-                    // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
-                }
+            if let Ok(chunk) = chunk_q.get_mut(*entity)
+                && chunk.state.memory_location == ChunkMemoryLocation::Cpu
+            {
+                // Mark for transition to GPU
+                // 标记以转换到 GPU
+                chunks_to_make_gpu.insert(coords);
+                // Actual data upload handled in manage_chunk_memory_logic or RenderApp
+                // 实际数据上传在 manage_chunk_memory_logic 或 RenderApp 中处理
+                // Ensure it's marked as GPU resident in cache (will be done in memory logic)
+                // 确保在缓存中标记为 GPU 驻留 (将在内存逻辑中完成)
             }
         } else {
             // Chunk entity doesn't exist, create it
@@ -819,7 +819,7 @@ fn circle_intersects_rect(
 /// while preserving explored chunk data in CPU memory.
 ///
 /// # Memory Management Strategy
-/// 
+///
 /// ## GPU Memory Priority (chunks kept in GPU):
 /// 1. **Visible chunks** - Currently within vision source range
 /// 2. **Camera view explored chunks** - Explored chunks within camera viewport

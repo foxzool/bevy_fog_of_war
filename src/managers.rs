@@ -13,7 +13,7 @@ use std::collections::HashSet;
 /// enabling efficient queries and updates without iterating through all chunk entities.
 ///
 /// # Purpose
-/// 
+///
 /// The fog of war system needs to frequently:
 /// - Find entities for specific world positions
 /// - Update chunks when vision sources move
@@ -146,7 +146,7 @@ pub struct ChunkStateCache {
     /// **Persistence**: Cleared and rebuilt each frame
     /// **Usage**: Rendering decisions, fog texture updates, exploration tracking
     pub visible_chunks: HashSet<IVec2>,
-    
+
     /// Set of chunk coordinates that have ever been revealed (includes visible_chunks).
     /// 曾经被照亮过的区块坐标集合 (包含 visible_chunks)
     ///
@@ -158,7 +158,7 @@ pub struct ChunkStateCache {
     /// **Persistence**: Maintained across frames, only cleared during fog reset
     /// **Usage**: Rendering explored vs unexplored areas, save/load functionality
     pub explored_chunks: HashSet<IVec2>,
-    
+
     /// Set of chunk coordinates currently within the main camera's view frustum.
     /// 当前在主相机视锥范围内的区块坐标集合
     ///
@@ -170,7 +170,7 @@ pub struct ChunkStateCache {
     /// **Persistence**: Cleared and rebuilt each frame
     /// **Usage**: Rendering culling, memory management prioritization, LOD decisions
     pub camera_view_chunks: HashSet<IVec2>,
-    
+
     /// Set of chunk coordinates whose textures are currently resident in GPU memory.
     /// 其纹理当前存储在 GPU 显存中的区块坐标集合
     ///
@@ -354,7 +354,7 @@ pub struct TextureArrayManager {
     /// **Typical Values**: 64-256 layers (hardware and memory dependent)
     /// **Trade-off**: More layers = more GPU memory usage but better performance
     capacity: u32,
-    
+
     /// Maps chunk coordinates to their allocated GPU texture layer indices.
     /// 将区块坐标映射到它们当前在 GPU 上占用的层索引
     ///
@@ -365,7 +365,7 @@ pub struct TextureArrayManager {
     /// **Value**: `(fog_layer_index, snapshot_layer_index)` tuple
     /// **Consistency**: Must stay synchronized with actual GPU allocations
     coord_to_layers: HashMap<IVec2, (u32, u32)>, // (fog_idx, snapshot_idx)
-    
+
     /// Stack of available fog texture layer indices ready for allocation.
     /// 存储当前可以自由分配的雾效纹理层索引
     ///
@@ -376,7 +376,7 @@ pub struct TextureArrayManager {
     /// **Range**: Contains indices from 0 to (capacity-1) when fully free
     /// **Invariant**: Should never contain duplicate indices
     free_fog_indices: Vec<u32>,
-    
+
     /// Stack of available snapshot texture layer indices ready for allocation.
     /// 存储当前可以自由分配的快照纹理层索引
     ///
@@ -418,11 +418,11 @@ impl TextureArrayManager {
     ///
     /// # Memory Usage
     /// ```text
-    /// Memory per Manager = 
+    /// Memory per Manager =
     ///   (capacity × 8 bytes × 2 pools) +    // Vec<u32> storage for free indices
     ///   (HashMap overhead ~64 bytes) +       // Initial HashMap allocation
     ///   (struct overhead ~32 bytes)          // Manager struct fields
-    /// 
+    ///
     /// Example with capacity=64: ~1KB total
     /// ```
     ///
@@ -438,7 +438,7 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// // Create manager for up to 64 simultaneous chunks on GPU
     /// let manager = TextureArrayManager::new(64);
-    /// 
+    ///
     /// // All 64 fog layers and 64 snapshot layers are now available
     /// // Manager can allocate pairs of layers for coordinates
     /// ```
@@ -514,10 +514,10 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
     /// let chunk_coord = IVec2::new(5, -3);
-    /// 
+    ///
     /// match manager.allocate_layer_indices(chunk_coord) {
     ///     Some((fog_idx, snap_idx)) => {
-    ///         println!("Allocated chunk {:?} to fog layer {} and snapshot layer {}", 
+    ///         println!("Allocated chunk {:?} to fog layer {} and snapshot layer {}",
     ///                  chunk_coord, fog_idx, snap_idx);
     ///         // Proceed with GPU memory transfer...
     ///     }
@@ -630,7 +630,7 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
     /// let chunk_coord = IVec2::new(5, -3);
-    /// 
+    ///
     /// // First allocate layers
     /// if let Some((fog_idx, snap_idx)) = manager.allocate_layer_indices(chunk_coord) {
     ///     // Use the layers for rendering...
@@ -742,19 +742,19 @@ impl TextureArrayManager {
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
-    /// 
+    ///
     /// // From FogChunk entity that's being despawned
     /// struct FogChunk {
     ///     fog_layer_index: Option<u32>,
     ///     snapshot_layer_index: Option<u32>,
     ///     // ... other fields
     /// }
-    /// 
+    ///
     /// fn cleanup_fog_chunk(
-    ///     chunk: &FogChunk, 
+    ///     chunk: &FogChunk,
     ///     mut manager: ResMut<TextureArrayManager>
     /// ) {
-    ///     if let (Some(fog_idx), Some(snap_idx)) = 
+    ///     if let (Some(fog_idx), Some(snap_idx)) =
     ///         (chunk.fog_layer_index, chunk.snapshot_layer_index) {
     ///         manager.free_specific_layer_indices(fog_idx, snap_idx);
     ///     }
@@ -872,10 +872,10 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
     /// let chunk_coord = IVec2::new(3, -7);
-    /// 
+    ///
     /// match manager.get_allocated_indices(chunk_coord) {
     ///     Some((fog_idx, snap_idx)) => {
-    ///         println!("Chunk {:?} is on GPU: fog layer {}, snapshot layer {}", 
+    ///         println!("Chunk {:?} is on GPU: fog layer {}, snapshot layer {}",
     ///                  chunk_coord, fog_idx, snap_idx);
     ///         // Use indices for GPU operations...
     ///     }
@@ -941,7 +941,7 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
     /// let chunk_coord = IVec2::new(2, -4);
-    /// 
+    ///
     /// if manager.is_coord_on_gpu(chunk_coord) {
     ///     println!("Chunk {:?} is ready for GPU rendering", chunk_coord);
     ///     // Proceed with GPU-based operations...
@@ -952,7 +952,7 @@ impl TextureArrayManager {
     /// ```
     ///
     /// # Common Usage Patterns
-    /// 
+    ///
     /// **Memory Management Decision Making**:
     /// ```rust
     /// fn allocate_chunks_near_camera(
@@ -1038,14 +1038,14 @@ impl TextureArrayManager {
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
-    /// 
+    ///
     /// // Allocate some layers
     /// manager.allocate_layer_indices(IVec2::new(0, 0));
     /// manager.allocate_layer_indices(IVec2::new(1, 1));
-    /// 
+    ///
     /// // Later, reset everything
     /// manager.clear_all_layers();
-    /// 
+    ///
     /// // Now all 64 layers are available again
     /// assert!(!manager.is_coord_on_gpu(IVec2::new(0, 0)));
     /// assert!(!manager.is_coord_on_gpu(IVec2::new(1, 1)));
@@ -1145,7 +1145,7 @@ impl TextureArrayManager {
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
     /// let chunk_coord = IVec2::new(5, -3);
-    /// 
+    ///
     /// // During save/load operations, restore specific layer assignments
     /// if manager.allocate_specific_layer_indices(chunk_coord, 42, 17) {
     ///     println!("Restored chunk {:?} to its original layers: fog=42, snapshot=17", chunk_coord);
@@ -1268,15 +1268,15 @@ impl TextureArrayManager {
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
-    /// 
+    ///
     /// // Save all current GPU allocations to persistent storage
     /// let all_allocations = manager.get_all_allocated_indices();
-    /// 
+    ///
     /// for (chunk_coord, (fog_idx, snap_idx)) in all_allocations {
-    ///     println!("Chunk {:?} uses fog layer {} and snapshot layer {}", 
+    ///     println!("Chunk {:?} uses fog layer {} and snapshot layer {}",
     ///              chunk_coord, fog_idx, snap_idx);
     /// }
-    /// 
+    ///
     /// println!("Total chunks on GPU: {}", all_allocations.len());
     /// ```
     ///
@@ -1284,14 +1284,14 @@ impl TextureArrayManager {
     /// This method is essential for save/load systems:
     /// ```rust
     /// use serde::{Serialize, Deserialize};
-    /// 
+    ///
     /// #[derive(Serialize, Deserialize)]
     /// struct SavedChunkAllocation {
     ///     coords: IVec2,
     ///     fog_layer_index: u32,
     ///     snapshot_layer_index: u32,
     /// }
-    /// 
+    ///
     /// fn save_fog_allocations(
     ///     manager: Res<TextureArrayManager>,
     /// ) -> Vec<SavedChunkAllocation> {
@@ -1317,7 +1317,7 @@ impl TextureArrayManager {
     ///     let used_slots = allocations.len();
     ///     let utilization = (used_slots as f32 / total_capacity as f32) * 100.0;
     ///     
-    ///     println!("GPU Memory Utilization: {:.1}% ({}/{})", 
+    ///     println!("GPU Memory Utilization: {:.1}% ({}/{})",
     ///              utilization, used_slots, total_capacity);
     ///     
     ///     // Find layer usage patterns
@@ -1346,17 +1346,17 @@ impl TextureArrayManager {
     /// Since this returns a HashMap reference, you can use all HashMap iteration methods:
     /// ```rust
     /// let allocations = manager.get_all_allocated_indices();
-    /// 
+    ///
     /// // Iterate over coordinates only
     /// for chunk_coord in allocations.keys() {
     ///     println!("Allocated chunk: {:?}", chunk_coord);
     /// }
-    /// 
+    ///
     /// // Iterate over layer pairs only
     /// for (fog_idx, snap_idx) in allocations.values() {
     ///     println!("Layer pair: fog={}, snapshot={}", fog_idx, snap_idx);
     /// }
-    /// 
+    ///
     /// // Check for specific coordinates
     /// if allocations.contains_key(&IVec2::new(5, -3)) {
     ///     println!("Chunk (5, -3) is allocated on GPU");

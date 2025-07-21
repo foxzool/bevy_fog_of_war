@@ -36,7 +36,7 @@ pub const MAX_LAYERS: u32 = 64;
 /// - **Texture Formats**: R8 uses 1/4 the memory of RGBA8 but limits color options
 ///
 /// # Typical Configurations
-/// 
+///
 /// **Performance-Optimized** (mobile/low-end):
 /// ```rust
 /// # use bevy_fog_of_war::prelude::*;
@@ -67,7 +67,7 @@ pub const MAX_LAYERS: u32 = 64;
 ///
 /// # Memory Usage Calculation
 /// ```text
-/// Total GPU Memory per Active Chunk = 
+/// Total GPU Memory per Active Chunk =
 ///   (texture_resolution² × fog_format_bytes) +
 ///   (texture_resolution² × snapshot_format_bytes)
 ///
@@ -85,7 +85,7 @@ pub struct FogMapSettings {
     /// **Performance**: Disabling fog completely eliminates all fog-related CPU and GPU overhead
     /// **Use Cases**: Debug mode, accessibility options, performance testing
     pub enabled: bool,
-    
+
     /// Size of each chunk in world units.
     /// 默认区块大小
     ///
@@ -99,7 +99,7 @@ pub struct FogMapSettings {
     /// **Recommended Range**: 128-512 units per side
     /// **Default**: 256×256 units (good balance for most games)
     pub chunk_size: UVec2,
-    
+
     /// Resolution of fog textures per chunk in pixels.
     /// 默认每区块分辨率
     ///
@@ -113,7 +113,7 @@ pub struct FogMapSettings {
     /// **Recommended Range**: 256-1024 pixels per side  
     /// **Default**: 512×512 pixels (good quality/performance balance)
     pub texture_resolution_per_chunk: UVec2,
-    
+
     /// Color used to render completely unexplored areas.
     /// 未探索区域的雾颜色
     ///
@@ -124,7 +124,7 @@ pub struct FogMapSettings {
     /// **Common Values**: Black, dark gray, or dark blue for mystery effect
     /// **Default**: Pure black (completely obscured)
     pub fog_color_unexplored: Color,
-    
+
     /// Color used to render previously explored but not currently visible areas.
     /// 已探索区域的雾颜色
     ///
@@ -135,7 +135,7 @@ pub struct FogMapSettings {
     /// **Common Values**: Medium gray or colored tint matching game's art style  
     /// **Default**: Medium gray (semi-transparent overlay)
     pub fog_color_explored: Color,
-    
+
     /// Color used for areas in active vision (usually transparent).
     /// 视野清除颜色
     ///
@@ -146,7 +146,7 @@ pub struct FogMapSettings {
     /// **Special Effects**: Non-transparent values can create colored vision effects
     /// **Default**: Transparent (no fog overlay in visible areas)
     pub vision_clear_color: Color,
-    
+
     /// GPU texture format for real-time fog visibility data.
     /// 雾效纹理格式
     ///
@@ -161,7 +161,7 @@ pub struct FogMapSettings {
     /// **Recommendation**: R8Unorm for most use cases (fog is typically grayscale)
     /// **Default**: R8Unorm (memory efficient, sufficient for fog density)
     pub fog_texture_format: TextureFormat,
-    
+
     /// GPU texture format for persistent exploration snapshot data.
     /// 快照纹理格式
     ///
@@ -228,13 +228,13 @@ impl FogMapSettings {
     ///     chunk_size: UVec2::new(256, 256),
     ///     ..Default::default()
     /// };
-    /// 
+    ///
     /// // Chunk (0,0) starts at world origin
     /// assert_eq!(settings.chunk_coord_to_world(IVec2::new(0, 0)), Vec2::new(0.0, 0.0));
-    /// 
+    ///
     /// // Chunk (1,1) starts at (256, 256)
     /// assert_eq!(settings.chunk_coord_to_world(IVec2::new(1, 1)), Vec2::new(256.0, 256.0));
-    /// 
+    ///
     /// // Negative coordinates work too
     /// assert_eq!(settings.chunk_coord_to_world(IVec2::new(-1, 0)), Vec2::new(-256.0, 0.0));
     /// ```
@@ -284,15 +284,15 @@ impl FogMapSettings {
     ///     chunk_size: UVec2::new(256, 256),
     ///     ..Default::default()
     /// };
-    /// 
+    ///
     /// // Points within chunk (0,0)
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(0.0, 0.0)), IVec2::new(0, 0));
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(255.9, 255.9)), IVec2::new(0, 0));
-    /// 
+    ///
     /// // Points in chunk (1,1)  
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(256.0, 256.0)), IVec2::new(1, 1));
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(300.0, 400.0)), IVec2::new(1, 1));
-    /// 
+    ///
     /// // Negative coordinates
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(-1.0, -1.0)), IVec2::new(-1, -1));
     /// assert_eq!(settings.world_to_chunk_coords(Vec2::new(-256.0, -256.0)), IVec2::new(-1, -1));

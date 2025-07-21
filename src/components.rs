@@ -38,7 +38,7 @@ use std::fmt::Display;
 
 /// Camera marker component for fog of war rendering.
 /// 摄像机组件
-/// 
+///
 /// This component should be added to any camera entity that should display the fog of war effect.
 /// The fog of war system uses this marker to identify which cameras need fog overlay rendering
 /// and to calculate the camera's view area for chunk management optimization.
@@ -122,7 +122,7 @@ pub struct VisionSource {
     /// **Range**: Typically 50.0 - 1000.0 world units
     /// **Performance**: Larger ranges check more chunks (O(R²) complexity)
     pub range: f32,
-    
+
     /// Whether this vision source is currently active.
     /// 是否启用
     ///
@@ -132,14 +132,14 @@ pub struct VisionSource {
     ///
     /// **Performance**: O(1) - Disabled sources are skipped immediately
     pub enabled: bool,
-    
+
     /// The geometric shape of the vision area.
     /// 视野形状（默认为圆形）
     ///
     /// Determines how the vision area is calculated relative to the entity's position.
     /// Each shape has different performance characteristics and use cases.
     pub shape: VisionShape,
-    
+
     /// Direction the vision is facing (radians, 0 = positive X axis).
     /// 视野方向（弧度，仅在扇形视野时使用）
     ///
@@ -152,7 +152,7 @@ pub struct VisionSource {
     /// **Range**: 0.0 to 2π radians
     /// **Ignored**: For Circle and Square shapes
     pub direction: f32,
-    
+
     /// Cone vision angle in radians (total angle, not half-angle).
     /// 视野角度（弧度，仅在扇形视野时使用）
     ///
@@ -168,7 +168,7 @@ pub struct VisionSource {
     /// **Range**: 0.0 to 2π radians
     /// **Ignored**: For Circle and Square shapes
     pub angle: f32,
-    
+
     /// Vision intensity multiplier for visibility calculations.
     /// 视野强度（影响可见性计算）
     ///
@@ -179,7 +179,7 @@ pub struct VisionSource {
     /// **Default**: 1.0 (normal visibility)
     /// **Performance**: Minimal impact on calculation cost
     pub intensity: f32,
-    
+
     /// Transition zone ratio for smooth fog edges (0.0 to 1.0).
     /// 视野过渡比例（从完全可见到不可见的过渡区域占总半径的比例）
     ///
@@ -190,7 +190,7 @@ pub struct VisionSource {
     /// **Values**:
     /// - 0.0 = Hard edge (no transition)
     /// - 0.1 = Subtle soft edge (10% of range)
-    /// - 0.2 = Standard soft edge (20% of range) 
+    /// - 0.2 = Standard soft edge (20% of range)
     /// - 0.5 = Large transition zone (50% of range)
     ///
     /// **Performance**: Slightly increases GPU shader complexity
@@ -333,7 +333,7 @@ pub enum VisionShape {
     /// **Performance**: O((R/S)²) where R=range, S=chunk_size
     #[default]
     Circle,
-    
+
     /// Cone-shaped vision with directional focus and angular limits.
     /// 扇形视野（有方向和角度）
     ///
@@ -349,7 +349,7 @@ pub enum VisionShape {
     ///
     /// **Performance**: O((R/S)² × A/2π) where A=angle in radians
     Cone,
-    
+
     /// Square (rectangular) vision area centered on the entity.
     /// 正方形视野
     ///
@@ -399,7 +399,7 @@ impl Default for VisionSource {
 /// # Persistence
 /// Chunks maintain their `Explored` state permanently once discovered, enabling fog of war
 /// mechanics where players can see previously explored areas but not current enemy activity.
-/// 
+///
 /// # Usage in Systems
 /// ```rust
 /// # use bevy::prelude::*;
@@ -433,7 +433,7 @@ pub enum ChunkVisibility {
     /// **Rendering**: Full fog overlay, typically dark or heavily obscured
     #[default]
     Unexplored,
-    
+
     /// Was revealed before, but not currently in vision.
     /// 曾经被照亮过，但当前不在视野内
     ///
@@ -443,7 +443,7 @@ pub enum ChunkVisibility {
     /// **Gameplay**: Player can see static elements but not current activity
     /// **Rendering**: Partial fog with cached snapshot data visible
     Explored,
-    
+
     /// Currently being revealed by at least one vision source.
     /// 当前正被至少一个视野源照亮
     ///
@@ -473,7 +473,7 @@ impl Display for ChunkVisibility {
 /// The world is automatically divided into a grid of these chunks for efficient processing.
 ///
 /// # Chunk System Architecture
-/// 
+///
 /// The fog of war system divides the infinite game world into fixed-size chunks (typically 256x256 units).
 /// Each chunk manages its own:
 /// - **Visibility State**: Whether the chunk is unexplored, explored, or currently visible
@@ -523,11 +523,11 @@ pub struct FogChunk {
     ///
     /// Grid coordinates identifying this chunk's position in the chunk grid.
     /// For example, chunk (0,0) covers world area [0,0] to [chunk_size, chunk_size].
-    /// 
+    ///
     /// **Range**: Theoretically unlimited (i32 bounds)
     /// **Uniqueness**: Each coordinate pair represents exactly one chunk
     pub coords: IVec2,
-    
+
     /// Layer index for this chunk in the fog TextureArray.
     /// 此区块在雾效 TextureArray 中的层索引
     ///
@@ -537,7 +537,7 @@ pub struct FogChunk {
     /// **GPU Texture Arrays**: Enable efficient batch rendering of multiple chunks
     /// **Dynamic Allocation**: Indices assigned when chunk becomes visible
     pub fog_layer_index: Option<u32>,
-    
+
     /// Layer index for this chunk in the snapshot TextureArray.
     /// 此区块在快照 TextureArray 中的层索引
     ///
@@ -547,7 +547,7 @@ pub struct FogChunk {
     /// **Snapshot Data**: Preserves explored areas for persistent fog of war
     /// **Memory Efficiency**: Only allocated for explored chunks
     pub snapshot_layer_index: Option<u32>,
-    
+
     /// Current aggregated state of the chunk (visibility and memory location).
     /// 区块的当前状态 (可见性与内存位置)
     ///
@@ -557,7 +557,7 @@ pub struct FogChunk {
     /// **State Synchronization**: Updated by multiple systems working together
     /// **Performance**: Single field access for common state queries
     pub state: ChunkState,
-    
+
     /// World space boundaries of the chunk in world units.
     /// 区块的世界空间边界（以像素/单位为单位）
     ///
@@ -606,7 +606,7 @@ impl FogChunk {
         // Pack coordinates: X in upper 16 bits, Y in lower 16 bits
         (ox << 16) | (oy & 0xFFFF)
     }
-    
+
     /// Creates a new fog chunk with calculated world boundaries.
     /// 创建一个新的地图区块
     ///
@@ -639,7 +639,7 @@ impl FogChunk {
     ///     UVec2::new(256, 256), // Chunk size in grid cells
     ///     1.0                   // Each cell is 1.0 world units
     /// );
-    /// 
+    ///
     /// // This chunk covers world area [256, 256] to [512, 512]
     /// assert_eq!(chunk.world_bounds.min, Vec2::new(256.0, 256.0));
     /// assert_eq!(chunk.world_bounds.max, Vec2::new(512.0, 512.0));
@@ -654,9 +654,9 @@ impl FogChunk {
 
         Self {
             coords: chunk_coord,
-            fog_layer_index: None,            // No GPU allocation initially
-            snapshot_layer_index: None,       // No GPU allocation initially
-            state: Default::default(),        // Unexplored, CPU memory
+            fog_layer_index: None,      // No GPU allocation initially
+            snapshot_layer_index: None, // No GPU allocation initially
+            state: Default::default(),  // Unexplored, CPU memory
             world_bounds: Rect { min, max },
         }
     }
@@ -688,7 +688,7 @@ impl FogChunk {
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let chunk = FogChunk::new(IVec2::ZERO, UVec2::new(256, 256), 1.0);
-    /// 
+    ///
     /// // Test positions
     /// assert!(chunk.contains_world_pos(Vec2::new(100.0, 100.0))); // Inside
     /// assert!(chunk.contains_world_pos(Vec2::new(0.0, 0.0)));     // On min edge (inclusive)
@@ -753,7 +753,7 @@ pub struct FogChunkImage {
     /// **Format**: Typically R8 (8-bit grayscale) for memory efficiency
     /// **Usage**: Updated by compute shaders, read by fragment shaders
     pub fog_image_handle: Handle<Image>,
-    
+
     /// Handle to the snapshot texture preserving exploration history.
     /// 快照纹理句柄，保存探索历史
     ///
@@ -944,7 +944,7 @@ pub enum ChunkMemoryLocation {
     /// **Rendering**: Can be rendered immediately
     #[default]
     Gpu,
-    
+
     /// Texture data is unloaded from GPU and stored in CPU RAM.
     /// 纹理数据已从 GPU 卸载，存储在 CPU 内存中
     ///
@@ -955,7 +955,7 @@ pub enum ChunkMemoryLocation {
     /// **Memory Cost**: Uses abundant system RAM instead of limited GPU VRAM
     /// **Use Case**: Distant chunks unlikely to be visible soon
     Cpu,
-    
+
     /// Main world has requested render world to copy this chunk's data from GPU.
     /// 主世界已请求渲染世界将此区块数据从 GPU 复制到 CPU
     ///
@@ -966,7 +966,7 @@ pub enum ChunkMemoryLocation {
     /// **Completion**: ChunkGpuDataReady event signals transfer completion
     /// **Next State**: Transitions to `Cpu` when transfer completes
     PendingCopyToCpu,
-    
+
     /// Main world has requested render world to upload CPU data to GPU texture.
     /// 主世界已请求渲染世界将 CPU 数据上传到此区块的 GPU 纹理
     ///
@@ -1015,16 +1015,16 @@ pub enum ChunkMemoryLocation {
 /// fn process_chunk_states(chunks: Query<&FogChunk>) {
 ///     for chunk in chunks.iter() {
 ///         match chunk.state {
-///             ChunkState { 
-///                 visibility: ChunkVisibility::Visible, 
-///                 memory_location: ChunkMemoryLocation::Gpu 
+///             ChunkState {
+///                 visibility: ChunkVisibility::Visible,
+///                 memory_location: ChunkMemoryLocation::Gpu
 ///             } => {
 ///                 // Chunk is visible and ready to render
 ///                 println!("Rendering chunk {:?}", chunk.coords);
 ///             },
-///             ChunkState { 
-///                 visibility: ChunkVisibility::Explored, 
-///                 memory_location: ChunkMemoryLocation::Cpu 
+///             ChunkState {
+///                 visibility: ChunkVisibility::Explored,
+///                 memory_location: ChunkMemoryLocation::Cpu
 ///             } => {
 ///                 // Chunk was explored but stored in CPU memory
 ///                 println!("Explored chunk {:?} in CPU memory", chunk.coords);
@@ -1047,7 +1047,7 @@ pub struct ChunkState {
     /// **Updated by**: Vision calculation and fog update systems
     /// **Used by**: Rendering, UI, and gameplay systems
     pub visibility: ChunkVisibility,
-    
+
     /// Current memory storage location of the chunk's texture data.
     /// 内存存储位置
     ///

@@ -79,7 +79,7 @@ pub struct GpuToCpuCopyRequests {
 /// 将特定区块的纹理数据从 GPU 复制到 CPU 内存的单个请求
 ///
 /// This struct represents a single chunk transfer operation containing all the information
-/// needed by the render world to locate the chunk's GPU texture data and copy it to 
+/// needed by the render world to locate the chunk's GPU texture data and copy it to
 /// CPU-accessible staging buffers.
 ///
 /// # Transfer Process
@@ -106,21 +106,20 @@ pub struct GpuToCpuCopyRequest {
     /// These coordinates identify which chunk's texture data should be copied.
     /// Used for tracking and event correlation when the transfer completes.
     pub chunk_coords: IVec2,
-    
+
     /// GPU texture array layer index for the chunk's fog data.
     /// 区块雾效数据的 GPU 纹理数组层索引
     ///
     /// Specifies which layer in the fog texture array contains this chunk's
     /// real-time visibility data. Must be a valid index within the array bounds.
     pub fog_layer_index: u32,
-    
+
     /// GPU texture array layer index for the chunk's snapshot data.
     /// 区块快照数据的 GPU 纹理数组层索引
     ///
     /// Specifies which layer in the snapshot texture array contains this chunk's
     /// persistent exploration data. Must be a valid index within the array bounds.
     pub snapshot_layer_index: u32,
-    
     // Staging buffer index or some identifier if RenderApp uses a pool
     // 如果 RenderApp 使用池，则为暂存缓冲区索引或某种标识符
 }
@@ -204,28 +203,28 @@ pub struct CpuToGpuCopyRequest {
     ///
     /// Used for tracking the upload operation and correlating with completion events.
     pub chunk_coords: IVec2,
-    
+
     /// Target GPU texture array layer index for fog data.
     /// 雾效数据的目标 GPU 纹理数组层索引
     ///
     /// Specifies which layer in the fog texture array should receive the uploaded
     /// fog data. This layer should be allocated via TextureArrayManager.
     pub fog_layer_index: u32,
-    
+
     /// Target GPU texture array layer index for snapshot data.
     /// 快照数据的目标 GPU 纹理数组层索引
     ///
     /// Specifies which layer in the snapshot texture array should receive the
     /// uploaded snapshot data. This layer should be allocated via TextureArrayManager.
     pub snapshot_layer_index: u32,
-    
+
     /// Handle to the CPU image asset containing fog texture data.
     /// 包含雾效纹理数据的 CPU 图像资源句柄
     ///
     /// Must reference a valid Image asset in Bevy's asset system containing
     /// the chunk's fog data in the correct format and dimensions.
     pub fog_image_handle: Handle<Image>,
-    
+
     /// Handle to the CPU image asset containing snapshot texture data.
     /// 包含快照纹理数据的 CPU 图像资源句柄
     ///
@@ -291,14 +290,14 @@ pub struct ChunkGpuDataReady {
     /// Used to correlate this event with the original transfer request
     /// and identify which chunk this texture data belongs to.
     pub chunk_coords: IVec2,
-    
+
     /// Raw pixel data from the chunk's fog texture layer.
     /// 区块雾效纹理层的原始像素数据
     ///
     /// Contains the fog visibility data in the same format as the GPU texture
     /// (typically R8Unorm). Data is in row-major order and may include padding.
     pub fog_data: Vec<u8>,
-    
+
     /// Raw pixel data from the chunk's snapshot texture layer.
     /// 区块快照纹理层的原始像素数据
     ///

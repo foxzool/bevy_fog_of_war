@@ -77,11 +77,11 @@ use bevy::{
 
 // Render pipeline submodules
 // 渲染管线子模块
-mod compute;    // GPU compute shader pipeline for fog calculations / GPU计算着色器管线用于雾效计算
-mod extract;    // Main world to render world data extraction / 主世界到渲染世界的数据提取
-mod overlay;    // Final fog overlay rendering and composition / 最终雾效叠加渲染和合成
-mod prepare;    // GPU resource preparation and bind group management / GPU资源准备和绑定组管理
-mod transfer;   // CPU↔GPU memory transfer coordination / CPU↔GPU内存传输协调
+mod compute; // GPU compute shader pipeline for fog calculations / GPU计算着色器管线用于雾效计算
+mod extract; // Main world to render world data extraction / 主世界到渲染世界的数据提取
+mod overlay; // Final fog overlay rendering and composition / 最终雾效叠加渲染和合成
+mod prepare; // GPU resource preparation and bind group management / GPU资源准备和绑定组管理
+mod transfer; // CPU↔GPU memory transfer coordination / CPU↔GPU内存传输协调
 
 // Internal module imports for transfer system coordination
 // 用于传输系统协调的内部模块导入
