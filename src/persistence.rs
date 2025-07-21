@@ -608,7 +608,6 @@ pub fn load_save_data(
     chunk_manager: &mut ChunkEntityManager,
     texture_manager: &mut TextureArrayManager,
     images: &mut Assets<Image>,
-    snapshot_event_writer: &mut EventWriter<RequestChunkSnapshot>,
 ) -> Result<usize, PersistenceError> {
     // 验证元数据（如果存在）
     // Validate metadata (if present)
@@ -711,15 +710,31 @@ pub fn load_save_data(
         }
     }
 
-    // 为所有已加载的Explored和Visible chunks发送RequestChunkSnapshot事件
-    // Send RequestChunkSnapshot events for all loaded Explored and Visible chunks
-    for chunk_data in &data.chunks {
-        if chunk_data.visibility == ChunkVisibility::Explored || 
-           chunk_data.visibility == ChunkVisibility::Visible {
-            info!("Sending RequestChunkSnapshot for loaded chunk {:?} with visibility {:?}", 
+    // 收集需要快照的区块坐标，延迟到下一帧发送以确保proper系统执行顺序
+    // Collect chunk coordinates that need snapshots, defer to next frame for proper system execution order
+    let chunks_needing_snapshots: Vec<IVec2> = data.chunks
+        .iter()
+        .filter(|chunk_data| {
+            chunk_data.visibility == ChunkVisibility::Explored ||
+            chunk_data.visibility == ChunkVisibility::Visible
+        })
+        .map(|chunk_data| {
+            info!("Deferring RequestChunkSnapshot for loaded chunk {:?} with visibility {:?}",
                   chunk_data.coords, chunk_data.visibility);
-            snapshot_event_writer.write(RequestChunkSnapshot(chunk_data.coords));
-        }
+            chunk_data.coords
+        })
+        .collect();
+
+    // 使用deferred command确保ensure_snapshot_render_layer在快照请求之前运行
+    // Use deferred command to ensure ensure_snapshot_render_layer runs before snapshot requests
+    if !chunks_needing_snapshots.is_empty() {
+        commands.queue(move |world: &mut World| {
+            let mut snapshot_events = world.resource_mut::<Events<RequestChunkSnapshot>>();
+            for chunk_coords in chunks_needing_snapshots {
+                info!("Sending deferred RequestChunkSnapshot for chunk {:?}", chunk_coords);
+                snapshot_events.send(RequestChunkSnapshot(chunk_coords));
+            }
+        });
     }
 
     Ok(loaded_count)
@@ -1233,7 +1248,6 @@ pub struct LoadSystemParams<'w, 's> {
     texture_manager: ResMut<'w, TextureArrayManager>,
     images: ResMut<'w, Assets<Image>>,
     existing_chunks: Query<'w, 's, Entity, With<FogChunk>>,
-    snapshot_events: EventWriter<'w, RequestChunkSnapshot>,
 }
 
 /// System that processes fog of war load requests with format detection and validation.
@@ -1393,7 +1407,6 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
                     &mut params.chunk_manager,
                     &mut params.texture_manager,
                     &mut params.images,
-                    &mut params.snapshot_events,
                 ) {
                     Ok(loaded_count) => {
                         info!("Loaded fog of war data: {} chunks", loaded_count);
