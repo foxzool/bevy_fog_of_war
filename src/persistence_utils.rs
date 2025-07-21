@@ -85,7 +85,7 @@
 //! ```rust,ignore
 //! use bevy_fog_of_war::persistence_utils::*;
 //! use bevy_fog_of_war::persistence::FogOfWarSaveData;
-//! 
+//!
 //! # fn example() -> Result<(), PersistenceError> {
 //! # let save_data = FogOfWarSaveData::default();
 //! // Save with automatic format detection from extension
@@ -333,7 +333,7 @@ impl FileFormat {
     pub fn extension(&self) -> &'static str {
         match self {
             #[cfg(feature = "format-json")]
-        FileFormat::Json => "json",
+            FileFormat::Json => "json",
             #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
             FileFormat::JsonGzip => "json.gz",
             #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
@@ -456,38 +456,38 @@ impl FileFormat {
 
         // 检查双扩展名（如 .json.gz, .msgpack.lz4等）
         // Check for double extensions (like .json.gz, .msgpack.lz4, etc.)
-        if let Some(stem) = path.file_stem() {
-            if let Some(stem_str) = stem.to_str() {
-                if stem_str.ends_with(".json") {
-                    match ext {
-                        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
-                        "gz" => return Some(FileFormat::JsonGzip),
-                        #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
-                        "lz4" => return Some(FileFormat::JsonLz4),
-                        #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
-                        "zst" => return Some(FileFormat::JsonZstd),
-                        _ => {}
-                    }
-                } else if stem_str.ends_with(".msgpack") {
-                    match ext {
-                        #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-                        "gz" => return Some(FileFormat::MessagePackGzip),
-                        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-                        "lz4" => return Some(FileFormat::MessagePackLz4),
-                        #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-                        "zst" => return Some(FileFormat::MessagePackZstd),
-                        _ => {}
-                    }
-                } else if stem_str.ends_with(".bincode") {
-                    match ext {
-                        #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-                        "gz" => return Some(FileFormat::BincodeGzip),
-                        #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-                        "lz4" => return Some(FileFormat::BincodeLz4),
-                        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                        "zst" => return Some(FileFormat::BincodeZstd),
-                        _ => {}
-                    }
+        if let Some(stem) = path.file_stem()
+            && let Some(stem_str) = stem.to_str()
+        {
+            if stem_str.ends_with(".json") {
+                match ext {
+                    #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
+                    "gz" => return Some(FileFormat::JsonGzip),
+                    #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
+                    "lz4" => return Some(FileFormat::JsonLz4),
+                    #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
+                    "zst" => return Some(FileFormat::JsonZstd),
+                    _ => {}
+                }
+            } else if stem_str.ends_with(".msgpack") {
+                match ext {
+                    #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
+                    "gz" => return Some(FileFormat::MessagePackGzip),
+                    #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+                    "lz4" => return Some(FileFormat::MessagePackLz4),
+                    #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
+                    "zst" => return Some(FileFormat::MessagePackZstd),
+                    _ => {}
+                }
+            } else if stem_str.ends_with(".bincode") {
+                match ext {
+                    #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
+                    "gz" => return Some(FileFormat::BincodeGzip),
+                    #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
+                    "lz4" => return Some(FileFormat::BincodeLz4),
+                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+                    "zst" => return Some(FileFormat::BincodeZstd),
+                    _ => {}
                 }
             }
         }
@@ -602,10 +602,11 @@ impl FileFormat {
 /// - **Complements**: `load_from_file` for corresponding read operations
 /// - **Alternative**: `save_data_to_file` for full serialization support
 pub fn save_to_file(
-    data: &str,
+    #[allow(unused_variables)] data: &str,
     path: impl AsRef<Path>,
     format: FileFormat,
 ) -> Result<(), PersistenceError> {
+    #[allow(unused_variables)]
     let path = path.as_ref();
 
     match format {
@@ -613,6 +614,7 @@ pub fn save_to_file(
         FileFormat::Json => {
             std::fs::write(path, data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
+            return Ok(());
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
@@ -629,6 +631,7 @@ pub fn save_to_file(
             encoder
                 .finish()
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
+            return Ok(());
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
@@ -637,6 +640,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
+            return Ok(());
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
@@ -645,6 +649,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
+            return Ok(());
         }
 
         // 对于二进制格式，回退到通用处理
@@ -658,8 +663,6 @@ pub fn save_to_file(
             )));
         }
     }
-
-    Ok(())
 }
 
 /// 保存可序列化数据到文件（支持不同格式）
@@ -962,10 +965,13 @@ pub fn load_from_file(
         })
     });
 
-    let data = match format {
+    match format {
         #[cfg(feature = "format-json")]
-        FileFormat::Json => std::fs::read_to_string(path)
-            .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?,
+        FileFormat::Json => {
+            let data = std::fs::read_to_string(path)
+                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+            return Ok(data);
+        }
 
         #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
         FileFormat::JsonGzip => {
@@ -978,7 +984,7 @@ pub fn load_from_file(
             decoder
                 .read_to_string(&mut data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            data
+            return Ok(data);
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
@@ -987,8 +993,9 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let decompressed = lz4::block::decompress(&compressed, None)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            String::from_utf8(decompressed)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
+            let data = String::from_utf8(decompressed)
+                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+            return Ok(data);
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
@@ -997,8 +1004,9 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let decompressed = zstd::decode_all(&compressed[..])
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            String::from_utf8(decompressed)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
+            let data = String::from_utf8(decompressed)
+                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+            return Ok(data);
         }
 
         // 对于二进制格式，回退到通用处理
@@ -1011,9 +1019,7 @@ pub fn load_from_file(
                 "Format {format:?} not supported by load_from_file, use load_data_from_file instead"
             )));
         }
-    };
-
-    Ok(data)
+    }
 }
 
 /// 直接保存FogOfWarSaveData到文件
@@ -1058,9 +1064,10 @@ mod tests {
 
     #[test]
     fn test_file_format_extension() {
+        #[cfg(feature = "format-json")]
         assert_eq!(FileFormat::Json.extension(), "json");
 
-        #[cfg(feature = "compression-gzip")]
+        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
         assert_eq!(FileFormat::JsonGzip.extension(), "json.gz");
 
         #[cfg(feature = "format-messagepack")]
@@ -1074,12 +1081,13 @@ mod tests {
     fn test_format_from_extension() {
         use std::path::PathBuf;
 
+        #[cfg(feature = "format-json")]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.json")),
             Some(FileFormat::Json)
         );
 
-        #[cfg(feature = "compression-gzip")]
+        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
         assert_eq!(
             FileFormat::from_extension(&PathBuf::from("save.json.gz")),
             Some(FileFormat::JsonGzip)

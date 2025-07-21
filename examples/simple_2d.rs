@@ -245,6 +245,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
         // 直接使用序列化后的二进制数据
         // Use the serialized binary data directly
         let primary_filename = match event.format {
+            #[cfg(feature = "format-json")]
             SerializationFormat::Json => "simple_demo.json",
             #[cfg(feature = "format-messagepack")]
             SerializationFormat::MessagePack => "simple_demo.msgpack",
