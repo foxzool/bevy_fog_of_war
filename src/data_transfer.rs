@@ -267,18 +267,13 @@ pub struct CpuToGpuCopyRequest {
 /// # use bevy::prelude::*;
 /// fn handle_gpu_data_ready(
 ///     mut events: EventReader<ChunkGpuDataReady>,
-///     mut images: ResMut<Assets<Image>>,
 /// ) {
 ///     for event in events.read() {
 ///         println!("Received GPU data for chunk {:?}", event.chunk_coords);
+///         println!("Fog data size: {} bytes", event.fog_data.len());
+///         println!("Snapshot data size: {} bytes", event.snapshot_data.len());
 ///         
-///         // Create CPU image assets from the pixel data
-///         let fog_image = create_image_from_data(&event.fog_data, ImageFormat::R8);
-///         let snapshot_image = create_image_from_data(&event.snapshot_data, ImageFormat::RGBA8);
-///         
-///         // Store in asset system or process as needed
-///         let fog_handle = images.add(fog_image);
-///         let snapshot_handle = images.add(snapshot_image);
+///         // Process the received GPU data as needed
 ///     }
 /// }
 /// ```

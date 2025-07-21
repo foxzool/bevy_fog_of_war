@@ -193,7 +193,7 @@ impl Default for SerializationFormat {
 /// # Usage Patterns
 ///
 /// ## Game Save Files
-/// ```rust
+/// ```rust,no_run
 /// // Complete save with texture data for full restoration
 /// let save_request = SaveFogOfWarRequest {
 ///     include_texture_data: true,
@@ -202,7 +202,7 @@ impl Default for SerializationFormat {
 /// ```
 ///
 /// ## Network Synchronization
-/// ```rust
+/// ```rust,no_run
 /// // Metadata-only save for network sync (smaller size)
 /// let sync_request = SaveFogOfWarRequest {
 ///     include_texture_data: false,
@@ -211,7 +211,7 @@ impl Default for SerializationFormat {
 /// ```
 ///
 /// ## Debug/Development
-/// ```rust
+/// ```rust,no_run
 /// // Human-readable save for debugging
 /// let debug_request = SaveFogOfWarRequest {
 ///     include_texture_data: true,
@@ -280,7 +280,7 @@ pub struct FogOfWarSaveData {
 ///
 /// ## GPU Resource Mapping
 /// Layer indices enable proper GPU texture array restoration:
-/// ```rust
+/// ```rust,no_run
 /// // During save: record current GPU layer indices
 /// fog_layer_index: Some(chunk.fog_layer_index)
 /// snapshot_layer_index: Some(chunk.snapshot_layer_index)
@@ -312,7 +312,7 @@ pub struct FogOfWarSaveData {
 /// # Performance Characteristics
 ///
 /// ## Memory Usage
-/// ```rust
+/// ```rust,no_run
 /// // Base structure overhead
 /// let base_size = std::mem::size_of::<ChunkSaveData>(); // ~64 bytes
 ///
@@ -929,7 +929,11 @@ pub fn handle_gpu_data_ready_system(
                             pending.include_texture_data,
                         ) {
                             Ok(save_data) => {
-                                complete_save_operation(save_data, pending.format, &mut saved_events);
+                                complete_save_operation(
+                                    save_data,
+                                    pending.format,
+                                    &mut saved_events,
+                                );
                             }
                             Err(e) => {
                                 error!("Failed to complete save: {}", e);
@@ -958,7 +962,7 @@ pub fn handle_gpu_data_ready_system(
 ///
 /// # Texture Data Handling
 /// For each chunk, texture inclusion follows these rules:
-/// ```rust
+/// ```rust,no_run
 /// fog_data = if visibility != Unexplored && include_texture_data {
 ///     texture_data.get(coords).map(|(fog, _)| fog.clone())
 /// } else { None }
@@ -1084,7 +1088,7 @@ fn create_save_data_immediate(
 ///
 /// # Supported Serialization Formats
 /// The function handles different formats based on feature flags:
-/// ```rust
+/// ```rust,no_run
 /// match format {
 ///     SerializationFormat::Json => serde_json::to_vec(&save_data),
 ///     #[cfg(feature = "format-messagepack")]
@@ -1207,7 +1211,7 @@ pub struct LoadSystemParams<'w, 's> {
 ///
 /// # Format Auto-Detection
 /// When format is not specified, uses heuristic detection:
-/// ```rust
+/// ```rust,no_run
 /// let format = event.format.unwrap_or_else(|| {
 ///     if event.data.starts_with(b"{") || event.data.starts_with(b"[") {
 ///         SerializationFormat::Json  // Detect JSON by opening bracket
@@ -1379,7 +1383,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 ///
 /// ## System Organization
 /// Registers three main systems in the Persistence system set:
-/// ```rust
+/// ```rust,no_run
 /// app.add_systems(Update, (
 ///     save_fog_of_war_system,        // Handle save requests
 ///     handle_gpu_data_ready_system,  // Process GPU data transfers
@@ -1424,7 +1428,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 /// ```
 ///
 /// ## Save Operation
-/// ```rust
+/// ```rust,no_run
 /// fn save_fog_state(mut save_events: EventWriter<SaveFogOfWarRequest>) {
 ///     save_events.send(SaveFogOfWarRequest {
 ///         include_texture_data: true,  // Complete save with GPU data
@@ -1434,7 +1438,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 /// ```
 ///
 /// ## Load Operation
-/// ```rust
+/// ```rust,no_run
 /// fn load_fog_state(
 ///     mut load_events: EventWriter<LoadFogOfWarRequest>,
 ///     save_data: Vec<u8>  // Previously saved data

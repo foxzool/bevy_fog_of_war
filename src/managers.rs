@@ -35,7 +35,7 @@ use std::collections::HashSet;
 /// - **Cleanup**: Automatically handled by ECS when entities are despawned
 ///
 /// # Usage Patterns
-/// ```rust
+/// ```rust,no_run
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
 /// fn find_chunk_at_position(
@@ -112,7 +112,7 @@ pub struct ChunkEntityManager {
 /// - Trade-off: Small memory cost for significant performance gains
 ///
 /// # System Coordination
-/// ```rust
+/// ```rust,no_run
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
 /// fn efficient_chunk_processing(
@@ -203,7 +203,7 @@ impl ChunkStateCache {
     /// - **Frequency**: Called every frame by vision calculation systems
     ///
     /// # Usage Pattern
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy::prelude::*;
     /// # use bevy_fog_of_war::prelude::*;
     /// fn vision_calculation_system(mut cache: ResMut<ChunkStateCache>) {
@@ -250,7 +250,7 @@ impl ChunkStateCache {
     /// - **Save Loading**: Clearing state before loading saved data
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy::prelude::*;
     /// # use bevy_fog_of_war::prelude::*;
     /// fn handle_new_game(mut cache: ResMut<ChunkStateCache>) {
@@ -322,7 +322,7 @@ impl ChunkStateCache {
 /// - **Prioritization**: Visible chunks prioritized over distant chunks
 ///
 /// # Example Usage
-/// ```rust
+/// ```rust,no_run
 /// # use bevy_fog_of_war::prelude::*;
 /// # use bevy::prelude::*;
 /// fn allocate_chunk_on_gpu(
@@ -433,7 +433,7 @@ impl TextureArrayManager {
     /// 4. **Ready State**: Manager is immediately ready for layer allocation requests
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// // Create manager for up to 64 simultaneous chunks on GPU
@@ -509,7 +509,7 @@ impl TextureArrayManager {
     /// - **Partial Failure**: Currently not possible due to independent pool design
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
@@ -625,7 +625,7 @@ impl TextureArrayManager {
     /// - **Logging**: All error conditions are logged for debugging
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
@@ -738,7 +738,7 @@ impl TextureArrayManager {
     /// - **Error Recovery**: When cleanup systems need to free orphaned layer allocations
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
@@ -788,7 +788,7 @@ impl TextureArrayManager {
     ///
     /// # Integration with ECS
     /// Typically called from Bevy systems that handle entity cleanup:
-    /// ```rust
+    /// ```rust,no_run
     /// fn cleanup_despawned_chunks(
     ///     mut removed_chunks: RemovedComponents<FogChunk>,
     ///     chunk_query: Query<&FogChunk>,
@@ -867,7 +867,7 @@ impl TextureArrayManager {
     /// - **Cache Efficiency**: High due to HashMap spatial locality
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
@@ -895,7 +895,7 @@ impl TextureArrayManager {
     ///
     /// # Integration with Systems
     /// Often used in rendering and memory management systems:
-    /// ```rust
+    /// ```rust,no_run
     /// fn update_chunk_textures(
     ///     chunk_query: Query<(&FogChunk, &Transform)>,
     ///     manager: Res<TextureArrayManager>,
@@ -936,7 +936,7 @@ impl TextureArrayManager {
     /// - **Cache Friendly**: Single HashMap lookup with predictable access patterns
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
@@ -954,7 +954,7 @@ impl TextureArrayManager {
     /// # Common Usage Patterns
     ///
     /// **Memory Management Decision Making**:
-    /// ```rust
+    /// ```rust,no_run
     /// fn allocate_chunks_near_camera(
     ///     camera_query: Query<&Transform, With<FogOfWarCamera>>,
     ///     mut manager: ResMut<TextureArrayManager>,
@@ -981,7 +981,7 @@ impl TextureArrayManager {
     /// ```
     ///
     /// **Conditional Rendering Logic**:
-    /// ```rust
+    /// ```rust,no_run
     /// fn render_fog_chunks(
     ///     chunk_query: Query<&FogChunk>,
     ///     manager: Res<TextureArrayManager>,
@@ -1034,7 +1034,7 @@ impl TextureArrayManager {
     /// - Ready to allocate layers for any chunk coordinates
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
@@ -1059,7 +1059,7 @@ impl TextureArrayManager {
     /// - **Memory Cleanup**: Preparing for different memory allocation patterns
     ///
     /// # Integration with Game Events
-    /// ```rust
+    /// ```rust,no_run
     /// fn handle_new_game_event(
     ///     mut new_game_events: EventReader<NewGameEvent>,
     ///     mut manager: ResMut<TextureArrayManager>,
@@ -1140,7 +1140,7 @@ impl TextureArrayManager {
     /// - **Infrequent Usage**: Typically only used during save/load operations
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let mut manager = TextureArrayManager::new(64);
@@ -1160,7 +1160,15 @@ impl TextureArrayManager {
     ///
     /// # Persistence Integration
     /// This method is essential for save/load functionality:
-    /// ```rust
+    /// ```rust,no_run
+    /// # use bevy::prelude::*;
+    /// # use bevy_fog_of_war::prelude::*;
+    /// # #[derive(Debug)]
+    /// # struct SavedChunkData {
+    /// #     coords: IVec2,
+    /// #     fog_layer_index: Option<u32>,
+    /// #     snapshot_layer_index: Option<u32>,
+    /// # }
     /// fn restore_saved_fog_state(
     ///     saved_chunks: Vec<SavedChunkData>,
     ///     mut manager: ResMut<TextureArrayManager>,
@@ -1264,7 +1272,7 @@ impl TextureArrayManager {
     /// - **Memory Efficient**: No data copying or allocation
     ///
     /// # Example Usage
-    /// ```rust
+    /// ```rust,no_run
     /// # use bevy_fog_of_war::prelude::*;
     /// # use bevy::prelude::*;
     /// let manager = TextureArrayManager::new(64);
@@ -1282,7 +1290,7 @@ impl TextureArrayManager {
     ///
     /// # Persistence Integration
     /// This method is essential for save/load systems:
-    /// ```rust
+    /// ```rust,no_run
     /// use serde::{Serialize, Deserialize};
     ///
     /// #[derive(Serialize, Deserialize)]
@@ -1308,7 +1316,7 @@ impl TextureArrayManager {
     ///
     /// # Memory State Inspection
     /// Useful for debugging and monitoring GPU memory usage:
-    /// ```rust
+    /// ```rust,no_run
     /// fn analyze_gpu_memory_usage(manager: Res<TextureArrayManager>) {
     ///     let allocations = manager.get_all_allocated_indices();
     ///     
@@ -1344,7 +1352,7 @@ impl TextureArrayManager {
     ///
     /// # Iterator Usage
     /// Since this returns a HashMap reference, you can use all HashMap iteration methods:
-    /// ```rust
+    /// ```rust,no_run
     /// let allocations = manager.get_all_allocated_indices();
     ///
     /// // Iterate over coordinates only

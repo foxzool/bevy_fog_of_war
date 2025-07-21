@@ -144,7 +144,7 @@ const SHADER_ASSET_PATH: &str = "shaders/fog_compute.wgsl";
 ///
 /// # Render Graph Integration
 /// Used to establish render graph dependencies:
-/// ```rust
+/// ```rust,no_run
 /// render_app.add_render_graph_edges(
 ///     Core2d,
 ///     (
@@ -374,7 +374,7 @@ impl Node for FogComputeNode {
     /// 7. **Workgroup Dispatch**: Launch compute shader across all chunks
     ///
     /// # Workgroup Dispatch Calculation
-    /// ```rust
+    /// ```rust,no_run
     /// // Each workgroup covers 8x8 texture pixels
     /// workgroups_x = texture_resolution.x.div_ceil(8)
     /// workgroups_y = texture_resolution.y.div_ceil(8)

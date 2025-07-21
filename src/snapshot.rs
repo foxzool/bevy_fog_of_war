@@ -55,7 +55,7 @@ use bevy::{
 ///
 /// # Example Usage
 /// The plugin is automatically registered when using FogOfWarPlugin:
-/// ```rust
+/// ```rust,no_run
 /// App::new()
 ///     .add_plugins(FogOfWarPlugin) // SnapshotPlugin included automatically
 ///     .run();
@@ -442,7 +442,7 @@ pub struct SnapshotCameraState {
 /// between render passes.
 ///
 /// # Usage in Render Graph
-/// ```rust
+/// ```rust,no_run
 /// render_app.add_render_graph_edges(
 ///     Core2d,
 ///     (

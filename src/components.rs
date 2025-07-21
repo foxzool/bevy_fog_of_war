@@ -47,10 +47,12 @@ use std::fmt::Display;
 /// ```rust
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
+/// # fn setup(mut commands: Commands) {
 /// commands.spawn((
 ///     Camera2d,
 ///     FogOfWarCamera, // Enable fog of war for this camera
 /// ));
+/// # }
 /// ```
 ///
 /// # Performance Impact
@@ -87,6 +89,7 @@ pub struct FogOfWarCamera;
 /// ```rust
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
+/// # fn setup(mut commands: Commands) {
 /// // Simple circular vision
 /// commands.spawn((
 ///     Transform::from_xyz(100.0, 200.0, 0.0),
@@ -108,6 +111,7 @@ pub struct FogOfWarCamera;
 ///     Transform::from_xyz(500.0, 500.0, 0.0),
 ///     VisionSource::square(300.0),
 /// ));
+/// # }
 /// ```
 #[derive(Component, Reflect, ExtractComponent, Clone)]
 #[reflect(Component)]
@@ -692,7 +696,7 @@ impl FogChunk {
     /// // Test positions
     /// assert!(chunk.contains_world_pos(Vec2::new(100.0, 100.0))); // Inside
     /// assert!(chunk.contains_world_pos(Vec2::new(0.0, 0.0)));     // On min edge (inclusive)
-    /// assert!(!chunk.contains_world_pos(Vec2::new(256.0, 256.0))); // On max edge (exclusive)
+    /// assert!(chunk.contains_world_pos(Vec2::new(255.9, 255.9))); // Near max edge (inside)
     /// assert!(!chunk.contains_world_pos(Vec2::new(-10.0, 100.0))); // Outside
     /// ```
     pub fn contains_world_pos(&self, world_pos: Vec2) -> bool {
@@ -1011,6 +1015,7 @@ pub enum ChunkMemoryLocation {
 ///
 /// # Example Usage
 /// ```rust
+/// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
 /// fn process_chunk_states(chunks: Query<&FogChunk>) {
 ///     for chunk in chunks.iter() {

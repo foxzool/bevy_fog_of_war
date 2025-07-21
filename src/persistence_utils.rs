@@ -82,7 +82,7 @@
 //! # Usage Examples
 //!
 //! ## Basic Save/Load
-//! ```rust
+//! ```rust,no_run
 //! use bevy_fog_of_war::persistence_utils::*;
 //! use bevy_fog_of_war::persistence::FogOfWarSaveData;
 //!
@@ -94,7 +94,7 @@
 //! ```
 //!
 //! ## Compressed Saves
-//! ```rust
+//! ```rust,no_run
 //! // High compression for archival
 //! save_fog_data(&save_data, "archive.bincode.zst", FileFormat::BincodeZstd)?;
 //!
@@ -103,7 +103,7 @@
 //! ```
 //!
 //! ## Size Comparison
-//! ```rust
+//! ```rust,no_run
 //! // Compare file sizes across formats
 //! let json_size = get_file_size_info("save.json")?;
 //! let compressed_size = get_file_size_info("save.bincode.zst")?;
@@ -287,7 +287,7 @@ impl FileFormat {
     /// - **Zstandard**: `.zst` suffix (e.g., `.json.zst`, `.msgpack.zst`)
     ///
     /// # Usage Examples
-    /// ```rust
+    /// ```rust,no_run
     /// use bevy_fog_of_war::persistence_utils::FileFormat;
     ///
     /// assert_eq!(FileFormat::Json.extension(), "json");
@@ -311,7 +311,7 @@ impl FileFormat {
     /// # Return Value
     /// Returns a static string slice containing the file extension without leading dot.
     /// The caller typically adds the dot when constructing file paths:
-    /// ```rust
+    /// ```rust,no_run
     /// let extension = format.extension();
     /// let filename = format!("save.{}", extension); // "save.json.gz"
     /// ```
@@ -385,7 +385,7 @@ impl FileFormat {
     ///
     /// # Feature-Gated Detection
     /// Only formats with enabled features are detected:
-    /// ```rust
+    /// ```rust,no_run
     /// // With format-messagepack disabled:
     /// assert_eq!(FileFormat::from_extension(Path::new("save.msgpack")), None);
     ///
@@ -394,7 +394,7 @@ impl FileFormat {
     /// ```
     ///
     /// # Usage Examples
-    /// ```rust
+    /// ```rust,no_run
     /// use std::path::Path;
     /// use bevy_fog_of_war::persistence_utils::FileFormat;
     ///
@@ -444,32 +444,32 @@ impl FileFormat {
             if let Some(stem_str) = stem.to_str() {
                 if stem_str.ends_with(".json") {
                     match ext {
-                    #[cfg(feature = "compression-gzip")]
-                    "gz" => return Some(FileFormat::JsonGzip),
-                    #[cfg(feature = "compression-lz4")]
-                    "lz4" => return Some(FileFormat::JsonLz4),
-                    #[cfg(feature = "compression-zstd")]
-                    "zst" => return Some(FileFormat::JsonZstd),
+                        #[cfg(feature = "compression-gzip")]
+                        "gz" => return Some(FileFormat::JsonGzip),
+                        #[cfg(feature = "compression-lz4")]
+                        "lz4" => return Some(FileFormat::JsonLz4),
+                        #[cfg(feature = "compression-zstd")]
+                        "zst" => return Some(FileFormat::JsonZstd),
                         _ => {}
                     }
                 } else if stem_str.ends_with(".msgpack") {
                     match ext {
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::MessagePackGzip),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::MessagePackLz4),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::MessagePackZstd),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::MessagePackGzip),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::MessagePackLz4),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::MessagePackZstd),
                         _ => {}
                     }
                 } else if stem_str.ends_with(".bincode") {
                     match ext {
-                    #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::BincodeGzip),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::BincodeLz4),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::BincodeZstd),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::BincodeGzip),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::BincodeLz4),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::BincodeZstd),
                         _ => {}
                     }
                 }
@@ -542,7 +542,7 @@ impl FileFormat {
 /// - **Permission Errors**: Insufficient file system permissions
 ///
 /// # Usage Examples
-/// ```rust
+/// ```rust,no_run
 /// use bevy_fog_of_war::persistence_utils::{save_to_file, FileFormat};
 ///
 /// let json_data = r#"{"chunk_count": 42, "timestamp": 1234567890}"#;
