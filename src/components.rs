@@ -522,7 +522,7 @@ pub struct FogChunk {
     /// 区块坐标
     ///
     /// Grid coordinates identifying this chunk's position in the chunk grid.
-    /// For example, chunk (0,0) covers world area [0,0] to [chunk_size, chunk_size].
+    /// For example, chunk (0,0) covers world area \[0,0\] to \[chunk_size, chunk_size\].
     ///
     /// **Range**: Theoretically unlimited (i32 bounds)
     /// **Uniqueness**: Each coordinate pair represents exactly one chunk

@@ -258,7 +258,7 @@ pub struct CpuToGpuCopyRequest {
 /// - **Layout**: Row-major order, may include padding for alignment
 ///
 /// # Memory Ownership
-/// The Vec<u8> data is owned by the event and transferred to the receiving system.
+/// The `Vec<u8>` data is owned by the event and transferred to the receiving system.
 /// Consider the memory cost when processing many chunks simultaneously.
 ///
 /// # Usage Example

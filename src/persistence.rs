@@ -172,7 +172,7 @@ impl Default for SerializationFormat {
 /// ## Serialization Compatibility
 /// The structure is designed for cross-version compatibility:
 /// - **Serde Support**: Implements Serialize/Deserialize for all supported formats
-/// - **Optional Fields**: Future fields can be added with Option<T> for backward compatibility
+/// - **Optional Fields**: Future fields can be added with `Option<T>` for backward compatibility
 /// - **Version Tracking**: Metadata includes plugin version for compatibility checking
 /// - **Validation Data**: Settings validation prevents incompatible save loading
 ///
@@ -363,7 +363,7 @@ pub struct FogOfWarSaveData {
 /// # Future Extensibility
 ///
 /// ## Additional Fields
-/// Future versions can add fields with Option<T> for backward compatibility:
+/// Future versions can add fields with `Option<T>` for backward compatibility:
 /// - **Compression**: Optional compressed texture data
 /// - **LOD Data**: Multiple resolution levels
 /// - **Custom Data**: Game-specific chunk metadata
@@ -1110,7 +1110,7 @@ fn create_save_data_immediate(
 /// - **User Notification**: Errors logged at ERROR level for visibility
 ///
 /// # Performance Characteristics
-/// - **Memory Allocation**: Creates new Vec<u8> for serialized data
+/// - **Memory Allocation**: Creates new `Vec<u8>` for serialized data
 /// - **Format Efficiency**: Binary formats typically 60-70% smaller than JSON
 /// - **Encoding Speed**: Binary formats typically 2-3x faster than JSON
 /// - **Memory Peak**: Temporary memory spike during serialization

@@ -43,11 +43,11 @@
 //! - **Coalesced Access**: Optimized memory access patterns for GPU performance
 //!
 //! ## Dispatch Calculation
-//! ```rust
+//! ```text
 //! workgroups_x = texture_resolution.x.div_ceil(8)  // X-axis workgroups
 //! workgroups_y = texture_resolution.y.div_ceil(8)  // Y-axis workgroups  
 //! workgroups_z = active_chunk_count               // Z-axis per chunk
-//! total_threads = workgroups_x × workgroups_y × workgroups_z × 64
+//! total_threads = workgroups_x * workgroups_y * workgroups_z * 64
 //! ```
 //!
 //! # Shader Resources

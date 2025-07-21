@@ -278,7 +278,7 @@ fn prepare_snapshot_camera(
 ///
 /// # Resource Dependencies
 /// - **FogMapSettings**: Provides texture dimensions and format configuration
-/// - **Assets<Image>**: Manages temporary texture asset lifecycle
+/// - **`Assets<Image>`**: Manages temporary texture asset lifecycle
 /// - **Commands**: Spawns camera entity with required components
 ///
 /// # Coordinate System
