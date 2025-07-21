@@ -777,12 +777,13 @@ fn update_fps_text(
     mut query: Query<&mut TextSpan, With<FpsText>>,
 ) {
     for mut span in &mut query {
-        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS)
-            && let Some(value) = fps.smoothed() {
+        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(value) = fps.smoothed() {
                 // 更新 FPS 文本值
                 // Update FPS text value
                 **span = format!("{value:.1}");
             }
+        }
     }
 }
 
@@ -913,9 +914,9 @@ fn movable_vision_control(
 
         // 处理鼠标点击事件
         // Handle mouse click event
-        if mouse_button_input.just_pressed(MouseButton::Left)
-            && let Ok(window) = windows.single()
-                && let Some(cursor_position) = window.cursor_position() {
+        if mouse_button_input.just_pressed(MouseButton::Left) {
+            if let Ok(window) = windows.single() {
+                if let Some(cursor_position) = window.cursor_position() {
                     // 获取摄像机和全局变换
                     // Get camera and global transform
                     if let Ok((camera, camera_transform)) = cameras.single() {
@@ -936,6 +937,8 @@ fn movable_vision_control(
                         }
                     }
                 }
+            }
+        }
 
         // 如果有目标位置，则向目标位置平滑移动
         // If there is a target position, smoothly move towards it

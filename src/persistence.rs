@@ -677,15 +677,17 @@ pub fn load_save_data(
 
             // 恢复纹理数据（如果有）
             // Restore texture data (if available)
-            if let Some(fog_data) = &chunk_data.fog_data
-                && let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+            if let Some(fog_data) = &chunk_data.fog_data {
+                if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
                     fog_image.data = Some(fog_data.clone());
                 }
+            }
 
-            if let Some(snapshot_data) = &chunk_data.snapshot_data
-                && let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+            if let Some(snapshot_data) = &chunk_data.snapshot_data {
+                if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
                     snapshot_image.data = Some(snapshot_data.clone());
                 }
+            }
 
             let entity = commands
                 .spawn((
@@ -828,8 +830,8 @@ pub fn save_fog_of_war_system(mut params: SaveSystemParams) {
 
             // 如果需要纹理数据且区块在GPU上，请求GPU到CPU传输
             // If texture data needed and chunk is on GPU, request GPU-to-CPU transfer
-            if event.include_texture_data && visibility != ChunkVisibility::Unexplored
-                && let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
+            if event.include_texture_data && visibility != ChunkVisibility::Unexplored {
+                if let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
                     // 请求GPU到CPU传输
                     // Request GPU-to-CPU transfer
                     params
@@ -847,6 +849,7 @@ pub fn save_fog_of_war_system(mut params: SaveSystemParams) {
                         coords, fog_layer_idx, snap_layer_idx
                     );
                 }
+            }
         }
 
         // 如果不需要等待GPU数据，立即保存
