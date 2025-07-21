@@ -614,7 +614,7 @@ pub fn save_to_file(
         FileFormat::Json => {
             std::fs::write(path, data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
@@ -631,7 +631,7 @@ pub fn save_to_file(
             encoder
                 .finish()
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
@@ -640,7 +640,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
@@ -649,7 +649,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             std::fs::write(path, compressed)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
-            return Ok(());
+            Ok(())
         }
 
         // 对于二进制格式，回退到通用处理
@@ -658,9 +658,9 @@ pub fn save_to_file(
         _ => {
             // 这些格式应该通过save_data_to_file处理
             // These formats should be handled by save_data_to_file
-            return Err(PersistenceError::SerializationFailed(format!(
+            Err(PersistenceError::SerializationFailed(format!(
                 "Format {format:?} not supported by save_to_file, use save_data_to_file instead"
-            )));
+            )))
         }
     }
 }
@@ -970,7 +970,7 @@ pub fn load_from_file(
         FileFormat::Json => {
             let data = std::fs::read_to_string(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            return Ok(data);
+            Ok(data)
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
@@ -984,7 +984,7 @@ pub fn load_from_file(
             decoder
                 .read_to_string(&mut data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            return Ok(data);
+            Ok(data)
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
@@ -995,7 +995,7 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let data = String::from_utf8(decompressed)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            return Ok(data);
+            Ok(data)
         }
 
         #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
@@ -1006,7 +1006,7 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let data = String::from_utf8(decompressed)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            return Ok(data);
+            Ok(data)
         }
 
         // 对于二进制格式，回退到通用处理
@@ -1015,9 +1015,9 @@ pub fn load_from_file(
         _ => {
             // 这些格式应该通过load_data_from_file处理
             // These formats should be handled by load_data_from_file
-            return Err(PersistenceError::DeserializationFailed(format!(
+            Err(PersistenceError::DeserializationFailed(format!(
                 "Format {format:?} not supported by load_from_file, use load_data_from_file instead"
-            )));
+            )))
         }
     }
 }
