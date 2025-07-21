@@ -65,7 +65,7 @@
 //! - **Format Detection**: Auto-detect serialization format when possible
 //! - **Error Reporting**: Detailed error messages for debugging
 
-use crate::{FogSystems, prelude::*};
+use crate::{FogSystems, prelude::*, RequestChunkSnapshot};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -608,6 +608,7 @@ pub fn load_save_data(
     chunk_manager: &mut ChunkEntityManager,
     texture_manager: &mut TextureArrayManager,
     images: &mut Assets<Image>,
+    snapshot_event_writer: &mut EventWriter<RequestChunkSnapshot>,
 ) -> Result<usize, PersistenceError> {
     // 验证元数据（如果存在）
     // Validate metadata (if present)
@@ -707,6 +708,17 @@ pub fn load_save_data(
 
             chunk_manager.map.insert(chunk_data.coords, entity);
             loaded_count += 1;
+        }
+    }
+
+    // 为所有已加载的Explored和Visible chunks发送RequestChunkSnapshot事件
+    // Send RequestChunkSnapshot events for all loaded Explored and Visible chunks
+    for chunk_data in &data.chunks {
+        if chunk_data.visibility == ChunkVisibility::Explored || 
+           chunk_data.visibility == ChunkVisibility::Visible {
+            info!("Sending RequestChunkSnapshot for loaded chunk {:?} with visibility {:?}", 
+                  chunk_data.coords, chunk_data.visibility);
+            snapshot_event_writer.write(RequestChunkSnapshot(chunk_data.coords));
         }
     }
 
@@ -1221,6 +1233,8 @@ pub struct LoadSystemParams<'w, 's> {
     texture_manager: ResMut<'w, TextureArrayManager>,
     images: ResMut<'w, Assets<Image>>,
     existing_chunks: Query<'w, 's, Entity, With<FogChunk>>,
+    snapshot_texture: Res<'w, SnapshotTextureArray>,
+    snapshot_events: EventWriter<'w, RequestChunkSnapshot>,
 }
 
 /// System that processes fog of war load requests with format detection and validation.
@@ -1366,6 +1380,21 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
                 params.chunk_manager.map.clear();
                 params.texture_manager.clear_all_layers();
 
+                // 清空快照纹理数据（与reset操作一致）
+                // Clear snapshot texture data (consistent with reset operation)
+                if let Some(snapshot_image) = params.images.get_mut(&params.snapshot_texture.handle) {
+                    if let Ok(size_info) = TextureSizeCalculator::calculate_3d_rgba(
+                        snapshot_image.texture_descriptor.size.width,
+                        snapshot_image.texture_descriptor.size.height,
+                        snapshot_image.texture_descriptor.size.depth_or_array_layers,
+                    ) {
+                        snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
+                        info!("Cleared snapshot texture data during load: {} bytes", size_info.total_bytes);
+                    } else {
+                        warn!("Failed to calculate snapshot texture size during load");
+                    }
+                }
+
                 // 加载保存的数据
                 // Load saved data
                 match load_save_data(
@@ -1376,6 +1405,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
                     &mut params.chunk_manager,
                     &mut params.texture_manager,
                     &mut params.images,
+                    &mut params.snapshot_events,
                 ) {
                     Ok(loaded_count) => {
                         info!("Loaded fog of war data: {} chunks", loaded_count);
