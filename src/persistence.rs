@@ -1233,7 +1233,6 @@ pub struct LoadSystemParams<'w, 's> {
     texture_manager: ResMut<'w, TextureArrayManager>,
     images: ResMut<'w, Assets<Image>>,
     existing_chunks: Query<'w, 's, Entity, With<FogChunk>>,
-    snapshot_texture: Res<'w, SnapshotTextureArray>,
     snapshot_events: EventWriter<'w, RequestChunkSnapshot>,
 }
 
@@ -1380,20 +1379,9 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
                 params.chunk_manager.map.clear();
                 params.texture_manager.clear_all_layers();
 
-                // 清空快照纹理数据（与reset操作一致）
-                // Clear snapshot texture data (consistent with reset operation)
-                if let Some(snapshot_image) = params.images.get_mut(&params.snapshot_texture.handle) {
-                    if let Ok(size_info) = TextureSizeCalculator::calculate_3d_rgba(
-                        snapshot_image.texture_descriptor.size.width,
-                        snapshot_image.texture_descriptor.size.height,
-                        snapshot_image.texture_descriptor.size.depth_or_array_layers,
-                    ) {
-                        snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
-                        info!("Cleared snapshot texture data during load: {} bytes", size_info.total_bytes);
-                    } else {
-                        warn!("Failed to calculate snapshot texture size during load");
-                    }
-                }
+                // Note: Unlike reset operation, we don't clear snapshot texture data during load
+                // because RequestChunkSnapshot events will regenerate the specific layers needed
+                // Clearing here would make snapshots invisible even when properly generated
 
                 // 加载保存的数据
                 // Load saved data
