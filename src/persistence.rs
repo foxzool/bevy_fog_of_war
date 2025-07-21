@@ -108,6 +108,7 @@ pub enum SerializationFormat {
     /// Best for: debugging, configuration files, human inspection
     /// Typical size: ~3x larger than binary formats
     /// Performance: Slower serialization/deserialization
+    #[cfg(feature = "format-json")]
     Json,
 
     /// MessagePack format - binary efficient with cross-language support.
@@ -142,12 +143,28 @@ impl Default for SerializationFormat {
         {
             SerializationFormat::MessagePack
         }
-        #[cfg(not(any(feature = "format-bincode", feature = "format-messagepack")))]
+        #[cfg(all(
+            not(feature = "format-bincode"),
+            not(feature = "format-messagepack"),
+            feature = "format-json"
+        ))]
         {
             SerializationFormat::Json
         }
     }
 }
+
+// Compile-time check to ensure at least one serialization format is enabled
+// 编译时检查确保至少启用一种序列化格式
+#[cfg(not(any(
+    feature = "format-json",
+    feature = "format-bincode",
+    feature = "format-messagepack"
+)))]
+compile_error!(
+    "At least one serialization format must be enabled. \
+     Available features: format-json, format-bincode, format-messagepack"
+);
 
 /// Root container for serialized fog of war save data with metadata and chunk information.
 /// 序列化雾效保存数据的根容器，包含元数据和区块信息
@@ -1150,6 +1167,7 @@ fn complete_save_operation(
     saved_events: &mut EventWriter<FogOfWarSaved>,
 ) {
     let result = match format {
+        #[cfg(feature = "format-json")]
         SerializationFormat::Json => serde_json::to_vec(&save_data)
             .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
         #[cfg(feature = "format-messagepack")]
@@ -1292,18 +1310,31 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
             // 尝试自动检测格式
             // Try to auto-detect format
             if event.data.starts_with(b"{") || event.data.starts_with(b"[") {
-                SerializationFormat::Json
+                #[cfg(feature = "format-json")]
+                return SerializationFormat::Json;
+                #[cfg(not(feature = "format-json"))]
+                {
+                    warn!("Detected JSON format but format-json feature is disabled. Falling back to default format.");
+                    return SerializationFormat::default();
+                }
             } else {
-                // 默认假设为bincode
-                // Default assume bincode
+                // 默认假设为bincode或其他可用格式
+                // Default assume bincode or other available format
                 #[cfg(feature = "format-bincode")]
                 return SerializationFormat::Bincode;
-                #[cfg(not(feature = "format-bincode"))]
+                #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
+                return SerializationFormat::MessagePack;
+                #[cfg(all(
+                    not(feature = "format-bincode"),
+                    not(feature = "format-messagepack"),
+                    feature = "format-json"
+                ))]
                 return SerializationFormat::Json;
             }
         });
 
         let result = match format {
+            #[cfg(feature = "format-json")]
             SerializationFormat::Json => serde_json::from_slice::<FogOfWarSaveData>(&event.data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string())),
             #[cfg(feature = "format-messagepack")]

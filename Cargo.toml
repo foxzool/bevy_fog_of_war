@@ -55,7 +55,7 @@ bevy = { version = "0.16", default-features = false, features = [
 bytemuck = { version = "1.22.0", features = ["derive"] }
 async-channel = "2.3.1"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", optional = true }
 
 # Optional compression dependencies
 flate2 = { version = "1.0", optional = true }
@@ -72,9 +72,10 @@ compression-gzip = ["flate2"]
 compression-lz4 = ["lz4"]
 compression-zstd = ["zstd"]
 all-compression = ["compression-gzip", "compression-lz4", "compression-zstd"]
+format-json = ["serde_json"]
 format-messagepack = ["rmp-serde"]
 format-bincode = ["bincode"]
-all-formats = ["format-messagepack", "format-bincode", "all-compression"]
+all-formats = ["format-json", "format-messagepack", "format-bincode", "all-compression"]
 
 [dev-dependencies]
 bevy = { version = "0.16" }

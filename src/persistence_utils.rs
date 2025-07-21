@@ -231,18 +231,19 @@ use std::path::Path;
 pub enum FileFormat {
     /// JSON格式（可读，较大）
     /// JSON format (human-readable, larger)
+    #[cfg(feature = "format-json")]
     Json,
     /// JSON格式，使用gzip压缩
     /// JSON format with gzip compression
-    #[cfg(feature = "compression-gzip")]
+    #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
     JsonGzip,
     /// JSON格式，使用LZ4压缩（快速）
     /// JSON format with LZ4 compression (fast)
-    #[cfg(feature = "compression-lz4")]
+    #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
     JsonLz4,
     /// JSON格式，使用Zstandard压缩（高压缩率）
     /// JSON format with Zstandard compression (high compression ratio)
-    #[cfg(feature = "compression-zstd")]
+    #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
     JsonZstd,
     /// MessagePack格式（二进制，紧凑）
     /// MessagePack format (binary, compact)
@@ -331,12 +332,13 @@ impl FileFormat {
     /// ```
     pub fn extension(&self) -> &'static str {
         match self {
-            FileFormat::Json => "json",
-            #[cfg(feature = "compression-gzip")]
+            #[cfg(feature = "format-json")]
+        FileFormat::Json => "json",
+            #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
             FileFormat::JsonGzip => "json.gz",
-            #[cfg(feature = "compression-lz4")]
+            #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
             FileFormat::JsonLz4 => "json.lz4",
-            #[cfg(feature = "compression-zstd")]
+            #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
             FileFormat::JsonZstd => "json.zst",
             #[cfg(feature = "format-messagepack")]
             FileFormat::MessagePack => "msgpack",
@@ -458,11 +460,11 @@ impl FileFormat {
             if let Some(stem_str) = stem.to_str() {
                 if stem_str.ends_with(".json") {
                     match ext {
-                        #[cfg(feature = "compression-gzip")]
+                        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
                         "gz" => return Some(FileFormat::JsonGzip),
-                        #[cfg(feature = "compression-lz4")]
+                        #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
                         "lz4" => return Some(FileFormat::JsonLz4),
-                        #[cfg(feature = "compression-zstd")]
+                        #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
                         "zst" => return Some(FileFormat::JsonZstd),
                         _ => {}
                     }
@@ -493,6 +495,7 @@ impl FileFormat {
         // 单扩展名
         // Single extension
         match ext {
+            #[cfg(feature = "format-json")]
             "json" => Some(FileFormat::Json),
             #[cfg(feature = "format-messagepack")]
             "msgpack" => Some(FileFormat::MessagePack),
@@ -606,12 +609,13 @@ pub fn save_to_file(
     let path = path.as_ref();
 
     match format {
+        #[cfg(feature = "format-json")]
         FileFormat::Json => {
             std::fs::write(path, data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
 
-        #[cfg(feature = "compression-gzip")]
+        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
         FileFormat::JsonGzip => {
             use flate2::Compression;
             use flate2::write::GzEncoder;
@@ -627,7 +631,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
 
-        #[cfg(feature = "compression-lz4")]
+        #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
         FileFormat::JsonLz4 => {
             let compressed = lz4::block::compress(data.as_bytes(), None, true)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -635,7 +639,7 @@ pub fn save_to_file(
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
         }
 
-        #[cfg(feature = "compression-zstd")]
+        #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
         FileFormat::JsonZstd => {
             let compressed = zstd::encode_all(data.as_bytes(), 3) // 压缩级别3（平衡）
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -668,6 +672,7 @@ pub fn save_data_to_file<T: Serialize>(
     let path = path.as_ref();
 
     match format {
+        #[cfg(feature = "format-json")]
         FileFormat::Json => {
             let json = serde_json::to_string(data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -803,10 +808,24 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
 
     // 如果没有指定格式，尝试从扩展名推断
     // If format not specified, try to infer from extension
-    let format =
-        format.unwrap_or_else(|| FileFormat::from_extension(path).unwrap_or(FileFormat::Json));
+    let format = format.unwrap_or_else(|| {
+        FileFormat::from_extension(path).unwrap_or_else(|| {
+            // Fallback to the first available format
+            #[cfg(feature = "format-bincode")]
+            return FileFormat::Bincode;
+            #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
+            return FileFormat::MessagePack;
+            #[cfg(all(
+                not(feature = "format-bincode"),
+                not(feature = "format-messagepack"),
+                feature = "format-json"
+            ))]
+            return FileFormat::Json;
+        })
+    });
 
     match format {
+        #[cfg(feature = "format-json")]
         FileFormat::Json => {
             let json_str = std::fs::read_to_string(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
@@ -927,14 +946,28 @@ pub fn load_from_file(
 
     // 如果没有指定格式，尝试从扩展名推断
     // If format not specified, try to infer from extension
-    let format =
-        format.unwrap_or_else(|| FileFormat::from_extension(path).unwrap_or(FileFormat::Json));
+    let format = format.unwrap_or_else(|| {
+        FileFormat::from_extension(path).unwrap_or_else(|| {
+            // Fallback to the first available format
+            #[cfg(feature = "format-bincode")]
+            return FileFormat::Bincode;
+            #[cfg(all(not(feature = "format-bincode"), feature = "format-messagepack"))]
+            return FileFormat::MessagePack;
+            #[cfg(all(
+                not(feature = "format-bincode"),
+                not(feature = "format-messagepack"),
+                feature = "format-json"
+            ))]
+            return FileFormat::Json;
+        })
+    });
 
     let data = match format {
+        #[cfg(feature = "format-json")]
         FileFormat::Json => std::fs::read_to_string(path)
             .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?,
 
-        #[cfg(feature = "compression-gzip")]
+        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
         FileFormat::JsonGzip => {
             use flate2::read::GzDecoder;
 
@@ -948,7 +981,7 @@ pub fn load_from_file(
             data
         }
 
-        #[cfg(feature = "compression-lz4")]
+        #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
         FileFormat::JsonLz4 => {
             let compressed = std::fs::read(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
@@ -958,7 +991,7 @@ pub fn load_from_file(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?
         }
 
-        #[cfg(feature = "compression-zstd")]
+        #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
         FileFormat::JsonZstd => {
             let compressed = std::fs::read(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
