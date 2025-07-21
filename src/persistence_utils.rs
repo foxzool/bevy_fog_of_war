@@ -456,8 +456,8 @@ impl FileFormat {
 
         // 检查双扩展名（如 .json.gz, .msgpack.lz4等）
         // Check for double extensions (like .json.gz, .msgpack.lz4, etc.)
-        if let Some(stem) = path.file_stem() {
-            if let Some(stem_str) = stem.to_str() {
+        if let Some(stem) = path.file_stem()
+            && let Some(stem_str) = stem.to_str() {
                 if stem_str.ends_with(".json") {
                     match ext {
                         #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
@@ -490,7 +490,6 @@ impl FileFormat {
                     }
                 }
             }
-        }
 
         // 单扩展名
         // Single extension
