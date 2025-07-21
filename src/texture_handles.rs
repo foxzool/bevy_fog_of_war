@@ -30,7 +30,7 @@ use bevy::reflect::Reflect;
 /// - **Memory Management**: Can be transferred to/from CPU via data transfer system
 ///
 /// # Usage Example
-/// ```rust,no_run
+/// ```rust,ignore
 /// // Access in system
 /// fn system(visibility_array: Res<VisibilityTextureArray>) {
 ///     let texture_handle = &visibility_array.handle;
@@ -89,7 +89,7 @@ pub struct VisibilityTextureArray {
 /// - **TextureArrayManager**: Coordinates layer allocation with visibility array
 ///
 /// # Usage Example
-/// ```rust,no_run
+/// ```rust,ignore
 /// // Access in rendering system
 /// fn fog_rendering_system(fog_array: Res<FogTextureArray>) {
 ///     let fog_texture_handle = &fog_array.handle;
@@ -153,7 +153,7 @@ pub struct FogTextureArray {
 /// - **Capturable System**: Determines which entities appear in snapshots
 ///
 /// # Usage Example
-/// ```rust,no_run
+/// ```rust,ignore
 /// // Access in fog overlay system
 /// fn fog_overlay_system(snapshot_array: Res<SnapshotTextureArray>) {
 ///     let snapshot_handle = &snapshot_array.handle;

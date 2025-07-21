@@ -148,7 +148,7 @@ const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wgsl";
 ///
 /// # Render Graph Integration
 /// Used to establish render graph dependencies:
-/// ```rust,no_run
+/// ```rust,ignore
 /// render_app.add_render_graph_edges(
 ///     Core2d,
 ///     (

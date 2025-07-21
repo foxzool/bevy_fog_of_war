@@ -194,6 +194,7 @@ impl Default for SerializationFormat {
 ///
 /// ## Game Save Files
 /// ```rust,no_run
+/// # use bevy_fog_of_war::prelude::*;
 /// // Complete save with texture data for full restoration
 /// let save_request = SaveFogOfWarRequest {
 ///     include_texture_data: true,
@@ -203,6 +204,7 @@ impl Default for SerializationFormat {
 ///
 /// ## Network Synchronization
 /// ```rust,no_run
+/// # use bevy_fog_of_war::prelude::*;
 /// // Metadata-only save for network sync (smaller size)
 /// let sync_request = SaveFogOfWarRequest {
 ///     include_texture_data: false,
@@ -212,6 +214,7 @@ impl Default for SerializationFormat {
 ///
 /// ## Debug/Development
 /// ```rust,no_run
+/// # use bevy_fog_of_war::prelude::*;
 /// // Human-readable save for debugging
 /// let debug_request = SaveFogOfWarRequest {
 ///     include_texture_data: true,
@@ -280,7 +283,7 @@ pub struct FogOfWarSaveData {
 ///
 /// ## GPU Resource Mapping
 /// Layer indices enable proper GPU texture array restoration:
-/// ```rust,no_run
+/// ```rust,ignore
 /// // During save: record current GPU layer indices
 /// fog_layer_index: Some(chunk.fog_layer_index)
 /// snapshot_layer_index: Some(chunk.snapshot_layer_index)
@@ -313,6 +316,9 @@ pub struct FogOfWarSaveData {
 ///
 /// ## Memory Usage
 /// ```rust,no_run
+/// # use bevy_fog_of_war::prelude::*;
+/// # use bevy_fog_of_war::persistence::ChunkSaveData;
+/// # let settings = FogMapSettings::default();
 /// // Base structure overhead
 /// let base_size = std::mem::size_of::<ChunkSaveData>(); // ~64 bytes
 ///
@@ -962,7 +968,7 @@ pub fn handle_gpu_data_ready_system(
 ///
 /// # Texture Data Handling
 /// For each chunk, texture inclusion follows these rules:
-/// ```rust,no_run
+/// ```rust,ignore
 /// fog_data = if visibility != Unexplored && include_texture_data {
 ///     texture_data.get(coords).map(|(fog, _)| fog.clone())
 /// } else { None }
@@ -1088,7 +1094,7 @@ fn create_save_data_immediate(
 ///
 /// # Supported Serialization Formats
 /// The function handles different formats based on feature flags:
-/// ```rust,no_run
+/// ```rust,ignore
 /// match format {
 ///     SerializationFormat::Json => serde_json::to_vec(&save_data),
 ///     #[cfg(feature = "format-messagepack")]
@@ -1211,7 +1217,7 @@ pub struct LoadSystemParams<'w, 's> {
 ///
 /// # Format Auto-Detection
 /// When format is not specified, uses heuristic detection:
-/// ```rust,no_run
+/// ```rust,ignore
 /// let format = event.format.unwrap_or_else(|| {
 ///     if event.data.starts_with(b"{") || event.data.starts_with(b"[") {
 ///         SerializationFormat::Json  // Detect JSON by opening bracket
@@ -1384,11 +1390,15 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 /// ## System Organization
 /// Registers three main systems in the Persistence system set:
 /// ```rust,no_run
+/// # use bevy::prelude::*;
+/// # use bevy_fog_of_war::prelude::*;
+/// # use bevy_fog_of_war::persistence::*;
+/// # let mut app = App::new();
 /// app.add_systems(Update, (
 ///     save_fog_of_war_system,        // Handle save requests
 ///     handle_gpu_data_ready_system,  // Process GPU data transfers
 ///     load_fog_of_war_system,        // Handle load requests
-/// ).in_set(FogSystems::Persistence))
+/// ).in_set(FogSystems::Persistence));
 /// ```
 ///
 /// ## Event Registration
@@ -1429,6 +1439,8 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 ///
 /// ## Save Operation
 /// ```rust,no_run
+/// # use bevy::prelude::*;
+/// # use bevy_fog_of_war::prelude::*;
 /// fn save_fog_state(mut save_events: EventWriter<SaveFogOfWarRequest>) {
 ///     save_events.send(SaveFogOfWarRequest {
 ///         include_texture_data: true,  // Complete save with GPU data
@@ -1439,6 +1451,8 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 ///
 /// ## Load Operation
 /// ```rust,no_run
+/// # use bevy::prelude::*;
+/// # use bevy_fog_of_war::prelude::*;
 /// fn load_fog_state(
 ///     mut load_events: EventWriter<LoadFogOfWarRequest>,
 ///     save_data: Vec<u8>  // Previously saved data

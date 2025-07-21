@@ -85,29 +85,43 @@
 //! ```rust,no_run
 //! use bevy_fog_of_war::persistence_utils::*;
 //! use bevy_fog_of_war::persistence::FogOfWarSaveData;
-//!
+//! 
+//! # fn example() -> Result<(), PersistenceError> {
+//! # let save_data = FogOfWarSaveData::default();
 //! // Save with automatic format detection from extension
 //! save_fog_data(&save_data, "save.json", FileFormat::Json)?;
 //!
 //! // Load with automatic format detection
 //! let loaded_data: FogOfWarSaveData = load_fog_data("save.json", None)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Compressed Saves
 //! ```rust,no_run
+//! # use bevy_fog_of_war::persistence_utils::*;
+//! # use bevy_fog_of_war::persistence::FogOfWarSaveData;
+//! # fn example() -> Result<(), PersistenceError> {
+//! # let save_data = FogOfWarSaveData::default();
 //! // High compression for archival
 //! save_fog_data(&save_data, "archive.bincode.zst", FileFormat::BincodeZstd)?;
 //!
 //! // Fast compression for frequent saves
 //! save_fog_data(&save_data, "autosave.bincode.lz4", FileFormat::BincodeLz4)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Size Comparison
 //! ```rust,no_run
+//! # use bevy_fog_of_war::persistence_utils::*;
+//! # fn example() -> Result<(), PersistenceError> {
 //! // Compare file sizes across formats
 //! let json_size = get_file_size_info("save.json")?;
 //! let compressed_size = get_file_size_info("save.bincode.zst")?;
 //! println!("JSON: {}, Compressed: {}", json_size, compressed_size);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Error Handling

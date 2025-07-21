@@ -33,7 +33,7 @@
 //! - **Endianness**: Platform-independent data representation
 //!
 //! ## Memory Layout Optimization
-//! ```rust,no_run
+//! ```rust,ignore
 //! #[repr(C)]              // C-style layout for GPU compatibility
 //! #[derive(Pod, Zeroable)] // Safe byte-level operations
 //! #[derive(ShaderType)]    // Bevy shader interface
@@ -825,7 +825,7 @@ const GFX_INVALID_LAYER: i32 = -1;
 ///
 /// # Frustum Culling Algorithm
 /// Uses axis-aligned bounding box intersection for orthographic cameras:
-/// ```rust,no_run
+/// ```rust,ignore
 /// // AABB intersection test
 /// is_visible = !(chunk.max.x < view.min.x || chunk.min.x > view.max.x ||
 ///              chunk.max.y < view.min.y || chunk.min.y > view.max.y)
