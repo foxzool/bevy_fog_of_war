@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::{
     Capturable, FogMapSettings, FogOfWarCamera, FogOfWarLoaded, FogOfWarPlugin, FogOfWarSaved,
-    FogResetFailed, FogResetSuccess, LoadFogOfWarRequest, SaveFogOfWarRequest, SerializationFormat,
-    VisionSource,
+    FogResetFailed, FogResetSuccess, ForceSnapshotCapturables, LoadFogOfWarRequest,
+    SaveFogOfWarRequest, SerializationFormat, VisionSource,
 };
 
 fn main() {
@@ -10,6 +10,7 @@ fn main() {
     // WASD - Move camera
     // F5 - Save fog data (demonstrates multiple serialization formats)
     // F9 - Load fog data (auto-detects format)
+    // F12 - Force snapshot all Capturable entities on screen
     //
     // This example demonstrates the different serialization formats:
     // - JSON (human-readable, larger)
@@ -184,6 +185,7 @@ fn handle_save_load_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut save_events: EventWriter<SaveFogOfWarRequest>,
     mut load_events: EventWriter<LoadFogOfWarRequest>,
+    mut force_snapshot_events: EventWriter<ForceSnapshotCapturables>,
 ) {
     // F5键 - 保存雾效数据
     // F5 key - Save fog data
@@ -235,6 +237,13 @@ fn handle_save_load_input(
         if !loaded {
             warn!("No save file found. Press F5 to save first.");
         }
+    }
+
+    // F12键 - 强制快照屏幕中的所有Capturable实体
+    // F12 key - Force snapshot all Capturable entities on screen
+    if keyboard.just_pressed(KeyCode::F12) {
+        info!("Forcing snapshots for all on-screen Capturable entities...");
+        force_snapshot_events.write(ForceSnapshotCapturables);
     }
 }
 

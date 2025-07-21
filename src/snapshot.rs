@@ -83,6 +83,7 @@ impl Plugin for SnapshotPlugin {
         app.add_plugins(ExtractResourcePlugin::<SnapshotCameraState>::default());
         app.init_resource::<SnapshotCameraState>();
         app.add_event::<RequestCleanChunkSnapshot>();
+        app.add_event::<ForceSnapshotCapturables>();
         app.add_systems(Startup, setup_snapshot_camera)
             .add_systems(PostUpdate, prepare_snapshot_camera)
             .add_systems(Update, ensure_snapshot_render_layer)
@@ -92,7 +93,10 @@ impl Plugin for SnapshotPlugin {
         // 处理显式快照重制请求的系统
         app.add_systems(
             Update,
-            handle_request_chunk_snapshot_events
+            (
+                handle_request_chunk_snapshot_events,
+                handle_force_snapshot_capturables,
+            )
                 .after(FogSystems::UpdateChunkState) // Run after chunk states are updated / 在区块状态更新后运行
                 .before(FogSystems::ManageEntities), // Before entities are managed based on new requests / 在基于新请求管理实体之前
         );
@@ -138,6 +142,21 @@ pub struct MainWorldSnapshotRequest {
 /// 请求为特定区块清理快照的事件。
 #[derive(Event, Debug, Clone, Copy)]
 pub struct RequestCleanChunkSnapshot(pub IVec2);
+
+/// Event to force snapshot all Capturable entities currently visible on screen.
+/// 强制对屏幕上当前可见的所有Capturable实体进行快照的事件。
+///
+/// This event triggers a snapshot request for all chunks that contain Capturable entities
+/// within the current camera view. Useful for testing, debugging, or manual snapshot control.
+///
+/// # Usage
+/// ```rust
+/// fn trigger_force_snapshot(mut events: EventWriter<ForceSnapshotCapturables>) {
+///     events.send(ForceSnapshotCapturables);
+/// }
+/// ```
+#[derive(Event, Debug, Clone, Copy, Default)]
+pub struct ForceSnapshotCapturables;
 
 /// 标记组件，指示该实体应被包含在战争迷雾的快照中
 /// Marker component indicating this entity should be included in the fog of war snapshot
@@ -711,6 +730,162 @@ fn handle_request_chunk_snapshot_events(
                 "Received RequestChunkSnapshot for {:?}, but chunk entity not found in manager.",
                 chunk_coords
             );
+        }
+    }
+}
+
+/// System to handle `ForceSnapshotCapturables` events that force snapshots for all on-screen Capturable entities.
+/// 处理 `ForceSnapshotCapturables` 事件的系统，强制对屏幕上所有Capturable实体进行快照。
+///
+/// # Event Processing Logic
+/// This system processes ForceSnapshotCapturables events and triggers snapshots for all chunks
+/// that contain Capturable entities within the current camera view:
+/// 1. **Event Processing**: Listens for ForceSnapshotCapturables events
+/// 2. **Entity Detection**: Finds all Capturable entities in the scene
+/// 3. **Chunk Mapping**: Maps entity positions to chunk coordinates
+/// 4. **Camera View Filtering**: Only processes chunks visible to FogOfWarCamera
+/// 5. **Snapshot Triggering**: Sends RequestChunkSnapshot events for relevant chunks
+///
+/// # Performance Characteristics
+/// - **Event Processing**: O(e) where e = number of ForceSnapshotCapturables events
+/// - **Entity Iteration**: O(n) where n = number of Capturable entities
+/// - **Chunk Calculation**: O(1) per entity for position-to-chunk mapping
+/// - **Deduplication**: O(c) where c = number of unique chunks (typically small)
+///
+/// # Camera View Integration
+/// Only processes chunks that are within the current FogOfWarCamera view bounds:
+/// - Uses camera transform and orthographic projection to determine view area
+/// - Filters chunk coordinates to only include those in camera frustum
+/// - Ensures snapshots are only taken for actually visible content
+///
+/// # Use Cases
+/// - **Debug/Testing**: Manual trigger for snapshot verification
+/// - **User Interface**: Button-triggered snapshot updates
+/// - **Automatic Systems**: Periodic snapshot refreshing based on game events
+/// - **Performance Testing**: Controlled snapshot generation for benchmarking
+fn handle_force_snapshot_capturables(
+    mut force_events: EventReader<ForceSnapshotCapturables>,
+    capturable_entities: Query<&GlobalTransform, With<Capturable>>,
+    fog_camera_query: Query<(&Camera, &GlobalTransform), With<FogOfWarCamera>>,
+    settings: Res<FogMapSettings>,
+    chunk_manager: Res<ChunkEntityManager>,
+    chunk_query: Query<&FogChunk>,
+    mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
+) {
+    for _ in force_events.read() {
+        info!("Processing ForceSnapshotCapturables event");
+
+        // Get camera view bounds for filtering
+        let camera_view_bounds = if let Ok((camera, camera_transform)) = fog_camera_query.single() {
+            if let Some(viewport_size) = camera.logical_viewport_size() {
+                let camera_pos = camera_transform.translation().truncate();
+                let half_width = viewport_size.x / 2.0;
+                let half_height = viewport_size.y / 2.0;
+                Some(Rect::from_center_half_size(
+                    camera_pos,
+                    Vec2::new(half_width, half_height),
+                ))
+            } else {
+                warn!("FogOfWarCamera logical viewport size not available, using fallback");
+                // Fallback: use settings chunk size for approximate bounds
+                let camera_pos = camera_transform.translation().truncate();
+                let fallback_size = Vec2::new(
+                    settings.chunk_size.x as f32 * 3.0,
+                    settings.chunk_size.y as f32 * 3.0,
+                );
+                Some(Rect::from_center_half_size(camera_pos, fallback_size))
+            }
+        } else {
+            warn!("No FogOfWarCamera found, forcing snapshots for all chunks");
+            None
+        };
+
+        let mut chunks_to_snapshot = std::collections::HashSet::new();
+
+        // Find all Capturable entities and map them to chunks
+        for entity_transform in capturable_entities.iter() {
+            let entity_pos = entity_transform.translation().truncate();
+
+            // Convert entity position to chunk coordinates
+            let chunk_coords = IVec2::new(
+                (entity_pos.x / settings.chunk_size.x as f32).floor() as i32,
+                (entity_pos.y / settings.chunk_size.y as f32).floor() as i32,
+            );
+
+            // Filter by camera view if available
+            if let Some(view_bounds) = camera_view_bounds {
+                let chunk_center = Vec2::new(
+                    chunk_coords.x as f32 * settings.chunk_size.x as f32
+                        + settings.chunk_size.x as f32 / 2.0,
+                    chunk_coords.y as f32 * settings.chunk_size.y as f32
+                        + settings.chunk_size.y as f32 / 2.0,
+                );
+
+                // Only include chunks that intersect with camera view
+                if !view_bounds.contains(chunk_center) {
+                    continue;
+                }
+            }
+
+            chunks_to_snapshot.insert(chunk_coords);
+        }
+
+        // Check if we found any chunks before processing
+        if chunks_to_snapshot.is_empty() {
+            info!("ForceSnapshotCapturables: No Capturable entities found in camera view");
+            continue;
+        }
+
+        info!(
+            "ForceSnapshotCapturables: Found {} chunks with Capturable entities",
+            chunks_to_snapshot.len()
+        );
+
+        // Request snapshots for all identified chunks
+        for chunk_coords in chunks_to_snapshot {
+            if let Some(entity) = chunk_manager.map.get(&chunk_coords) {
+                if let Ok(chunk) = chunk_query.get(*entity) {
+                    if let Some(snapshot_layer_index) = chunk.snapshot_layer_index {
+                        // Check if a snapshot for this chunk is already pending
+                        let already_pending = snapshot_requests
+                            .requests
+                            .iter()
+                            .any(|req| req.chunk_coords == chunk_coords);
+
+                        if !already_pending {
+                            info!(
+                                "ForceSnapshotCapturables: Queuing snapshot for chunk {:?} with Capturable entities (layer {})",
+                                chunk_coords, snapshot_layer_index
+                            );
+                            snapshot_requests.requests.push(MainWorldSnapshotRequest {
+                                chunk_coords,
+                                snapshot_layer_index,
+                                world_bounds: chunk.world_bounds,
+                            });
+                        } else {
+                            debug!(
+                                "ForceSnapshotCapturables: Snapshot already pending for chunk {:?}, skipping",
+                                chunk_coords
+                            );
+                        }
+                    } else {
+                        warn!(
+                            "ForceSnapshotCapturables: Chunk {:?} has no snapshot_layer_index, cannot snapshot",
+                            chunk_coords
+                        );
+                    }
+                } else {
+                    warn!(
+                        "ForceSnapshotCapturables: Failed to get FogChunk component for chunk {:?}",
+                        chunk_coords
+                    );
+                }
+            } else {
+                warn!(
+                    "ForceSnapshotCapturables: Chunk {:?} entity not found in manager",
+                    chunk_coords
+                );
+            }
         }
     }
 }

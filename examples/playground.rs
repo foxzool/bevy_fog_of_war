@@ -24,6 +24,7 @@
 //! ## Persistence System
 //! - **P Key**: Save fog data with automatic format selection (bincode > messagepack > json)
 //! - **L Key**: Load fog data with automatic format detection
+//! - **F12 Key**: Force snapshot all Capturable entities currently on screen
 //! - **Compression Support**: Automatic zstd/lz4 compression when available
 //! - **Format Fallback**: Intelligent fallback to available serialization formats
 //!
@@ -999,6 +1000,7 @@ fn setup_ui(mut commands: Commands) {
              Left Click - Set target for blue vision source\n\
              P - Save fog data (best format auto-selected)\n\
              L - Load fog data (auto-detects format)\n\
+             F12 - Force snapshot all Capturable entities on screen\n\
              Automatic format selection & compression",
         ),
         TextFont {
@@ -1761,6 +1763,7 @@ fn handle_persistence_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut save_events: EventWriter<SaveFogOfWarRequest>,
     mut load_events: EventWriter<LoadFogOfWarRequest>,
+    mut force_snapshot_events: EventWriter<ForceSnapshotCapturables>,
     _player_query: Query<&Player>,
 ) {
     // 保存雾效数据
@@ -1817,6 +1820,13 @@ fn handle_persistence_input(
         if !loaded {
             warn!("⚠️ No save file found");
         }
+    }
+
+    // F12键 - 强制快照屏幕中的所有Capturable实体
+    // F12 key - Force snapshot all Capturable entities on screen
+    if keyboard_input.just_pressed(KeyCode::F12) {
+        info!("Forcing snapshots for all on-screen Capturable entities...");
+        force_snapshot_events.write(ForceSnapshotCapturables);
     }
 }
 

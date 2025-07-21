@@ -65,7 +65,7 @@
 //! - **Format Detection**: Auto-detect serialization format when possible
 //! - **Error Reporting**: Detailed error messages for debugging
 
-use crate::{FogSystems, prelude::*, RequestChunkSnapshot};
+use crate::{FogSystems, RequestChunkSnapshot, prelude::*};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -712,15 +712,18 @@ pub fn load_save_data(
 
     // 收集需要快照的区块坐标，延迟到下一帧发送以确保proper系统执行顺序
     // Collect chunk coordinates that need snapshots, defer to next frame for proper system execution order
-    let chunks_needing_snapshots: Vec<IVec2> = data.chunks
+    let chunks_needing_snapshots: Vec<IVec2> = data
+        .chunks
         .iter()
         .filter(|chunk_data| {
-            chunk_data.visibility == ChunkVisibility::Explored ||
-            chunk_data.visibility == ChunkVisibility::Visible
+            chunk_data.visibility == ChunkVisibility::Explored
+                || chunk_data.visibility == ChunkVisibility::Visible
         })
         .map(|chunk_data| {
-            info!("Deferring RequestChunkSnapshot for loaded chunk {:?} with visibility {:?}",
-                  chunk_data.coords, chunk_data.visibility);
+            info!(
+                "Deferring RequestChunkSnapshot for loaded chunk {:?} with visibility {:?}",
+                chunk_data.coords, chunk_data.visibility
+            );
             chunk_data.coords
         })
         .collect();
@@ -731,7 +734,10 @@ pub fn load_save_data(
         commands.queue(move |world: &mut World| {
             let mut snapshot_events = world.resource_mut::<Events<RequestChunkSnapshot>>();
             for chunk_coords in chunks_needing_snapshots {
-                info!("Sending deferred RequestChunkSnapshot for chunk {:?}", chunk_coords);
+                info!(
+                    "Sending deferred RequestChunkSnapshot for chunk {:?}",
+                    chunk_coords
+                );
                 snapshot_events.send(RequestChunkSnapshot(chunk_coords));
             }
         });
