@@ -677,16 +677,16 @@ pub fn load_save_data(
 
             // 恢复纹理数据（如果有）
             // Restore texture data (if available)
-            if let Some(fog_data) = &chunk_data.fog_data
-                && let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle)
-            {
-                fog_image.data = Some(fog_data.clone());
+            if let Some(fog_data) = &chunk_data.fog_data {
+                if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+                    fog_image.data = Some(fog_data.clone());
+                }
             }
 
-            if let Some(snapshot_data) = &chunk_data.snapshot_data
-                && let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle)
-            {
-                snapshot_image.data = Some(snapshot_data.clone());
+            if let Some(snapshot_data) = &chunk_data.snapshot_data {
+                if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+                    snapshot_image.data = Some(snapshot_data.clone());
+                }
             }
 
             let entity = commands
@@ -797,26 +797,25 @@ pub fn save_fog_of_war_system(mut params: SaveSystemParams) {
 
             // 如果需要纹理数据且区块在GPU上，请求GPU到CPU传输
             // If texture data needed and chunk is on GPU, request GPU-to-CPU transfer
-            if event.include_texture_data
-                && visibility != ChunkVisibility::Unexplored
-                && let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx)
-            {
-                // 请求GPU到CPU传输
-                // Request GPU-to-CPU transfer
-                params
-                    .gpu_to_cpu_requests
-                    .requests
-                    .push(GpuToCpuCopyRequest {
-                        chunk_coords: coords,
-                        fog_layer_index: fog_layer_idx,
-                        snapshot_layer_index: snap_layer_idx,
-                    });
+            if event.include_texture_data && visibility != ChunkVisibility::Unexplored {
+                if let (Some(fog_layer_idx), Some(snap_layer_idx)) = (fog_idx, snap_idx) {
+                    // 请求GPU到CPU传输
+                    // Request GPU-to-CPU transfer
+                    params
+                        .gpu_to_cpu_requests
+                        .requests
+                        .push(GpuToCpuCopyRequest {
+                            chunk_coords: coords,
+                            fog_layer_index: fog_layer_idx,
+                            snapshot_layer_index: snap_layer_idx,
+                        });
 
-                awaiting_chunks.insert(coords);
-                info!(
-                    "Requesting GPU-to-CPU transfer for chunk {:?} (F{}, S{})",
-                    coords, fog_layer_idx, snap_layer_idx
-                );
+                    awaiting_chunks.insert(coords);
+                    info!(
+                        "Requesting GPU-to-CPU transfer for chunk {:?} (F{}, S{})",
+                        coords, fog_layer_idx, snap_layer_idx
+                    );
+                }
             }
         }
 
@@ -924,43 +923,47 @@ pub fn handle_gpu_data_ready_system(
     for event in gpu_ready_events.read() {
         // 检查是否有挂起的保存操作等待此数据
         // Check if there's a pending save operation waiting for this data
-        if let Some(pending) = &mut pending_saves.pending_save
-            && pending.awaiting_chunks.contains(&event.chunk_coords)
-        {
-            // 存储接收到的数据
-            // Store received data
-            pending.received_data.insert(
-                event.chunk_coords,
-                (event.fog_data.clone(), event.snapshot_data.clone()),
-            );
+        if let Some(pending) = &mut pending_saves.pending_save {
+            if pending.awaiting_chunks.contains(&event.chunk_coords) {
+                // 存储接收到的数据
+                // Store received data
+                pending.received_data.insert(
+                    event.chunk_coords,
+                    (event.fog_data.clone(), event.snapshot_data.clone()),
+                );
 
-            // 从等待列表中移除
-            // Remove from awaiting list
-            pending.awaiting_chunks.remove(&event.chunk_coords);
+                // 从等待列表中移除
+                // Remove from awaiting list
+                pending.awaiting_chunks.remove(&event.chunk_coords);
 
-            info!(
-                "Received GPU data for chunk {:?}. Still waiting for {} chunks",
-                event.chunk_coords,
-                pending.awaiting_chunks.len()
-            );
+                info!(
+                    "Received GPU data for chunk {:?}. Still waiting for {} chunks",
+                    event.chunk_coords,
+                    pending.awaiting_chunks.len()
+                );
 
-            // 检查是否所有数据都已就绪
-            // Check if all data is ready
-            if pending.awaiting_chunks.is_empty() {
-                // 完成保存操作
-                // Complete save operation
-                if let Some(pending) = pending_saves.pending_save.take() {
-                    match create_save_data_immediate(
-                        &settings,
-                        pending.chunk_info,
-                        pending.received_data,
-                        pending.include_texture_data,
-                    ) {
-                        Ok(save_data) => {
-                            complete_save_operation(save_data, pending.format, &mut saved_events);
-                        }
-                        Err(e) => {
-                            error!("Failed to complete save: {}", e);
+                // 检查是否所有数据都已就绪
+                // Check if all data is ready
+                if pending.awaiting_chunks.is_empty() {
+                    // 完成保存操作
+                    // Complete save operation
+                    if let Some(pending) = pending_saves.pending_save.take() {
+                        match create_save_data_immediate(
+                            &settings,
+                            pending.chunk_info,
+                            pending.received_data,
+                            pending.include_texture_data,
+                        ) {
+                            Ok(save_data) => {
+                                complete_save_operation(
+                                    save_data,
+                                    pending.format,
+                                    &mut saved_events,
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to complete save: {}", e);
+                            }
                         }
                     }
                 }
@@ -1174,8 +1177,10 @@ fn complete_save_operation(
         SerializationFormat::MessagePack => rmp_serde::to_vec(&save_data)
             .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
         #[cfg(feature = "format-bincode")]
-        SerializationFormat::Bincode => bincode::serialize(&save_data)
-            .map_err(|e| PersistenceError::SerializationFailed(e.to_string())),
+        SerializationFormat::Bincode => {
+            bincode::serde::encode_to_vec(&save_data, bincode::config::standard())
+                .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))
+        }
     };
 
     match result {
@@ -1343,8 +1348,12 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
                     .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
             }
             #[cfg(feature = "format-bincode")]
-            SerializationFormat::Bincode => bincode::deserialize::<FogOfWarSaveData>(&event.data)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string())),
+            SerializationFormat::Bincode => {
+                match bincode::serde::decode_from_slice(&event.data, bincode::config::standard()) {
+                    Ok((decoded, _)) => Ok(decoded),
+                    Err(e) => Err(PersistenceError::DeserializationFailed(e.to_string())),
+                }
+            }
         };
 
         match result {

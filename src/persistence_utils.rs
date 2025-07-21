@@ -456,38 +456,38 @@ impl FileFormat {
 
         // 检查双扩展名（如 .json.gz, .msgpack.lz4等）
         // Check for double extensions (like .json.gz, .msgpack.lz4, etc.)
-        if let Some(stem) = path.file_stem()
-            && let Some(stem_str) = stem.to_str()
-        {
-            if stem_str.ends_with(".json") {
-                match ext {
-                    #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::JsonGzip),
-                    #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::JsonLz4),
-                    #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::JsonZstd),
-                    _ => {}
-                }
-            } else if stem_str.ends_with(".msgpack") {
-                match ext {
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::MessagePackGzip),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::MessagePackLz4),
-                    #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::MessagePackZstd),
-                    _ => {}
-                }
-            } else if stem_str.ends_with(".bincode") {
-                match ext {
-                    #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
-                    "gz" => return Some(FileFormat::BincodeGzip),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
-                    "lz4" => return Some(FileFormat::BincodeLz4),
-                    #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-                    "zst" => return Some(FileFormat::BincodeZstd),
-                    _ => {}
+        if let Some(stem) = path.file_stem() {
+            if let Some(stem_str) = stem.to_str() {
+                if stem_str.ends_with(".json") {
+                    match ext {
+                        #[cfg(all(feature = "format-json", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::JsonGzip),
+                        #[cfg(all(feature = "format-json", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::JsonLz4),
+                        #[cfg(all(feature = "format-json", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::JsonZstd),
+                        _ => {}
+                    }
+                } else if stem_str.ends_with(".msgpack") {
+                    match ext {
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::MessagePackGzip),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::MessagePackLz4),
+                        #[cfg(all(feature = "format-messagepack", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::MessagePackZstd),
+                        _ => {}
+                    }
+                } else if stem_str.ends_with(".bincode") {
+                    match ext {
+                        #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
+                        "gz" => return Some(FileFormat::BincodeGzip),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
+                        "lz4" => return Some(FileFormat::BincodeLz4),
+                        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
+                        "zst" => return Some(FileFormat::BincodeZstd),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -693,7 +693,7 @@ pub fn save_data_to_file<T: Serialize>(
 
         #[cfg(feature = "format-bincode")]
         FileFormat::Bincode => {
-            let bincode_data = bincode::serialize(data)
+            let bincode_data = bincode::serde::encode_to_vec(data, bincode::config::standard())
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             std::fs::write(path, bincode_data)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -746,7 +746,7 @@ pub fn save_data_to_file<T: Serialize>(
 
         #[cfg(all(feature = "format-bincode", feature = "compression-gzip"))]
         FileFormat::BincodeGzip => {
-            let bincode_data = bincode::serialize(data)
+            let bincode_data = bincode::serde::encode_to_vec(data, bincode::config::standard())
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
 
             use flate2::Compression;
@@ -766,7 +766,7 @@ pub fn save_data_to_file<T: Serialize>(
 
         #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
         FileFormat::BincodeLz4 => {
-            let bincode_data = bincode::serialize(data)
+            let bincode_data = bincode::serde::encode_to_vec(data, bincode::config::standard())
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             let compressed = lz4::block::compress(&bincode_data, None, true)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -777,7 +777,7 @@ pub fn save_data_to_file<T: Serialize>(
 
         #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
         FileFormat::BincodeZstd => {
-            let bincode_data = bincode::serialize(data)
+            let bincode_data = bincode::serde::encode_to_vec(data, bincode::config::standard())
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
             let compressed = zstd::encode_all(&bincode_data[..], 3)
                 .map_err(|e| PersistenceError::SerializationFailed(e.to_string()))?;
@@ -848,8 +848,10 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
         FileFormat::Bincode => {
             let bincode_data = std::fs::read(path)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            bincode::deserialize(&bincode_data)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            let (decoded, _): (T, usize) =
+                bincode::serde::decode_from_slice(&bincode_data, bincode::config::standard())
+                    .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+            Ok(decoded)
         }
 
         // 压缩格式处理
@@ -900,8 +902,12 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
             decoder
                 .read_to_end(&mut bincode_data)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            bincode::deserialize(&bincode_data)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            {
+                let (decoded, _): (T, usize) =
+                    bincode::serde::decode_from_slice(&bincode_data, bincode::config::standard())
+                        .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+                Ok(decoded)
+            }
         }
 
         #[cfg(all(feature = "format-bincode", feature = "compression-lz4"))]
@@ -910,8 +916,12 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let bincode_data = lz4::block::decompress(&compressed, None)
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            bincode::deserialize(&bincode_data)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            {
+                let (decoded, _): (T, usize) =
+                    bincode::serde::decode_from_slice(&bincode_data, bincode::config::standard())
+                        .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+                Ok(decoded)
+            }
         }
 
         #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
@@ -920,8 +930,12 @@ pub fn load_data_from_file<T: for<'de> Deserialize<'de>>(
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
             let bincode_data = zstd::decode_all(&compressed[..])
                 .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
-            bincode::deserialize(&bincode_data)
-                .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))
+            {
+                let (decoded, _): (T, usize) =
+                    bincode::serde::decode_from_slice(&bincode_data, bincode::config::standard())
+                        .map_err(|e| PersistenceError::DeserializationFailed(e.to_string()))?;
+                Ok(decoded)
+            }
         }
 
         // 其他格式回退到JSON字符串处理
