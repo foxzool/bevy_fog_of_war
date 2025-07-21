@@ -235,7 +235,10 @@ compile_error!(
 /// // Human-readable save for debugging
 /// let debug_request = SaveFogOfWarRequest {
 ///     include_texture_data: true,
+///     #[cfg(feature = "format-json")]
 ///     format: Some(SerializationFormat::Json),
+///     #[cfg(not(feature = "format-json"))]
+///     format: Some(SerializationFormat::Bincode),
 /// };
 /// ```
 ///
