@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_fog_of_war"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "async-channel",
  "bevy",

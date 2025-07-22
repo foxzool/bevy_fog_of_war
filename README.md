@@ -213,15 +213,16 @@ demonstrations.
 
 ## Serialization Formats
 
-The plugin supports multiple serialization formats for optimal performance and compatibility. Choose the format that best suits your needs:
+The plugin supports multiple serialization formats for optimal performance and compatibility. Choose the format that
+best suits your needs:
 
 ### Available Formats
 
-| Format | Size | Speed | Compatibility | Use Case |
-|--------|------|-------|---------------|----------|
-| **JSON** | Largest | Slow | Universal | Debug, web APIs, human-readable |
-| **MessagePack** | Small | Fast | Cross-language | Network, storage-efficient |
-| **bincode** | Smallest* | Fastest | Rust-only | Local saves, performance-critical |
+| Format          | Size      | Speed   | Compatibility  | Use Case                          |
+|-----------------|-----------|---------|----------------|-----------------------------------|
+| **JSON**        | Largest   | Slow    | Universal      | Debug, web APIs, human-readable   |
+| **MessagePack** | Small     | Fast    | Cross-language | Network, storage-efficient        |
+| **bincode**     | Smallest* | Fastest | Rust-only      | Local saves, performance-critical |
 
 *When combined with compression
 
@@ -268,15 +269,15 @@ use bevy_fog_of_war::prelude::*;
 
 // Request save with specific format
 save_events.write(SaveFogOfWarRequest {
-    include_texture_data: true,
-    format: Some(SerializationFormat::Json), // or MessagePack, Bincode
+include_texture_data: true,
+format: Some(SerializationFormat::Json), // or MessagePack, Bincode
 });
 
 // Load by reading file as bytes
-let data = std::fs::read("fog_save.msgpack")?;
+let data = std::fs::read("fog_save.msgpack") ?;
 load_events.write(LoadFogOfWarRequest {
-    data,
-    format: None, // Auto-detect format
+data,
+format: None, // Auto-detect format
 });
 ```
 
@@ -286,15 +287,15 @@ load_events.write(LoadFogOfWarRequest {
 // The plugin automatically selects optimal format based on available features
 // Priority: bincode > messagepack > json
 save_events.write(SaveFogOfWarRequest {
-    include_texture_data: true,
-    format: None, // Uses best available format
+include_texture_data: true,
+format: None, // Uses best available format
 });
 
 // Loading automatically detects format from file content
-let data = std::fs::read("fog_save.bincode")?;
+let data = std::fs::read("fog_save.bincode") ?;
 load_events.write(LoadFogOfWarRequest {
-    data,
-    format: None, // Auto-detects bincode format
+data,
+format: None, // Auto-detects bincode format
 });
 ```
 
@@ -305,7 +306,7 @@ The plugin automatically tries formats in optimal order:
 ```rust
 // Plugin tries formats in optimal order automatically
 // Priority: bincode.zst → msgpack.lz4 → bincode → msgpack → json
-let data = std::fs::read("fog_save.bincode")?;
+let data = std::fs::read("fog_save.bincode") ?;
 load_events.write(LoadFogOfWarRequest { data, format: None });
 ```
 
@@ -319,7 +320,8 @@ load_events.write(LoadFogOfWarRequest { data, format: None });
 
 ## Persistence
 
-The plugin supports saving and loading fog of war data, allowing you to persist explored areas across game sessions or per character/save file.
+The plugin supports saving and loading fog of war data, allowing you to persist explored areas across game sessions or
+per character/save file.
 
 ### Saving Fog of War Data
 
@@ -351,8 +353,8 @@ fn handle_save_complete(
 
         match std::fs::write(filename, &event.data) {
             Ok(_) => {
-                println!("✅ Saved {} chunks to '{}' - Format: {:?}", 
-                        event.chunk_count, filename, event.format);
+                println!("✅ Saved {} chunks to '{}' - Format: {:?}",
+                         event.chunk_count, filename, event.format);
             }
             Err(e) => {
                 eprintln!("❌ Failed to save fog data to '{}': {}", filename, e);
@@ -414,7 +416,7 @@ fn handle_load_complete(
 ) {
     for event in events.read() {
         println!("Loaded {} chunks", event.chunk_count);
-        
+
         if !event.warnings.is_empty() {
             println!("Warnings: {:?}", event.warnings);
         }
@@ -447,7 +449,7 @@ async fn load_from_server() -> Vec<u8> {
         .send()
         .await
         .unwrap();
-    
+
     response.bytes().await.unwrap().to_vec()
 }
 ```
@@ -458,7 +460,7 @@ See the [`playground.rs`](examples/playground.rs) example for a complete demonst
 
 | Bevy Version | Plugin Version |
 |--------------|----------------|
-| 0.16         | 0.2.1          |
+| 0.16         | 0.2, 0.3       |
 | 0.15         | 0.1.0          |
 
 ## License

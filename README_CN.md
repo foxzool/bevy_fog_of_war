@@ -210,11 +210,11 @@ fn main() {
 
 ### 可用格式
 
-| 格式 | 大小 | 速度 | 兼容性 | 使用场景 |
-|------|------|------|--------|----------|
-| **JSON** | 最大 | 慢 | 通用 | 调试、Web API、人类可读 |
-| **MessagePack** | 小 | 快 | 跨语言 | 网络传输、存储高效 |
-| **bincode** | 最小* | 最快 | 仅Rust | 本地存档、性能关键 |
+| 格式              | 大小  | 速度 | 兼容性   | 使用场景            |
+|-----------------|-----|----|-------|-----------------|
+| **JSON**        | 最大  | 慢  | 通用    | 调试、Web API、人类可读 |
+| **MessagePack** | 小   | 快  | 跨语言   | 网络传输、存储高效       |
+| **bincode**     | 最小* | 最快 | 仅Rust | 本地存档、性能关键       |
 
 *结合压缩时
 
@@ -261,15 +261,15 @@ use bevy_fog_of_war::prelude::*;
 
 // 请求保存并指定格式
 save_events.write(SaveFogOfWarRequest {
-    include_texture_data: true,
-    format: Some(SerializationFormat::Json), // 或 MessagePack、Bincode
+include_texture_data: true,
+format: Some(SerializationFormat::Json), // 或 MessagePack、Bincode
 });
 
 // 通过读取文件字节数据加载
-let data = std::fs::read("fog_save.msgpack")?;
+let data = std::fs::read("fog_save.msgpack") ?;
 load_events.write(LoadFogOfWarRequest {
-    data,
-    format: None, // 自动检测格式
+data,
+format: None, // 自动检测格式
 });
 ```
 
@@ -279,15 +279,15 @@ load_events.write(LoadFogOfWarRequest {
 // 插件根据可用功能自动选择最优格式
 // 优先级：bincode > messagepack > json
 save_events.write(SaveFogOfWarRequest {
-    include_texture_data: true,
-    format: None, // 使用最佳可用格式
+include_texture_data: true,
+format: None, // 使用最佳可用格式
 });
 
 // 加载时自动从文件内容检测格式
-let data = std::fs::read("fog_save.bincode")?;
+let data = std::fs::read("fog_save.bincode") ?;
 load_events.write(LoadFogOfWarRequest {
-    data,
-    format: None, // 自动检测bincode格式
+data,
+format: None, // 自动检测bincode格式
 });
 ```
 
@@ -298,7 +298,7 @@ load_events.write(LoadFogOfWarRequest {
 ```rust
 // 插件自动按最优顺序尝试格式
 // 优先级：bincode.zst → msgpack.lz4 → bincode → msgpack → json
-let data = std::fs::read("fog_save.bincode")?;
+let data = std::fs::read("fog_save.bincode") ?;
 load_events.write(LoadFogOfWarRequest { data, format: None });
 ```
 
@@ -344,8 +344,8 @@ fn handle_save_complete(
 
         match std::fs::write(filename, &event.data) {
             Ok(_) => {
-                println!("✅ 保存了 {} 个区块到 '{}' - 格式：{:?}", 
-                        event.chunk_count, filename, event.format);
+                println!("✅ 保存了 {} 个区块到 '{}' - 格式：{:?}",
+                         event.chunk_count, filename, event.format);
             }
             Err(e) => {
                 eprintln!("❌ 保存雾效数据到 '{}' 失败：{}", filename, e);
@@ -407,7 +407,7 @@ fn handle_load_complete(
 ) {
     for event in events.read() {
         println!("加载了 {} 个区块", event.chunk_count);
-        
+
         if !event.warnings.is_empty() {
             println!("警告: {:?}", event.warnings);
         }
@@ -440,7 +440,7 @@ async fn load_from_server() -> Vec<u8> {
         .send()
         .await
         .unwrap();
-    
+
     response.bytes().await.unwrap().to_vec()
 }
 ```
@@ -449,10 +449,10 @@ async fn load_from_server() -> Vec<u8> {
 
 ## 兼容性
 
-| Bevy 版本 | 插件版本  |
-|---------|-------|
-| 0.16    | 0.2.1 |
-| 0.15    | 0.1.0 |
+| Bevy 版本 | 插件版本     |
+|---------|----------|
+| 0.16    | 0.2, 0.3 |
+| 0.15    | 0.1.0    |
 
 ## 许可证
 
