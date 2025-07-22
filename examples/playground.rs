@@ -884,9 +884,10 @@ fn handle_reset_input(
 /// Handles P key (save) and L key (load) for fog persistence with format auto-detection.
 fn handle_persistence_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
     mut save_events: EventWriter<SaveFogOfWarRequest>,
     mut load_events: EventWriter<LoadFogOfWarRequest>,
-    mut force_snapshot_events: EventWriter<ForceSnapshotCapturables>,
+    capturable_entities: Query<Entity, With<Capturable>>,
     _player_query: Query<&Player>,
 ) {
     // 保存雾效数据
@@ -945,11 +946,13 @@ fn handle_persistence_input(
         }
     }
 
-    // F12键 - 强制快照屏幕中的所有Capturable实体
-    // F12 key - Force snapshot all Capturable entities on screen
+    // F12键 - 强制快照所有Capturable实体
+    // F12 key - Force snapshot all Capturable entities
     if keyboard_input.just_pressed(KeyCode::F12) {
-        info!("Forcing snapshots for all on-screen Capturable entities...");
-        force_snapshot_events.write(ForceSnapshotCapturables);
+        info!("Triggering snapshots for all Capturable entities...");
+        for entity in capturable_entities.iter() {
+            commands.entity(entity).insert(ForceSnapshotCapturables);
+        }
     }
 }
 

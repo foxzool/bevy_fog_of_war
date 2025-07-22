@@ -221,6 +221,7 @@ impl Plugin for FogOfWarPlugin {
         app.register_type::<VisionSource>()
             .register_type::<FogChunk>()
             .register_type::<Capturable>()
+            .register_type::<ForceSnapshotCapturables>()
             .register_type::<ChunkVisibility>()
             .register_type::<ChunkMemoryLocation>()
             .register_type::<ChunkState>()
