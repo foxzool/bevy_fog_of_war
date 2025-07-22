@@ -79,16 +79,18 @@
 //! - **Validation Checks**: Buffer readiness verified before bind group creation
 //! - **Resource Recovery**: System handles temporary resource unavailability
 
-use crate::render::compute::FogComputePipeline;
-use bevy_ecs::prelude::*;
-use bevy_render::render_asset::RenderAssets;
-use bevy_render::render_resource::{BindGroup, BindGroupEntries, Buffer, BufferInitDescriptor, BufferUsages};
-use bevy_render::renderer::RenderDevice;
-use bevy_render::texture::{FallbackImage, GpuImage};
 use super::extract::{
     ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture,
     RenderVisibilityTexture,
 };
+use crate::render::compute::FogComputePipeline;
+use bevy_ecs::prelude::*;
+use bevy_render::render_asset::RenderAssets;
+use bevy_render::render_resource::{
+    BindGroup, BindGroupEntries, Buffer, BufferInitDescriptor, BufferUsages,
+};
+use bevy_render::renderer::RenderDevice;
+use bevy_render::texture::{FallbackImage, GpuImage};
 
 // --- GPU Buffer Resources ---
 // --- GPU缓冲区资源 ---

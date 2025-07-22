@@ -65,11 +65,11 @@
 //! - **prepare**: GPU resource preparation and bind group management
 //! - **transfer**: CPU↔GPU memory transfer coordination
 
+use crate::prelude::*;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy_render::{Render, RenderApp, RenderSet};
 use bevy_render::render_graph::{RenderGraphApp, ViewNodeRunner};
 use bevy_render::renderer::render_system;
-use crate::prelude::*;
+use bevy_render::{Render, RenderApp, RenderSet};
 
 // Render pipeline submodules
 // 渲染管线子模块

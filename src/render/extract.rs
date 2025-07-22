@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Data extraction systems for transferring fog of war data from main world to render world.
 //! 将战争迷雾数据从主世界传输到渲染世界的数据提取系统
 //!
@@ -93,11 +95,11 @@
 //! - **Overlay Systems**: Render final fog effects using extracted information
 //! - **Transfer Systems**: Handle CPU↔GPU memory operations
 
+use crate::prelude::*;
 use bevy_asset::Handle;
 use bevy_color::ColorToComponents;
 use bevy_derive::{Deref, DerefMut};
 use bevy_image::Image;
-use crate::prelude::*;
 use bevy_math::{IVec2, Rect, UVec2, Vec2, Vec4};
 use bevy_render::Extract;
 use bevy_render::render_resource::ShaderType;
@@ -156,6 +158,7 @@ use bytemuck::{Pod, Zeroable};
 /// - **GPU Access**: Extremely fast uniform buffer access in shaders
 /// - **Memory Usage**: 80 bytes total, negligible memory overhead
 /// - **Cache Efficiency**: Small size fits in GPU cache lines
+#[allow(dead_code)]
 #[derive(Resource, Debug, Clone, Copy, Pod, Zeroable, ShaderType)]
 #[repr(C)]
 pub struct RenderFogMapSettings {

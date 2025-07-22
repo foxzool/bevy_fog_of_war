@@ -55,6 +55,9 @@
 //! }
 //! ```
 
+use self::prelude::*;
+use crate::persistence::FogOfWarPersistencePlugin;
+use crate::render::FogOfWarRenderPlugin;
 use bevy_asset::{Assets, RenderAssetUsages};
 use bevy_image::{Image, ImageSampler, ImageSamplerDescriptor};
 use bevy_math::{IVec2, Rect, Vec2};
@@ -65,9 +68,6 @@ use bevy_render::extract_resource::ExtractResourcePlugin;
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 use bevy_time::Time;
 use bevy_transform::components::GlobalTransform;
-use self::prelude::*;
-use crate::persistence::FogOfWarPersistencePlugin;
-use crate::render::FogOfWarRenderPlugin;
 
 mod components;
 mod data_transfer;

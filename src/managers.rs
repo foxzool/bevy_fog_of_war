@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use bevy_log::{debug, error, info, trace, warn};
+use bevy_math::IVec2;
 use bevy_reflect::Reflect;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use bevy_math::IVec2;
 
 /// Resource for efficient chunk coordinate to entity mapping and lookups.
 /// 快速查找区块坐标对应的 FogChunk 实体

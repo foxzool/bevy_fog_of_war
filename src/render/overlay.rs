@@ -105,13 +105,13 @@
 //! - **Compute-Based Overlay**: Move overlay to compute shaders for efficiency
 //! - **Tile-Based Rendering**: Process fog in screen-space tiles for better cache locality
 
-use bevy_asset::DirectAssetAccessExt;
 use super::RenderFogMapSettings;
 use super::extract::{
     OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
 };
 use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
 use crate::snapshot::SnapshotCamera;
+use bevy_asset::DirectAssetAccessExt;
 use bevy_core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryItem;

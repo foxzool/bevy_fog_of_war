@@ -1,24 +1,27 @@
+use crate::prelude::*;
+use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
+use crate::{FogSystems, RequestChunkSnapshot};
 use bevy_asset::{Assets, RenderAssetUsages};
 use bevy_color::Color;
 use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy_core_pipeline::prelude::Camera2d;
 use bevy_image::Image;
 use bevy_math::{IVec2, Rect};
+use bevy_render::RenderApp;
 use bevy_render::camera::RenderTarget;
 use bevy_render::extract_component::ExtractComponent;
 use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy_render::render_asset::RenderAssets;
-use bevy_render::render_graph::{Node, NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel};
-use bevy_render::render_resource::{Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages};
-use bevy_render::RenderApp;
+use bevy_render::render_graph::{
+    Node, NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel,
+};
+use bevy_render::render_resource::{
+    Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages,
+};
 use bevy_render::renderer::RenderContext;
 use bevy_render::texture::GpuImage;
 use bevy_render::view::RenderLayers;
 use bevy_transform::components::{GlobalTransform, Transform};
-use crate::prelude::*;
-use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
-use crate::{FogSystems, RequestChunkSnapshot};
-
 
 /// Plugin for managing fog of war snapshot system that captures previously explored areas.
 /// 管理战争迷雾快照系统的插件，该系统捕获先前探索过的区域
@@ -149,7 +152,7 @@ pub struct RequestCleanChunkSnapshot(pub IVec2);
 /// The component is automatically removed after the snapshot is processed.
 ///
 /// # Usage
-/// ```rust,norun
+/// ```rust
 /// fn trigger_force_snapshot_for_entity(mut commands: Commands, entity: Entity) {
 ///     commands.entity(entity).insert(ForceSnapshotCapturables);
 /// }
@@ -765,14 +768,20 @@ fn handle_request_chunk_snapshot_events(
 /// - **Performance Testing**: Controlled snapshot generation for benchmarking
 fn handle_force_snapshot_capturables(
     mut commands: Commands,
-    triggered_entities: Query<(Entity, &GlobalTransform), (With<Capturable>, With<ForceSnapshotCapturables>)>,
+    triggered_entities: Query<
+        (Entity, &GlobalTransform),
+        (With<Capturable>, With<ForceSnapshotCapturables>),
+    >,
     settings: Res<FogMapSettings>,
     chunk_manager: Res<ChunkEntityManager>,
     chunk_query: Query<&FogChunk>,
     mut snapshot_requests: ResMut<MainWorldSnapshotRequestQueue>,
 ) {
     for (entity, entity_transform) in triggered_entities.iter() {
-        info!("Processing ForceSnapshotCapturables trigger for entity {:?}", entity);
+        info!(
+            "Processing ForceSnapshotCapturables trigger for entity {:?}",
+            entity
+        );
 
         // Remove the trigger component now that we're processing it
         commands.entity(entity).remove::<ForceSnapshotCapturables>();
