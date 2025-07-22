@@ -4,133 +4,22 @@
 // Allow collapsible_if for stable Rust compatibility
 #![allow(clippy::collapsible_if)]
 //!
-//! This comprehensive example demonstrates the full capabilities of the bevy_fog_of_war
-//! plugin through an interactive playground with multiple vision sources, camera controls,
-//! persistence systems, and real-time debugging features.
+//! Demonstrates all features of the bevy_fog_of_war plugin in an interactive playground.
 //!
-//! # Features Demonstrated
+//! ## Controls
+//! - **WASD**: Move camera
+//! - **Arrow Keys**: Move player
+//! - **Mouse**: Click to move player
+//! - **F**: Toggle fog on/off
+//! - **R**: Reset fog
+//! - **PageUp/Down**: Adjust fog transparency
+//! - **P/L**: Save/Load fog data
+//! - **F12**: Force snapshot of all Capturable entities
 //!
-//! ## Core Fog of War Functionality
-//! - **Multiple Vision Sources**: Static and dynamic vision providers with different shapes
-//! - **Camera-Based Exploration**: Primary camera with FogOfWarCamera component
-//! - **Real-time Updates**: Fog responds instantly to entity movement
-//! - **Configurable Settings**: Runtime adjustment of fog properties
-//!
-//! ## Interactive Controls
-//! - **WASD**: Camera movement for exploring the world
-//! - **Arrow Keys**: Direct control of player vision source
-//! - **Mouse Controls**: Click-to-move targeting for player entity
-//! - **F Key**: Toggle fog rendering on/off
-//! - **R Key**: Complete fog reset to clear all exploration
-//! - **PageUp/PageDown**: Adjust fog transparency
-//!
-//! ## Persistence System
-//! - **P Key**: Save fog data with automatic format selection (bincode > messagepack > json)
-//! - **L Key**: Load fog data with automatic format detection
-//! - **F12 Key**: Force snapshot all Capturable entities currently on screen
-//! - **Compression Support**: Automatic zstd/lz4 compression when available
-//! - **Format Fallback**: Intelligent fallback to available serialization formats
-//!
-//! ## Entity Types and Behaviors
-//!
-//! ### Vision Sources
-//! - **Player**: Controllable circle vision (blue, 100 range)
-//! - **Static Source**: Fixed square vision (gold, 40 range)
-//! - **Geometric Shapes**: Cone vision with rotating directions (various ranges)
-//!
-//! ### Capturable Entities
-//! - **Rotating Entities**: Visible in snapshots when first explored
-//! - **Moving Sprite**: Horizontal movement with boundary collision
-//! - **Static Shapes**: Various geometric forms for visual testing
-//!
-//! ## Performance Monitoring
-//! - **FPS Display**: Real-time frame rate monitoring
-//! - **Chunk Statistics**: Active chunk count and camera view metrics
-//! - **Debug Visualization**: Chunk boundaries and layer indices when fog disabled
-//! - **Event Logging**: Comprehensive logging of fog operations
-//!
-//! # Usage Examples
-//!
-//! ## Basic Exploration
+//! ## Running
 //! ```bash
 //! cargo run --example playground
-//! # Use WASD to move camera around the world
-//! # Use arrow keys to move the blue player entity
-//! # Watch fog clear as you explore new areas
 //! ```
-//!
-//! ## Persistence Testing
-//! ```bash
-//! # Explore some areas, then save
-//! # Press P to save fog data
-//! # Press R to reset fog
-//! # Press L to load saved data
-//! ```
-//!
-//! ## Performance Analysis
-//! ```bash
-//! # Disable fog to see chunk debug info
-//! # Press F to toggle fog rendering
-//! # Observe chunk boundaries and statistics
-//! # Monitor FPS in top-left corner
-//! ```
-//!
-//! # Architecture
-//!
-//! ## System Organization
-//! The example follows a modular system architecture:
-//! - **Setup Systems**: `setup`, `setup_ui` - Initialize world and UI
-//! - **Input Systems**: Camera movement, vision control, keyboard shortcuts
-//! - **Update Systems**: FPS display, fog settings, entity animation
-//! - **Debug Systems**: Chunk visualization, event logging
-//! - **Persistence Systems**: Save/load handling with format detection
-//!
-//! ## Entity Spawning Pattern
-//! ```rust
-//! // Camera with fog support
-//! commands.spawn((Camera2d, FogOfWarCamera));
-//!
-//! // Vision source entity
-//! commands.spawn((
-//!     Sprite { /* ... */ },
-//!     Transform::from_translation(position),
-//!     VisionSource {
-//!         range: 100.0,
-//!         shape: VisionShape::Circle,
-//!         // ... other properties
-//!     },
-//! ));
-//!
-//! // Capturable entity (appears in snapshots)
-//! commands.spawn((
-//!     Sprite { /* ... */ },
-//!     Transform::from_translation(position),
-//!     Capturable,
-//! ));
-//! ```
-//!
-//! ## Performance Characteristics
-//! - **Entity Count**: ~15 entities total (minimal overhead)
-//! - **Vision Sources**: 6 active vision sources with different shapes
-//! - **Update Frequency**: 60 FPS target with real-time fog updates
-//! - **Memory Usage**: Dynamic chunk loading based on camera view
-//! - **GPU Usage**: Efficient compute shaders for fog calculations
-//!
-//! # Educational Value
-//!
-//! This example serves as:
-//! - **Integration Guide**: Shows proper plugin setup and configuration
-//! - **Feature Showcase**: Demonstrates all major fog of war capabilities
-//! - **Performance Baseline**: Provides reference implementation for optimization
-//! - **Testing Environment**: Interactive sandbox for experimenting with settings
-//! - **Debug Tool**: Visual debugging of chunk systems and fog rendering
-//!
-//! # File Structure
-//! - **Components**: Custom marker components for different entity types
-//! - **Resources**: Global state management (TargetPosition)
-//! - **Systems**: Modular functions handling specific behaviors
-//! - **Setup Functions**: World initialization and UI creation
-//! - **Event Handlers**: Persistence and reset event processing
 
 use bevy::diagnostic::FrameCount;
 use bevy::{
@@ -243,76 +132,13 @@ struct RotationAble;
 /// Component for entities that move horizontally back and forth.
 #[derive(Component)]
 struct HorizontalMover {
-    /// Movement direction: 1.0 for right, -1.0 for left.
-    direction: f32,
+    direction: f32, // 1.0 for right, -1.0 for left
 }
 
 /// Horizontal extent for distributing geometric shapes across the scene.
-/// 在场景中分布几何形状的水平范围
-///
-/// This constant defines the total width over which various geometric shapes
-/// are distributed during scene setup. Shapes are evenly spaced from
-/// -X_EXTENT/2 to +X_EXTENT/2 in world coordinates.
-///
-/// # Usage
-/// - **Shape Distribution**: Spreads 10 different geometric shapes evenly
-/// - **World Layout**: Defines the horizontal span of the demo scene
-/// - **Coordinate System**: Centered around world origin (0, 0)
-///
-/// # Mathematical Distribution
-/// For n shapes, shape i is positioned at:
-/// ```
-/// x = -X_EXTENT/2 + i / (n-1) * X_EXTENT
-/// ```
-/// This creates even spacing across the full extent.
 const X_EXTENT: f32 = 900.;
 
-/// Sets up the initial scene with camera, entities, and vision sources for the fog of war demo.
-/// 为战争迷雾演示设置初始场景，包括相机、实体和视野源
-///
-/// This function creates a comprehensive test environment with multiple entity types:
-/// 1. **Camera Setup**: 2D camera with fog rendering capabilities
-/// 2. **Text Elements**: Debug and information displays
-/// 3. **Vision Sources**: Multiple entities with different vision configurations
-/// 4. **Capturable Entities**: Objects that appear in fog snapshots
-/// 5. **Geometric Shapes**: Array of different shapes for visual variety
-///
-/// # Entity Categories
-///
-/// ## Camera Entity
-/// - **Components**: Camera2d, FogMaterialComponent, FogOfWarCamera
-/// - **Purpose**: Primary viewpoint with fog rendering integration
-///
-/// ## Vision Source Entities
-/// - **Gold Square**: Static 40-range square vision at (0, -50)
-/// - **Player Circle**: Movable 100-range circle vision at (-200, -200)
-/// - **Shape Cones**: Odd-indexed shapes with cone vision, varying ranges
-///
-/// ## Capturable Entities
-/// - **Cyan Rotator**: Rotating entity at (-200, -50) for snapshot testing
-/// - **Purple Mover**: Horizontally moving entity at (-400, -100)
-/// - **Even Shapes**: Even-indexed geometric shapes for snapshot capture
-///
-/// ## Geometric Shapes Array
-/// Creates 10 different shapes distributed across X_EXTENT:
-/// - Circle, CircularSector, CircularSegment, Ellipse, Annulus
-/// - Capsule2d, Rhombus, Rectangle, RegularPolygon, Triangle2d
-///
-/// # Performance Characteristics
-/// - **Entity Count**: ~15 total entities (reasonable for demo)
-/// - **Vision Sources**: 6 active vision sources with different configurations
-/// - **Memory Usage**: Minimal geometric mesh allocations
-/// - **GPU Impact**: Multiple vision calculations, but within acceptable limits
-///
-/// # Asset Dependencies
-/// - **Font**: "fonts/FiraSans-Bold.ttf" for text rendering
-/// - **Materials**: ColorMaterial instances for shape rendering
-/// - **Meshes**: Various 2D geometric shapes from Bevy's primitives
-///
-/// # Color Scheme
-/// - **Vision Sources**: Gold (square), cyan (player), HSL rainbow (cones)
-/// - **Capturable**: Cyan and purple for visual distinction
-/// - **Shapes**: HSL rainbow distribution for visual variety
+/// Sets up the initial scene with camera, entities, and vision sources.
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -571,63 +397,7 @@ fn update_fog_settings(
 }
 
 /// Creates and configures the user interface elements for the fog of war demo.
-/// 为战争迷雾演示创建和配置用户界面元素
-///
-/// This system sets up all UI text elements that provide information and
-/// feedback to the user during the demo. UI elements are positioned using
-/// absolute positioning for precise layout control.
-///
-/// # UI Elements Created
-///
-/// ## FPS Display (Top-Left)
-/// - **Position**: 10px from top and left edges
-/// - **Content**: "FPS: {value}" with real-time frame rate
-/// - **Color**: Medium gray for unobtrusive display
-/// - **Structure**: Parent text + child span for dynamic value updates
-///
-/// ## Fog Settings Info (Below FPS)
-/// - **Position**: 40px from top, 10px from left
-/// - **Content**: Fog status, controls, and alpha percentage
-/// - **Updates**: Real-time updates based on user input
-/// - **Alignment**: Left-justified multi-line text
-///
-/// ## Control Instructions (Bottom-Left)
-/// - **Position**: 20px from bottom, 10px from left
-/// - **Content**: Complete list of keyboard controls
-/// - **Purpose**: User reference for all available interactions
-/// - **Style**: Smaller font, darker gray for reference info
-///
-/// ## Title Text (Bottom-Right)
-/// - **Position**: 20px from bottom and right edges
-/// - **Content**: "Fog of War" application title
-/// - **Style**: Large 32px font, medium gray
-/// - **Future**: Marked for color animation (ColorAnimatedText)
-///
-/// # Text Hierarchy
-/// ```text
-/// ┌────────────┐               ┌─────────┐
-/// │ FPS: 60.0   │               │         │
-/// │ Fog: On     │               │         │
-/// │ Alpha: 75%  │               │         │
-/// │            │      ...      │         │
-/// │            │               │         │
-/// │            │               │         │
-/// │ Controls:   │               │ Fog of  │
-/// │ WASD-Move   │               │   War   │
-/// └────────────┘               └─────────┘
-/// ```
-///
-/// # Performance Characteristics
-/// - **One-time Setup**: Called only during application startup
-/// - **Memory**: Minimal text allocation for UI strings
-/// - **Rendering**: Efficient UI rendering via Bevy's built-in text system
-/// - **Updates**: Only dynamic elements (FPS, settings) update after creation
-///
-/// # Accessibility
-/// - **Readable Fonts**: Uses FiraSans-Bold for clear text rendering
-/// - **Contrast**: Medium/dark gray colors provide good contrast on white background
-/// - **Size**: Appropriate font sizes for different information types
-/// - **Positioning**: Non-overlapping layout with clear visual hierarchy
+/// Creates UI elements for FPS display, fog settings, controls, and title text.
 fn setup_ui(mut commands: Commands) {
     // 创建 FPS 显示文本
     // Create FPS display text
@@ -736,45 +506,7 @@ fn setup_ui(mut commands: Commands) {
     ));
 }
 
-/// System that updates the FPS display text with current frame rate information.
-/// 使用当前帧率信息更新FPS显示文本的系统
-///
-/// This system reads frame time diagnostics from Bevy and updates the FPS
-/// display text with smoothed frame rate values. Provides real-time performance
-/// monitoring for users and developers.
-///
-/// # Data Source
-/// - **DiagnosticsStore**: Bevy's built-in performance monitoring system
-/// - **FrameTimeDiagnosticsPlugin::FPS**: Specific FPS diagnostic metric
-/// - **Smoothed Values**: Uses smoothed average rather than instantaneous FPS
-///
-/// # Update Process
-/// 1. **Query Entities**: Find all text spans marked with FpsText component
-/// 2. **Read Diagnostics**: Access current FPS data from diagnostics store
-/// 3. **Extract Value**: Get smoothed FPS value if available
-/// 4. **Format Text**: Convert to string with 1 decimal place precision
-/// 5. **Update Display**: Set text span content to formatted FPS value
-///
-/// # Display Format
-/// - **Precision**: One decimal place (e.g., "60.1")
-/// - **Units**: Frames per second (implicit, not displayed)
-/// - **Fallback**: Text unchanged if FPS data unavailable
-///
-/// # Performance Characteristics
-/// - **Update Frequency**: Every frame (60+ times per second)
-/// - **CPU Cost**: Minimal diagnostic lookup and string formatting
-/// - **Memory**: Small string allocation per update
-/// - **Time Complexity**: O(n) where n = number of FPS text elements
-///
-/// # Error Handling
-/// - **Missing Diagnostics**: Silently continues without updating text
-/// - **No FPS Data**: Preserves previous text content
-/// - **Multiple Elements**: Handles multiple FPS displays if present
-///
-/// # Integration Points
-/// - **FpsText Component**: Targets specific UI elements for updates
-/// - **DiagnosticsStore**: Reads from Bevy's performance monitoring
-/// - **TextSpan**: Updates dynamic text content within UI hierarchy
+/// Updates the FPS display text with current frame rate.
 fn update_fps_text(
     diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut TextSpan, With<FpsText>>,
@@ -790,13 +522,7 @@ fn update_fps_text(
     }
 }
 
-/// System that updates count display text with current frame number.
-/// 使用当前帧号更新计数显示文本的系统
-///
-/// This system provides a simple frame counter display that shows how many
-/// frames have been rendered since application start. Useful for debugging,
-/// timing analysis, and tracking application runtime.
-///
+/// Updates count display text with current frame number.
 /// # Data Source
 /// - **FrameCount**: Bevy's built-in resource tracking total frames rendered
 /// - **Incremental**: Counter increases by 1 every frame
@@ -829,59 +555,7 @@ fn update_count_text(mut query: Query<&mut Text2d, With<CountText>>, frame_count
     }
 }
 
-/// System for controlling player movement via keyboard input and mouse click-to-move.
-/// 通过键盘输入和鼠标点击移动控制玩家移动的系统
-///
-/// This system provides dual control mechanisms for the player entity:
-/// immediate keyboard control and smooth click-to-move targeting.
-/// It handles input processing, coordinate conversion, and smooth movement interpolation.
-///
-/// # Control Methods
-///
-/// ## Keyboard Controls (Arrow Keys)
-/// - **↑ Up**: Move north (positive Y)
-/// - **↓ Down**: Move south (negative Y)
-/// - **← Left**: Move west (negative X)
-/// - **→ Right**: Move east (positive X)
-/// - **Immediate**: Direct position updates, cancels mouse targets
-///
-/// ## Mouse Click-to-Move
-/// - **Left Click**: Set target position in world coordinates
-/// - **Smooth Movement**: Gradual interpolation toward target
-/// - **Cancellation**: Arrow key input cancels current mouse target
-/// - **Precision**: 5.0 unit tolerance for reaching targets
-///
-/// # Movement Mechanics
-/// - **Speed**: 200.0 units per second for both control methods
-/// - **Normalization**: Direction vectors normalized to prevent speed variations
-/// - **Delta Time**: Frame-rate independent movement calculations
-/// - **Overshoot Protection**: Prevents moving past click targets
-///
-/// # Coordinate Conversion
-/// Mouse clicks undergo screen-to-world coordinate conversion:
-/// 1. **Screen Position**: Mouse cursor position in window pixels
-/// 2. **Camera Query**: Get camera and transform for ray casting
-/// 3. **Viewport Ray**: Convert screen coordinates to world ray
-/// 4. **2D Projection**: Extract X,Y coordinates for 2D movement
-/// 5. **Target Storage**: Store world position in TargetPosition resource
-///
-/// # State Management
-/// - **TargetPosition Resource**: Shared state for click-to-move targets
-/// - **Priority System**: Keyboard input overrides mouse targets
-/// - **Persistence**: Targets persist until reached or cancelled
-///
-/// # Performance Characteristics
-/// - **Input Processing**: Arrow key polling every frame
-/// - **Mouse Handling**: Ray casting only when clicked
-/// - **Movement Math**: Vector operations for interpolation
-/// - **Query Efficiency**: Single entity queries for player and camera
-/// - **Time Complexity**: O(1) per frame
-///
-/// # Integration Points
-/// - **MovableVision Component**: Identifies controllable entities
-/// - **TargetPosition Resource**: Global state for click targets
-/// - **FogOfWarCamera**: Camera used for coordinate conversion
-/// - **VisionSource**: Usually combined for exploration capabilities
+/// Handles player movement via arrow keys and mouse click-to-move.
 fn movable_vision_control(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -1050,109 +724,14 @@ fn horizontal_movement_system(
     }
 }
 
-/// System that applies continuous Z-axis rotation to entities marked with RotationAble.
-/// 对标记为RotationAble的实体应用连续 Z轴旋转的系统
-///
-/// This system provides smooth, continuous rotation animation for entities
-/// that should spin around their center point. Used for visual variety
-/// and to test fog of war behavior with changing entity orientations.
-///
-/// # Rotation Properties
-/// - **Rotation Rate**: π/2 radians per second (90 degrees per second)
-/// - **Axis**: Z-axis rotation (clockwise when viewed from positive Z)
-/// - **Continuity**: Smooth rotation without pauses or direction changes
-/// - **Time-based**: Frame-rate independent using delta time
-///
-/// # Mathematical Details
-/// ```rust
-/// rotation_per_frame = FRAC_PI_2 * delta_seconds
-/// // At 60 FPS: π/2 * (1/60) = ~0.026 radians per frame
-/// // Full rotation takes: 2π / (π/2) = 4 seconds
-/// ```
-///
-/// # Visual Effects
-/// - **Entity Animation**: Provides continuous visual movement
-/// - **Fog Testing**: Tests how fog responds to entity orientation changes
-/// - **Scene Dynamics**: Adds life to otherwise static scene elements
-/// - **Recognition**: Helps identify which entities have this behavior
-///
-/// # Performance Characteristics
-/// - **Update Frequency**: Every frame for smooth rotation
-/// - **CPU Cost**: Simple trigonometric function call per entity
-/// - **Memory**: No additional allocations, just transform updates
-/// - **Time Complexity**: O(n) where n = number of RotationAble entities
-/// - **GPU Impact**: Transform changes trigger render updates
-///
-/// # Integration Points
-/// - **RotationAble Component**: Identifies entities for rotation
-/// - **Transform Component**: Modified for rotation updates
-/// - **Rendering System**: Rotated transforms affect visual rendering
-/// - **Fog System**: Rotating entities may affect fog calculations if they're vision sources
-///
-/// # Use Cases
-/// - **Visual Polish**: Adds professional animation quality
-/// - **Testing**: Verifies fog system handles dynamic entity states
-/// - **Identification**: Makes certain entities easily recognizable
-/// - **Performance Testing**: Provides consistent transform update load
+/// Continuously rotates entities marked with RotationAble around Z-axis.
 fn rotate_entities_system(time: Res<Time>, mut query: Query<&mut Transform, With<RotationAble>>) {
     for mut transform in query.iter_mut() {
         transform.rotate_z(std::f32::consts::FRAC_PI_2 * time.delta_secs()); // 90 degrees per second / 每秒旋转90度
     }
 }
 
-/// System that monitors and logs fog reset operation results.
-/// 监控和记录雾效重置操作结果的系统
-///
-/// This system provides comprehensive logging and user feedback for fog reset
-/// operations, handling both successful completions and failure scenarios.
-/// It processes events from the fog reset system and provides informative
-/// console output for debugging and user awareness.
-///
-/// # Event Types Handled
-///
-/// ## FogResetSuccess Events
-/// - **Duration Logging**: Reports how long the reset operation took
-/// - **Chunk Statistics**: Shows number of chunks that were reset
-/// - **Success Confirmation**: Provides positive feedback with ✓ icon
-/// - **Performance Data**: Helps identify reset performance patterns
-///
-/// ## FogResetFailed Events
-/// - **Error Reporting**: Logs specific error details
-/// - **Duration Tracking**: Shows partial completion time before failure
-/// - **Failure Indication**: Provides clear error feedback with ✗ icon
-/// - **Debug Information**: Helps troubleshoot reset issues
-///
-/// # Logging Format
-/// ```text
-/// Success: ✅ Fog reset completed successfully! Duration: 125ms, Chunks reset: 47
-/// Failure: ❌ Fog reset failed! Duration: 89ms, Error: Texture reset failed: GPU allocation error
-/// ```
-///
-/// # Performance Characteristics
-/// - **Event Processing**: Minimal overhead, only when events occur
-/// - **Logging Cost**: String formatting and console output
-/// - **Memory**: Temporary string allocations for log messages
-/// - **Frequency**: Infrequent, only during reset operations
-///
-/// # Integration Points
-/// - **FogResetSuccess**: Successful reset completion events
-/// - **FogResetFailed**: Failed reset attempt events
-/// - **Logging System**: Uses Bevy's info! and error! macros
-/// - **User Feedback**: Provides immediate feedback for reset operations
-///
-/// # Debug Value
-/// - **Performance Monitoring**: Track reset operation timing
-/// - **Error Diagnosis**: Detailed error information for troubleshooting
-/// - **User Experience**: Clear feedback about operation status
-/// - **Development**: Helps optimize reset system performance
-///
-/// # Error Categories
-/// The system can log various error types:
-/// - Texture reset failures
-/// - GPU memory issues
-/// - Synchronization problems
-/// - Timeout errors
-/// - Unknown system failures
+/// Logs fog reset operation results for debugging and user feedback.
 fn handle_fog_reset_events(
     mut success_events: EventReader<FogResetSuccess>,
     mut failure_events: EventReader<FogResetFailed>,
@@ -1172,78 +751,7 @@ fn handle_fog_reset_events(
     }
 }
 
-/// System that provides visual debugging of fog of war chunk system.
-/// 提供战争迷雾区块系统可视化调试的系统
-///
-/// This comprehensive debugging system visualizes the internal state of the
-/// fog of war chunk system when fog rendering is disabled. It provides
-/// essential information for developers and advanced users to understand
-/// how the chunk system operates.
-///
-/// # Debug Visualizations
-///
-/// ## Chunk Boundaries
-/// - **Visual**: Red translucent rectangles outlining each chunk
-/// - **Purpose**: Shows chunk spatial division of the world
-/// - **Alpha**: 0.3 transparency to avoid obscuring scene content
-/// - **Shape**: Rectangle matching exact chunk world bounds
-///
-/// ## Chunk Information Text
-/// - **Snapshot Layer ID**: Which layer in snapshot texture array
-/// - **Fog Layer ID**: Which layer in fog texture array  
-/// - **Coordinates**: Chunk coordinates in chunk space (x, y)
-/// - **Position**: Centered within each chunk boundary
-/// - **Font**: FiraSans-Bold, 13px for readability
-///
-/// ## Statistics Display
-/// Updates fog settings text with real-time chunk metrics:
-/// - **Total Chunks**: Count of all active chunk entities
-/// - **Chunks in Vision**: Number of chunks within camera view
-/// - **Performance Insight**: Helps monitor chunk loading behavior
-///
-/// # Conditional Rendering
-/// Debug visualization only appears when:
-/// - **fog_settings.enabled == false**: Fog rendering is disabled
-/// - **Debug Mode**: Prevents interference with normal fog rendering
-/// - **Performance**: No overhead when fog is enabled
-///
-/// # Information Format
-/// ```text
-/// Chunk Text Display:
-/// sid: Some(15)     // Snapshot layer index
-/// lid: Some(23)     // Fog layer index  
-/// (2, -1)          // Chunk coordinates
-///
-/// Statistics Addition:
-/// [Previous fog settings text]
-/// Total Chunks: 12
-/// Chunks in Vision: 6
-/// ```
-///
-/// # Performance Characteristics
-/// - **Conditional Execution**: Only runs when fog disabled
-/// - **Gizmo Rendering**: Efficient GPU debug drawing
-/// - **Text Creation**: Dynamic text spawning for new chunks
-/// - **Query Efficiency**: Single pass through chunk entities
-/// - **Memory**: Temporary gizmo and text allocations
-///
-/// # Development Benefits
-/// - **Chunk Visualization**: See chunk spatial organization
-/// - **Layer Tracking**: Monitor texture array allocation
-/// - **Performance Analysis**: Track chunk loading patterns
-/// - **Memory Debugging**: Identify chunk creation/destruction
-/// - **Spatial Understanding**: Visualize world-to-chunk mapping
-///
-/// # Asset Dependencies
-/// - **Font**: "fonts/FiraSans-Bold.ttf" for debug text
-/// - **Gizmos**: Bevy's debug drawing system
-/// - **UI System**: Text component and styling systems
-///
-/// # Use Cases
-/// - **Development**: Understanding chunk system behavior
-/// - **Debugging**: Diagnosing chunk loading issues
-/// - **Optimization**: Identifying unnecessary chunk creation
-/// - **Education**: Learning how fog of war chunks work
+/// Draws chunk boundaries and debug info when fog is disabled.
 fn debug_draw_chunks(
     mut gizmos: Gizmos,
     mut chunk_query: Query<(Entity, &FogChunk, Option<&mut Text2d>)>,
@@ -1373,90 +881,7 @@ fn handle_reset_input(
     }
 }
 
-/// System that handles keyboard input for fog of war save and load operations.
-/// 处理战争迷雾保存和加载操作的键盘输入系统
-///
-/// This system provides a comprehensive persistence interface with intelligent
-/// format selection and automatic fallback mechanisms. It supports multiple
-/// serialization formats with compression, automatically choosing the best
-/// available option based on compiled features.
-///
-/// # Controls
-/// - **P Key**: Save fog data with automatic format selection
-/// - **L Key**: Load fog data with automatic format detection
-///
-/// # Save Operation (P Key)
-/// When save is triggered:
-/// 1. **Event Creation**: SaveFogOfWarRequest with texture data included
-/// 2. **Format Selection**: Uses None for automatic format prioritization
-/// 3. **Priority Order**: bincode → messagepack → json (best to fallback)
-/// 4. **Compression**: Automatic compression when features available
-/// 5. **User Feedback**: Log message confirms save initiation
-///
-/// # Load Operation (L Key)
-/// Implements intelligent file detection and loading:
-///
-/// ## Format Priority Search
-/// Attempts to load files in order of efficiency:
-/// 1. **bincode.zst**: Binary + Zstd compression (best performance)
-/// 2. **msgpack.lz4**: MessagePack + LZ4 compression (good performance)
-/// 3. **bincode**: Binary format (compact)
-/// 4. **msgpack**: MessagePack format (portable)
-/// 5. **json**: JSON format (human readable, fallback)
-///
-/// ## File Detection Process
-/// ```rust
-/// for format in ["bincode.zst", "msgpack.lz4", "bincode", "msgpack", "json"] {
-///     if file_exists(format!("fog_save.{}", format)) {
-///         load_file_and_send_event();
-///         break;
-///     }
-/// }
-/// ```
-///
-/// ## Automatic Format Detection
-/// - **Binary Reading**: Loads file as raw bytes
-/// - **Format Detection**: Uses None for automatic content-based detection
-/// - **Error Handling**: Continues to next format if current fails
-/// - **User Feedback**: Success or failure logging
-///
-/// # Conditional Compilation
-/// Format availability depends on cargo features:
-/// - **format-bincode**: Enables binary serialization
-/// - **format-messagepack**: Enables MessagePack serialization
-/// - **compression-zstd**: Enables Zstd compression
-/// - **compression-lz4**: Enables LZ4 compression
-/// - **Default**: JSON always available as fallback
-///
-/// # Performance Characteristics
-/// - **Input Polling**: Checks P and L keys every frame
-/// - **File I/O**: Disk operations only when keys pressed
-/// - **Format Detection**: Sequential file existence checks
-/// - **Memory**: File content loaded into memory during load
-/// - **CPU Cost**: Minimal until persistence operations triggered
-///
-/// # Error Handling
-/// - **File Not Found**: Continues to next format in priority list
-/// - **Read Failures**: Logs warning if no files found
-/// - **Format Errors**: Handled by fog system during deserialization
-/// - **User Feedback**: Clear success/failure messages
-///
-/// # Integration Points
-/// - **SaveFogOfWarRequest**: Event for save operations
-/// - **LoadFogOfWarRequest**: Event for load operations
-/// - **File System**: Direct file I/O for format detection
-/// - **Feature Flags**: Conditional compilation for formats
-/// - **Logging**: Comprehensive user feedback
-///
-/// # File Organization
-/// Expected file structure:
-/// ```text
-/// fog_save.bincode.zst   (highest priority)
-/// fog_save.msgpack.lz4
-/// fog_save.bincode
-/// fog_save.msgpack
-/// fog_save.json         (lowest priority, always available)
-/// ```
+/// Handles P key (save) and L key (load) for fog persistence with format auto-detection.
 fn handle_persistence_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut save_events: EventWriter<SaveFogOfWarRequest>,
@@ -1528,76 +953,7 @@ fn handle_persistence_input(
     }
 }
 
-/// System that processes fog of war save completion events and writes data to disk.
-/// 处理战争迷雾保存完成事件并将数据写入磁盘的系统
-///
-/// This system handles the final stage of the save process by writing serialized
-/// fog data to disk files. It receives save completion events from the fog system
-/// and manages file creation, naming, and error handling.
-///
-/// # Event Processing
-/// For each FogOfWarSaved event received:
-/// 1. **Format Detection**: Determines file extension based on serialization format
-/// 2. **File Writing**: Writes binary data directly to disk
-/// 3. **Error Handling**: Comprehensive error logging and user feedback
-/// 4. **Size Reporting**: Displays file size and chunk count information
-///
-/// # File Naming Convention
-/// Files are named based on serialization format:
-/// - **SerializationFormat::Json**: "fog_save.json"
-/// - **SerializationFormat::MessagePack**: "fog_save.msgpack" (if feature enabled)
-/// - **SerializationFormat::Bincode**: "fog_save.bincode" (if feature enabled)
-///
-/// # File Content
-/// - **Binary Data**: Direct write of event.data bytes to disk
-/// - **No Transcoding**: Uses serialized data exactly as provided
-/// - **Compression**: Data may already be compressed by fog system
-/// - **Format Preservation**: Maintains exact serialization format
-///
-/// # Success Feedback
-/// When save succeeds:
-/// ```text
-/// ✅ Saved 47 chunks to 'fog_save.bincode' (234.5 KB) - Format: Bincode
-/// ```
-/// - **✅ Icon**: Visual success indicator
-/// - **Chunk Count**: Number of chunks saved
-/// - **File Name**: Exact filename created
-/// - **File Size**: Human-readable file size
-/// - **Format**: Serialization format used
-///
-/// # Error Feedback
-/// When save fails:
-/// ```text
-/// ❌ Failed to save fog data to 'fog_save.json': Permission denied
-/// ```
-/// - **❌ Icon**: Visual error indicator
-/// - **File Name**: Attempted filename
-/// - **Error Details**: Specific OS error message
-///
-/// # Performance Characteristics
-/// - **Event Frequency**: Only when save operations complete
-/// - **I/O Operations**: Direct file write to disk
-/// - **Memory**: Temporary access to serialized data
-/// - **Error Handling**: Immediate feedback on write status
-/// - **File Size**: Varies based on explored area and format
-///
-/// # Integration Points
-/// - **FogOfWarSaved Event**: Receives completion events from fog system
-/// - **File System**: Direct disk I/O operations
-/// - **Size Utilities**: Uses get_file_size_info for human-readable sizes
-/// - **Logging**: Provides user feedback via info! and error! macros
-///
-/// # File System Considerations
-/// - **Permissions**: Requires write access to current directory
-/// - **Disk Space**: File size depends on world exploration extent
-/// - **Overwriting**: Replaces existing files with same names
-/// - **Error Recovery**: Logs errors but doesn't retry or rollback
-///
-/// # Data Integrity
-/// - **Direct Write**: Preserves exact serialized data
-/// - **No Modification**: System doesn't alter fog system output
-/// - **Atomic Operations**: File write is atomic (success or failure)
-/// - **Error Detection**: Immediate feedback on write failures
+/// Writes fog save completion events to disk files with appropriate extensions.
 fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
     for event in events.read() {
         // 直接使用序列化后的二进制数据
@@ -1627,73 +983,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
     }
 }
 
-/// System that processes fog of war load completion events and provides user feedback.
-/// 处理战争迷雾加载完成事件并提供用户反馈的系统
-///
-/// This system handles the completion of fog data loading operations by
-/// processing load result events and providing comprehensive feedback
-/// to the user about the success or issues encountered during loading.
-///
-/// # Event Processing
-/// For each FogOfWarLoaded event received:
-/// 1. **Success Logging**: Reports successful load with chunk count
-/// 2. **Warning Processing**: Displays any warnings encountered during load
-/// 3. **User Feedback**: Provides clear status information
-/// 4. **Debug Information**: Helps identify potential data issues
-///
-/// # Success Feedback
-/// When load completes successfully:
-/// ```text
-/// Successfully loaded 47 chunks
-/// ```
-/// - **Chunk Count**: Number of chunks restored from saved data
-/// - **Confirmation**: Clear indication that operation completed
-/// - **Data Integrity**: Implies successful data restoration
-///
-/// # Warning Handling
-/// If warnings occurred during loading:
-/// ```text
-/// Successfully loaded 47 chunks
-/// Load warnings:
-///   - Chunk (2, 3) has invalid texture data, using defaults
-///   - Missing fog layer allocation for chunk (-1, 5)
-/// ```
-/// - **Warning Section**: Clearly separated warning information
-/// - **Specific Issues**: Detailed description of each warning
-/// - **Impact Assessment**: Helps user understand data quality
-///
-/// # Warning Categories
-/// Common warnings include:
-/// - **Invalid Texture Data**: Corrupted or incompatible texture information
-/// - **Missing Allocations**: GPU layer allocation failures
-/// - **Format Compatibility**: Version or feature compatibility issues
-/// - **Partial Data**: Some chunks missing or incomplete
-/// - **Resource Constraints**: GPU memory limitations during restore
-///
-/// # Performance Characteristics
-/// - **Event Frequency**: Only when load operations complete
-/// - **Processing Cost**: Minimal string formatting and logging
-/// - **Memory**: Temporary access to warning strings
-/// - **User Impact**: Immediate feedback on load status
-///
-/// # Integration Points
-/// - **FogOfWarLoaded Event**: Receives completion events from fog system
-/// - **Logging System**: Uses info! and warn! macros for output
-/// - **User Interface**: Provides console feedback for load operations
-/// - **Debug Support**: Warning details help diagnose load issues
-///
-/// # User Experience
-/// - **Clear Feedback**: Immediate confirmation of load success
-/// - **Issue Transparency**: Warnings help user understand data state
-/// - **No Action Required**: System handles warnings automatically
-/// - **Debug Support**: Warning details available for troubleshooting
-///
-/// # Data Quality Assessment
-/// The warning system helps users understand:
-/// - **Save File Integrity**: Whether saved data is fully intact
-/// - **Compatibility Issues**: Version or feature mismatches
-/// - **Resource Limitations**: Current system constraints
-/// - **Expected Behavior**: What to expect after load with warnings
+/// Logs fog load completion results and any warnings.
 fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
     for event in events.read() {
         info!("Successfully loaded {} chunks", event.chunk_count);
