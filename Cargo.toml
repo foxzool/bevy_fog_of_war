@@ -13,44 +13,22 @@ categories = ["game-development"]
 readme = "README.md"
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = [
-    "std",
-    "async_executor",
-    "android-game-activity",
-    "android_shared_stdcxx",
-    "bevy_asset",
-    "bevy_color",
-    "bevy_core_pipeline",
-    "bevy_gilrs",
-    "bevy_gizmos",
-    "bevy_gltf",
-    "bevy_input_focus",
-    "bevy_log",
-    "bevy_mesh_picking_backend",
-    "bevy_pbr",
-    "bevy_picking",
-    "bevy_render",
-    "bevy_scene",
-    "bevy_sprite",
-    "bevy_sprite_picking_backend",
-    "bevy_state",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_picking_backend",
-    "bevy_window",
-    "bevy_winit",
-    "custom_cursor",
-    "default_font",
-    "hdr",
-    "multi_threaded",
-    "png",
-    "smaa_luts",
-    "sysinfo_plugin",
-    "tonemapping_luts",
-    "vorbis",
-    "webgl2",
-    "x11",
-] }
+bevy_app = { version = "0.16" }
+bevy_asset = { version = "0.16" }
+bevy_core_pipeline = { version = "0.16" }
+bevy_color = { version = "0.16" }
+bevy_derive = { version = "0.16" }
+bevy_image = { version = "0.16" }
+bevy_ecs = { version = "0.16" }
+bevy_log = { version = "0.16" }
+bevy_math = { version = "0.16" }
+bevy_platform = { version = "0.16" }
+bevy_reflect = { version = "0.16" }
+bevy_render = { version = "0.16" }
+bevy_time = { version = "0.16" }
+bevy_transform = { version = "0.16" }
+
+
 
 bytemuck = { version = "1.22.0", features = ["derive"] }
 async-channel = "2.3.1"

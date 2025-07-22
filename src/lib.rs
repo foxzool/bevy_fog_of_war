@@ -12,7 +12,7 @@
 //! The plugin uses a chunk-based system where the world is divided into configurable
 //! chunks (default 256x256 units). Each chunk can be in different visibility states:
 //! - **Unexplored**: Not yet discovered by any vision source
-//! - **Explored**: Previously visible but currently out of sight  
+//! - **Explored**: Previously visible but currently out of sight
 //! - **Visible**: Currently within range of an active vision source
 //!
 //! ## Memory Management
@@ -55,19 +55,19 @@
 //! }
 //! ```
 
+use bevy_asset::{Assets, RenderAssetUsages};
+use bevy_image::{Image, ImageSampler, ImageSamplerDescriptor};
+use bevy_math::{IVec2, Rect, Vec2};
+use bevy_platform::collections::HashSet;
+use bevy_render::camera::RenderTarget;
+use bevy_render::extract_component::ExtractComponentPlugin;
+use bevy_render::extract_resource::ExtractResourcePlugin;
+use bevy_render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use bevy_time::Time;
+use bevy_transform::components::GlobalTransform;
 use self::prelude::*;
 use crate::persistence::FogOfWarPersistencePlugin;
 use crate::render::FogOfWarRenderPlugin;
-use bevy::{
-    asset::RenderAssetUsages,
-    image::{ImageSampler, ImageSamplerDescriptor},
-    platform::collections::HashSet,
-    render::{
-        camera::RenderTarget, extract_component::ExtractComponentPlugin,
-        extract_resource::ExtractResourcePlugin, render_resource::Extent3d,
-        render_resource::TextureDimension, render_resource::TextureUsages,
-    },
-};
 
 mod components;
 mod data_transfer;
@@ -110,7 +110,7 @@ pub struct RequestChunkSnapshot(pub IVec2);
 /// # Execution Order
 /// The systems run in this order within each frame:
 /// 1. **UpdateChunkState** - Processes vision sources and updates visibility
-/// 2. **ManageEntities** - Creates/destroys chunk entities as needed  
+/// 2. **ManageEntities** - Creates/destroys chunk entities as needed
 /// 3. **Persistence** - Handles save/load operations
 /// 4. **PrepareTransfers** - Queues memory transfers between CPU and GPU
 ///
@@ -166,7 +166,7 @@ pub enum FogSystems {
 ///
 /// This plugin orchestrates all fog of war functionality including:
 /// - Chunk-based visibility processing
-/// - GPU compute shader rendering  
+/// - GPU compute shader rendering
 /// - Memory management between CPU and GPU
 /// - Persistence and serialization
 /// - Event handling and state management
@@ -443,7 +443,7 @@ fn setup_fog_resources(
 /// - `visible_chunks`: Chunks currently within vision source range
 /// - `camera_view_chunks`: Chunks within the camera's viewport
 ///
-/// # Preserved Caches  
+/// # Preserved Caches
 /// - `explored_chunks`: Permanently discovered chunks (persistent across frames)
 /// - `gpu_resident_chunks`: Chunks currently in GPU memory (managed separately)
 ///

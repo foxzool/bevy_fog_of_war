@@ -1,8 +1,7 @@
 use crate::prelude::*;
-use bevy::asset::Handle;
-use bevy::prelude::Image;
-use bevy::prelude::Resource;
-use bevy::reflect::Reflect;
+use bevy_asset::Handle;
+use bevy_image::Image;
+use bevy_reflect::Reflect;
 
 /// GPU texture array handle for real-time visibility data across fog chunks.
 #[derive(Resource, Debug, Clone, Reflect)]

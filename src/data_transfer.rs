@@ -1,11 +1,10 @@
 use crate::prelude::*;
-use bevy::asset::Handle;
-use bevy::ecs::event::Event;
-use bevy::math::IVec2;
-use bevy::prelude::Image;
-use bevy::prelude::Resource;
-use bevy::reflect::Reflect;
-use bevy::render::extract_resource::ExtractResource;
+use bevy_asset::Handle;
+use bevy_ecs::event::Event;
+use bevy_image::Image;
+use bevy_math::IVec2;
+use bevy_reflect::Reflect;
+use bevy_render::extract_resource::ExtractResource;
 
 /// Resource for coordinating GPU-to-CPU texture data transfers between main and render worlds.
 /// 主世界与渲染世界之间协调 GPU 到 CPU 纹理数据传输的资源
@@ -49,7 +48,7 @@ use bevy::render::extract_resource::ExtractResource;
 ///     manager: Res<TextureArrayManager>,
 /// ) {
 ///     let chunk_coord = IVec2::new(5, -3);
-///     
+///
 ///     if let Some((fog_idx, snap_idx)) = manager.get_allocated_indices(chunk_coord) {
 ///         copy_requests.requests.push(GpuToCpuCopyRequest {
 ///             chunk_coords: chunk_coord,
@@ -272,7 +271,7 @@ pub struct CpuToGpuCopyRequest {
 ///         println!("Received GPU data for chunk {:?}", event.chunk_coords);
 ///         println!("Fog data size: {} bytes", event.fog_data.len());
 ///         println!("Snapshot data size: {} bytes", event.snapshot_data.len());
-///         
+///
 ///         // Process the received GPU data as needed
 ///     }
 /// }
@@ -329,10 +328,10 @@ pub struct ChunkGpuDataReady {
 /// ) {
 ///     for event in events.read() {
 ///         println!("Chunk {:?} successfully uploaded to GPU", event.chunk_coords);
-///         
+///
 ///         // Update tracking to reflect chunk is now GPU-resident
 ///         cache.gpu_resident_chunks.insert(event.chunk_coords);
-///         
+///
 ///         // Optionally clean up CPU resources
 ///         // cleanup_cpu_images_for_chunk(event.chunk_coords);
 ///     }
@@ -659,16 +658,16 @@ pub struct FogResetSync {
 pub struct ResetCheckpoint {
     /// 探索区块集合的备份
     /// Backup of explored chunks set
-    pub explored_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    pub explored_chunks: std::collections::HashSet<IVec2>,
     /// 可见区块集合的备份
     /// Backup of visible chunks set
-    pub visible_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    pub visible_chunks: std::collections::HashSet<IVec2>,
     /// GPU驻留区块集合的备份
     /// Backup of GPU resident chunks set
-    pub gpu_resident_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    pub gpu_resident_chunks: std::collections::HashSet<IVec2>,
     /// 相机视图区块集合的备份
     /// Backup of camera view chunks set
-    pub camera_view_chunks: std::collections::HashSet<bevy::math::IVec2>,
+    pub camera_view_chunks: std::collections::HashSet<IVec2>,
     /// 检查点创建时间
     /// Checkpoint creation time
     pub created_at: u64,

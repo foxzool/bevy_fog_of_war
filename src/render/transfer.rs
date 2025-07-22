@@ -66,24 +66,19 @@
 //! - **Resource Cleanup**: Proper disposal of temporary resources
 //! - **Error Propagation**: Clear error reporting to main world
 
+use bevy_platform::collections::HashMap;
 use crate::prelude::*;
 use crate::render::RenderFogMapSettings;
 use crate::render::extract::{RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture};
 use crate::settings::MAX_LAYERS;
 use async_channel::{Receiver, Sender};
-use bevy::{
-    image::TextureFormatPixelInfo,
-    platform::collections::HashMap,
-    render::MainWorld,
-    render::render_asset::RenderAssets,
-    render::render_resource::{
-        Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
-        Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
-        TextureFormat,
-    },
-    render::renderer::{RenderDevice, RenderQueue},
-    render::texture::GpuImage,
-};
+use bevy_image::TextureFormatPixelInfo;
+use bevy_math::IVec2;
+use bevy_render::MainWorld;
+use bevy_render::render_asset::RenderAssets;
+use bevy_render::render_resource::{Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode, Origin3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureFormat};
+use bevy_render::renderer::{RenderDevice, RenderQueue};
+use bevy_render::texture::GpuImage;
 
 /// Processes CPU-to-GPU texture upload requests by copying chunk data to GPU texture arrays.
 /// 通过将区块数据复制到GPU纹理数组来处理CPU到GPU纹理上传请求
@@ -857,7 +852,7 @@ pub fn check_and_clear_textures_on_reset(
     // Create reusable buffers once instead of creating new ones for each layer
     // 创建可重用缓冲区一次，而不是为每个层创建新的缓冲区
     let fog_buffer = render_device.create_buffer_with_data(
-        &bevy::render::render_resource::BufferInitDescriptor {
+        &BufferInitDescriptor {
             label: Some("fog_reset_clear_buffer"),
             contents: &fog_clear_data,
             usage: BufferUsages::COPY_SRC,
@@ -865,7 +860,7 @@ pub fn check_and_clear_textures_on_reset(
     );
 
     let vis_buffer = render_device.create_buffer_with_data(
-        &bevy::render::render_resource::BufferInitDescriptor {
+        &BufferInitDescriptor {
             label: Some("visibility_reset_clear_buffer"),
             contents: &vis_clear_data,
             usage: BufferUsages::COPY_SRC,
@@ -873,7 +868,7 @@ pub fn check_and_clear_textures_on_reset(
     );
 
     let snap_buffer = render_device.create_buffer_with_data(
-        &bevy::render::render_resource::BufferInitDescriptor {
+        &BufferInitDescriptor {
             label: Some("snapshot_reset_clear_buffer"),
             contents: &snap_clear_data,
             usage: BufferUsages::COPY_SRC,

@@ -1,25 +1,24 @@
+use bevy_asset::{Assets, RenderAssetUsages};
+use bevy_color::Color;
+use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy_core_pipeline::prelude::Camera2d;
+use bevy_image::Image;
+use bevy_math::{IVec2, Rect};
+use bevy_render::camera::RenderTarget;
+use bevy_render::extract_component::ExtractComponent;
+use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy_render::render_asset::RenderAssets;
+use bevy_render::render_graph::{Node, NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel};
+use bevy_render::render_resource::{Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages};
+use bevy_render::RenderApp;
+use bevy_render::renderer::RenderContext;
+use bevy_render::texture::GpuImage;
+use bevy_render::view::RenderLayers;
+use bevy_transform::components::{GlobalTransform, Transform};
 use crate::prelude::*;
 use crate::render::{RenderSnapshotTempTexture, RenderSnapshotTexture};
 use crate::{FogSystems, RequestChunkSnapshot};
-use bevy::{
-    asset::RenderAssetUsages,
-    core_pipeline::core_2d::graph::{Core2d, Node2d},
-    render::{
-        RenderApp,
-        camera::RenderTarget,
-        extract_component::ExtractComponent,
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_asset::RenderAssets,
-        render_graph::{Node, NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel},
-        render_resource::{
-            Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension,
-            TextureUsages,
-        },
-        renderer::RenderContext,
-        texture::GpuImage,
-        view::RenderLayers,
-    },
-};
+
 
 /// Plugin for managing fog of war snapshot system that captures previously explored areas.
 /// 管理战争迷雾快照系统的插件，该系统捕获先前探索过的区域
@@ -150,7 +149,7 @@ pub struct RequestCleanChunkSnapshot(pub IVec2);
 /// The component is automatically removed after the snapshot is processed.
 ///
 /// # Usage
-/// ```rust
+/// ```rust,norun
 /// fn trigger_force_snapshot_for_entity(mut commands: Commands, entity: Entity) {
 ///     commands.entity(entity).insert(ForceSnapshotCapturables);
 /// }
@@ -335,7 +334,7 @@ fn setup_snapshot_camera(
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
             scale: settings.chunk_size.x as f32 / settings.texture_resolution_per_chunk.x as f32,
-            scaling_mode: bevy::render::camera::ScalingMode::Fixed {
+            scaling_mode: bevy_render::camera::ScalingMode::Fixed {
                 width: settings.texture_resolution_per_chunk.x as f32,
                 height: settings.texture_resolution_per_chunk.y as f32,
             },
@@ -347,7 +346,7 @@ fn setup_snapshot_camera(
             is_active: false, // Initially inactive
             hdr: false,       // Snapshots likely don't need HDR
             target: RenderTarget::Image(snapshot_temp_handle.clone().into()),
-            ..default()
+            ..Default::default()
         },
         SnapshotCamera, // Mark it as our snapshot camera
         SNAPSHOT_RENDER_LAYER,
@@ -774,13 +773,13 @@ fn handle_force_snapshot_capturables(
 ) {
     for (entity, entity_transform) in triggered_entities.iter() {
         info!("Processing ForceSnapshotCapturables trigger for entity {:?}", entity);
-        
+
         // Remove the trigger component now that we're processing it
         commands.entity(entity).remove::<ForceSnapshotCapturables>();
 
         let entity_pos = entity_transform.translation().truncate();
 
-        // Convert entity position to chunk coordinates  
+        // Convert entity position to chunk coordinates
         let chunk_coords = settings.world_to_chunk_coords(entity_pos);
 
         // Request snapshot for the chunk containing this entity

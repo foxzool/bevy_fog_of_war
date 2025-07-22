@@ -45,7 +45,7 @@
 //! ## Dispatch Calculation
 //! ```text
 //! workgroups_x = texture_resolution.x.div_ceil(8)  // X-axis workgroups
-//! workgroups_y = texture_resolution.y.div_ceil(8)  // Y-axis workgroups  
+//! workgroups_y = texture_resolution.y.div_ceil(8)  // Y-axis workgroups
 //! workgroups_z = active_chunk_count               // Z-axis per chunk
 //! total_threads = workgroups_x * workgroups_y * workgroups_z * 64
 //! ```
@@ -99,22 +99,18 @@
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
 use crate::snapshot::SnapshotCamera;
-use bevy::render::render_resource::StorageTextureAccess::WriteOnly;
-use bevy::{
-    prelude::*,
-    render::{
-        render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
-        render_resource::StorageTextureAccess::ReadWrite,
-        render_resource::binding_types::{
-            storage_buffer_read_only, texture_storage_2d_array, uniform_buffer,
-        },
-        render_resource::{
-            BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId,
-            ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages,
-            TextureFormat,
-        },
-        renderer::{RenderContext, RenderDevice},
+use bevy_asset::DirectAssetAccessExt;
+use bevy_ecs::prelude::*;
+use bevy_render::{
+    render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
+    render_resource::{
+        BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId, ComputePassDescriptor,
+        ComputePipelineDescriptor, PipelineCache, ShaderStages,
+        StorageTextureAccess::{ReadWrite, WriteOnly},
+        TextureFormat,
+        binding_types::{storage_buffer_read_only, texture_storage_2d_array, uniform_buffer},
     },
+    renderer::{RenderContext, RenderDevice},
 };
 
 /// Path to the WGSL compute shader file that implements fog visibility calculations.

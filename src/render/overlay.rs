@@ -36,7 +36,7 @@
 //! // Screen space to world space
 //! world_pos = screen_to_world(screen_coords, view_matrix)
 //!
-//! // World space to chunk coordinates  
+//! // World space to chunk coordinates
 //! chunk_coords = floor(world_pos / chunk_size)
 //! chunk_local = mod(world_pos, chunk_size) / chunk_size
 //!
@@ -105,25 +105,29 @@
 //! - **Compute-Based Overlay**: Move overlay to compute shaders for efficiency
 //! - **Tile-Based Rendering**: Process fog in screen-space tiles for better cache locality
 
+use bevy_asset::DirectAssetAccessExt;
 use super::RenderFogMapSettings;
 use super::extract::{
     OverlayChunkData, RenderFogTexture, RenderSnapshotTexture, RenderVisibilityTexture,
 };
 use super::prepare::{FogUniforms, OverlayChunkMappingBuffer};
 use crate::snapshot::SnapshotCamera;
-use bevy::core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
-use bevy::ecs::query::QueryItem;
-use bevy::ecs::system::lifetimeless::Read;
-use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode};
-use bevy::render::render_resource::binding_types::{
-    sampler, storage_buffer_read_only, texture_2d_array, uniform_buffer,
+use bevy_core_pipeline::fullscreen_vertex_shader::FULLSCREEN_SHADER_HANDLE;
+use bevy_ecs::prelude::*;
+use bevy_ecs::query::QueryItem;
+use bevy_ecs::system::lifetimeless::Read;
+use bevy_image::BevyDefault;
+use bevy_render::{
+    render_asset::RenderAssets,
+    render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode},
+    render_resource::binding_types::{
+        sampler, storage_buffer_read_only, texture_2d_array, uniform_buffer,
+    },
+    render_resource::*,
+    renderer::{RenderContext, RenderDevice},
+    texture::{FallbackImage, GpuImage},
+    view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
 };
-use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::texture::{FallbackImage, GpuImage};
-use bevy::render::view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms};
 
 /// Path to the WGSL fog overlay shader that implements final fog compositing.
 /// 实现最终雾效合成的WGSL雾效覆盖着色器的路径

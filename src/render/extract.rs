@@ -93,11 +93,15 @@
 //! - **Overlay Systems**: Render final fog effects using extracted information
 //! - **Transfer Systems**: Handle CPU↔GPU memory operations
 
-#![allow(dead_code)]
-
+use bevy_asset::Handle;
+use bevy_color::ColorToComponents;
+use bevy_derive::{Deref, DerefMut};
+use bevy_image::Image;
 use crate::prelude::*;
-use bevy::render::Extract;
-use bevy::render::render_resource::ShaderType;
+use bevy_math::{IVec2, Rect, UVec2, Vec2, Vec4};
+use bevy_render::Extract;
+use bevy_render::render_resource::ShaderType;
+use bevy_transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
 
 /// GPU-compatible fog map settings resource for render world shader access.

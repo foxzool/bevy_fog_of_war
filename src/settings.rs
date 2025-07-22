@@ -1,8 +1,8 @@
-use bevy::color::Color;
-use bevy::color::palettes::basic;
-use bevy::math::{IVec2, UVec2, Vec2};
-use bevy::prelude::Resource;
-use bevy::render::render_resource::TextureFormat;
+use bevy_color::Color;
+use bevy_color::palettes::basic;
+use bevy_math::{IVec2, UVec2, Vec2};
+use bevy_ecs::prelude::Resource;
+use bevy_render::render_resource::TextureFormat;
 
 /// The maximum number of layers allowed in the fog of war texture array.
 /// 允许在雾效纹理数组中的最大层数。

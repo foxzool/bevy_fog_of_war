@@ -1,11 +1,13 @@
 //! ECS components for fog of war system including vision sources, chunks, and state management.
 
+use bevy_reflect::prelude::ReflectDefault;
 use crate::prelude::*;
-use bevy::asset::RenderAssetUsages;
-use bevy::image::{ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
-use bevy::render::extract_component::ExtractComponent;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureUsages};
+use bevy_asset::{Assets, Handle, RenderAssetUsages};
+use bevy_image::{Image, ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo};
+use bevy_render::extract_component::ExtractComponent;
+use bevy_render::render_resource::{Extent3d, TextureDimension, TextureUsages};
 use std::fmt::Display;
+use bevy_math::{IVec2, Rect, UVec2, Vec2};
 
 /// Marks cameras that should render fog of war.
 #[derive(Component)]
@@ -91,7 +93,7 @@ impl VisionSource {
 ///
 /// # Performance Comparison
 /// - **Circle**: Moderate cost, most versatile
-/// - **Square**: Lowest cost, simple calculations  
+/// - **Square**: Lowest cost, simple calculations
 /// - **Cone**: Highest cost, complex angle math
 ///
 /// # Shape Characteristics

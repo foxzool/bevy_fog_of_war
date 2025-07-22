@@ -1,9 +1,9 @@
 use crate::prelude::*;
-use bevy::log::{debug, error, info, trace, warn};
-use bevy::prelude::Resource;
-use bevy::reflect::Reflect;
+use bevy_log::{debug, error, info, trace, warn};
+use bevy_reflect::Reflect;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use bevy_math::IVec2;
 
 /// Resource for efficient chunk coordinate to entity mapping and lookups.
 /// 快速查找区块坐标对应的 FogChunk 实体
@@ -45,7 +45,7 @@ use std::collections::HashSet;
 /// ) {
 ///     let world_pos = Vec2::new(300.0, 400.0);
 ///     let chunk_coord = settings.world_to_chunk_coords(world_pos);
-///     
+///
 ///     if let Some(entity) = manager.map.get(&chunk_coord) {
 ///         if let Ok(chunk) = chunks.get(*entity) {
 ///             println!("Found chunk at {:?}", chunk.coords);
@@ -96,7 +96,7 @@ pub struct ChunkEntityManager {
 /// - `visible_chunks`: Currently in active vision
 /// - `explored_chunks`: Ever been visible (persistent)
 ///
-/// ## System States (Performance)  
+/// ## System States (Performance)
 /// - `camera_view_chunks`: Within camera viewport (culling)
 /// - `gpu_resident_chunks`: Allocated on GPU (memory management)
 ///
@@ -209,7 +209,7 @@ impl ChunkStateCache {
     /// fn vision_calculation_system(mut cache: ResMut<ChunkStateCache>) {
     ///     // Clear frame-based caches at start of vision calculation
     ///     cache.clear();
-    ///     
+    ///
     ///     // Rebuild visible_chunks and camera_view_chunks from current state
     ///     // ... vision calculation logic ...
     /// }
@@ -235,7 +235,7 @@ impl ChunkStateCache {
     /// # Reset Scope
     /// - **Visibility**: All current vision state cleared
     /// - **Exploration**: All historical exploration data cleared
-    /// - **Camera View**: Current viewport culling cleared  
+    /// - **Camera View**: Current viewport culling cleared
     /// - **GPU Memory**: All GPU allocation tracking cleared
     ///
     /// # Performance
@@ -372,7 +372,7 @@ pub struct TextureArrayManager {
     /// This Vec serves as a simple stack (LIFO) of free layer indices for fog textures.
     /// When chunks are deallocated, their fog layer indices are pushed back here.
     ///
-    /// **Data Structure**: Vec used as stack for O(1) push/pop operations  
+    /// **Data Structure**: Vec used as stack for O(1) push/pop operations
     /// **Range**: Contains indices from 0 to (capacity-1) when fully free
     /// **Invariant**: Should never contain duplicate indices
     free_fog_indices: Vec<u32>,
@@ -384,7 +384,7 @@ pub struct TextureArrayManager {
     /// When chunks are deallocated, their snapshot layer indices are pushed back here.
     ///
     /// **Data Structure**: Vec used as stack for O(1) push/pop operations
-    /// **Range**: Contains indices from 0 to (capacity-1) when fully free  
+    /// **Range**: Contains indices from 0 to (capacity-1) when fully free
     /// **Invariant**: Should never contain duplicate indices
     free_snapshot_indices: Vec<u32>,
     // Or, if fog and snapshot always use paired indices (e.g., fog layer X always pairs with snapshot layer X)
@@ -634,11 +634,11 @@ impl TextureArrayManager {
     /// // First allocate layers
     /// if let Some((fog_idx, snap_idx)) = manager.allocate_layer_indices(chunk_coord) {
     ///     // Use the layers for rendering...
-    ///     
+    ///
     ///     // Later, when chunk moves far from camera
     ///     manager.free_layer_indices_for_coord(chunk_coord);
     ///     println!("Freed layers for chunk {:?}", chunk_coord);
-    ///     
+    ///
     ///     // Layers are now available for other chunks
     /// }
     /// ```
@@ -962,12 +962,12 @@ impl TextureArrayManager {
     /// ) {
     ///     if let Ok(camera_transform) = camera_query.single() {
     ///         let camera_chunk = settings.world_to_chunk_coords(camera_transform.translation.xy());
-    ///         
+    ///
     ///         // Check nearby chunks
     ///         for offset_x in -2..=2 {
     ///             for offset_y in -2..=2 {
     ///                 let chunk_coord = camera_chunk + IVec2::new(offset_x, offset_y);
-    ///                 
+    ///
     ///                 if !manager.is_coord_on_gpu(chunk_coord) {
     ///                     // Try to allocate this chunk to GPU
     ///                     if let Some(_) = manager.allocate_layer_indices(chunk_coord) {
@@ -1068,10 +1068,10 @@ impl TextureArrayManager {
     ///     for _ in new_game_events.read() {
     ///         // Reset all GPU allocations
     ///         manager.clear_all_layers();
-    ///         
+    ///
     ///         // Also reset chunk state cache
     ///         cache.reset_all();
-    ///         
+    ///
     ///         info!("Started new game - all fog systems reset");
     ///     }
     /// }
@@ -1179,7 +1179,7 @@ impl TextureArrayManager {
     ///             saved_chunk.fog_layer_index,
     ///             saved_chunk.snapshot_layer_index,
     ///         );
-    ///         
+    ///
     ///         if !success {
     ///             warn!("Could not restore chunk {:?} to original layers", saved_chunk.coords);
     ///             // Handle layer conflict or use alternative allocation
@@ -1319,19 +1319,19 @@ impl TextureArrayManager {
     /// ```rust,ignore
     /// fn analyze_gpu_memory_usage(manager: Res<TextureArrayManager>) {
     ///     let allocations = manager.get_all_allocated_indices();
-    ///     
+    ///
     ///     // Calculate utilization
     ///     let total_capacity = manager.capacity; // Would need public getter
     ///     let used_slots = allocations.len();
     ///     let utilization = (used_slots as f32 / total_capacity as f32) * 100.0;
-    ///     
+    ///
     ///     println!("GPU Memory Utilization: {:.1}% ({}/{})",
     ///              utilization, used_slots, total_capacity);
-    ///     
+    ///
     ///     // Find layer usage patterns
     ///     let fog_indices: Vec<u32> = allocations.values().map(|(fog, _)| *fog).collect();
     ///     let snap_indices: Vec<u32> = allocations.values().map(|(_, snap)| *snap).collect();
-    ///     
+    ///
     ///     println!("Fog layers in use: {:?}", fog_indices);
     ///     println!("Snapshot layers in use: {:?}", snap_indices);
     /// }

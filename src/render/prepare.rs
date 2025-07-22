@@ -80,14 +80,11 @@
 //! - **Resource Recovery**: System handles temporary resource unavailability
 
 use crate::render::compute::FogComputePipeline;
-use bevy::{
-    prelude::*,
-    render::render_asset::RenderAssets,
-    render::render_resource::*,
-    render::renderer::RenderDevice,
-    render::texture::{FallbackImage, GpuImage},
-};
-
+use bevy_ecs::prelude::*;
+use bevy_render::render_asset::RenderAssets;
+use bevy_render::render_resource::{BindGroup, BindGroupEntries, Buffer, BufferInitDescriptor, BufferUsages};
+use bevy_render::renderer::RenderDevice;
+use bevy_render::texture::{FallbackImage, GpuImage};
 use super::extract::{
     ExtractedGpuChunkData, ExtractedVisionSources, RenderFogMapSettings, RenderFogTexture,
     RenderVisibilityTexture,
@@ -292,7 +289,7 @@ pub struct FogBindGroups {
     /// Contains all resources needed for fog compute operations:
     /// - Fog and visibility texture arrays
     /// - Vision source storage buffer
-    /// - Chunk information storage buffer  
+    /// - Chunk information storage buffer
     /// - Fog settings uniform buffer
     ///
     /// None when resources are not ready or need updating.

@@ -106,4 +106,8 @@ pub use crate::{FogOfWarPlugin, components::*, snapshot::*};
 
 // Internal Bevy re-exports for crate use
 // 供 crate 内部使用的 Bevy 重新导出
-pub(crate) use bevy::prelude::*;
+pub(crate) use bevy_app::prelude::*;
+pub(crate) use bevy_ecs::prelude::*;
+pub(crate) use bevy_log::prelude::*;
+pub(crate) use bevy_reflect::prelude::*;
+pub(crate) use bevy_render::prelude::*;
