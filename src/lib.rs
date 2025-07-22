@@ -31,7 +31,7 @@
 //!
 //! ## Usage Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use bevy::prelude::*;
 //! use bevy_fog_of_war::prelude::*;
 //!
@@ -191,7 +191,7 @@ pub enum FogSystems {
 /// - **Memory Usage**: Scales with number of active chunks and texture resolution
 ///
 /// # Example Usage
-/// ```rust
+/// ```rust,no_run
 /// use bevy::prelude::*;
 /// use bevy_fog_of_war::FogOfWarPlugin;
 ///

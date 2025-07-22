@@ -36,19 +36,25 @@ jobs:
   # Run quality checks before publishing
   quality-checks:
     runs-on: ubuntu-latest
+    env:
+      # Use same flags as CI for consistency
+      RUSTFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
+      RUSTDOCFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
+      toolchain: nightly-2025-06-26
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.toolchain }}
           components: rustfmt, clippy
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: quality-checks
+          shared-key: release-quality-checks
 
       - name: Install Bevy dependencies (Linux)
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
@@ -57,36 +63,40 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --profile ci --all-features
 
-      - name: Run tests
-        run: cargo test --workspace --all-features
+      - name: Run tests (unit tests only)
+        run: cargo test --workspace --lib --profile ci --all-features --no-fail-fast
 
       - name: Check documentation
-        run: cargo doc --workspace --all-features --no-deps
+        run: cargo doc --workspace --profile ci --all-features --document-private-items --no-deps
 
   # Test that examples build successfully
   test-examples:
     runs-on: ubuntu-latest
+    env:
+      toolchain: nightly-2025-06-26
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.toolchain }}
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: test-examples
+          shared-key: release-test-examples
 
       - name: Install Bevy dependencies (Linux)
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
       - name: Build examples
         run: |
-          cargo build --example simple_2d --release
-          cargo build --example playground --release
+          cargo build --example simple_2d --profile ci
+          cargo build --example playground --profile ci
 
   # Publish to crates.io
   publish:

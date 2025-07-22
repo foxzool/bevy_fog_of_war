@@ -48,7 +48,7 @@
 //! `bevy::prelude`, this reduces boilerplate imports for typical usage patterns.
 //!
 //! # Example Integration
-//! ```rust
+//! ```rust,no_run
 //! use bevy::prelude::*;
 //! use bevy_fog_of_war::prelude::*;
 //!

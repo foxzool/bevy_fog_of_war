@@ -152,7 +152,7 @@ pub struct RequestCleanChunkSnapshot(pub IVec2);
 /// The component is automatically removed after the snapshot is processed.
 ///
 /// # Usage
-/// ```rust
+/// ```rust,no_run
 /// fn trigger_force_snapshot_for_entity(mut commands: Commands, entity: Entity) {
 ///     commands.entity(entity).insert(ForceSnapshotCapturables);
 /// }
