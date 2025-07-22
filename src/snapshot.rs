@@ -766,12 +766,16 @@ fn handle_request_chunk_snapshot_events(
 /// - **User Interface**: Button-triggered snapshot updates
 /// - **Automatic Systems**: Periodic snapshot refreshing based on game events
 /// - **Performance Testing**: Controlled snapshot generation for benchmarking
+type TriggeredEntitiesQuery<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static GlobalTransform),
+    (With<Capturable>, With<ForceSnapshotCapturables>),
+>;
+
 fn handle_force_snapshot_capturables(
     mut commands: Commands,
-    triggered_entities: Query<
-        (Entity, &GlobalTransform),
-        (With<Capturable>, With<ForceSnapshotCapturables>),
-    >,
+    triggered_entities: TriggeredEntitiesQuery,
     settings: Res<FogMapSettings>,
     chunk_manager: Res<ChunkEntityManager>,
     chunk_query: Query<&FogChunk>,
