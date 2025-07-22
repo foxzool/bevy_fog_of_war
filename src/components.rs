@@ -1,33 +1,4 @@
-//! # Fog of War ECS Components
-//!
-//! This module defines all the Entity-Component-System (ECS) components used by the fog of war plugin.
-//! These components represent the core data structures for vision sources, chunk management,
-//! visibility states, and memory management.
-//!
-//! ## Component Categories
-//!
-//! ### Vision Components
-//! - [`FogOfWarCamera`] - Marks cameras that should render fog of war
-//! - [`VisionSource`] - Entities that reveal fog (units, buildings, etc.)
-//! - [`Capturable`] - Entities that become visible when discovered
-//!
-//! ### Chunk Components  
-//! - [`FogChunk`] - Represents a spatial region with fog data
-//! - [`FogChunkImage`] - Image handles for chunk textures
-//! - [`ChunkState`] - Aggregated visibility and memory state
-//!
-//! ### State Enums
-//! - [`VisionShape`] - Different vision area shapes (circle, cone, square)
-//! - [`ChunkVisibility`] - Exploration states (unexplored, explored, visible)
-//! - [`ChunkMemoryLocation`] - Where chunk data is stored (CPU, GPU, pending)
-//!
-//! ## Performance Characteristics
-//!
-//! All components are designed for optimal ECS performance:
-//! - **Small Memory Footprint**: Components use primitive types where possible
-//! - **Component Reflection**: Full Bevy reflection support for editor integration
-//! - **Extract Components**: GPU-accessible components marked with `ExtractComponent`
-//! - **Serialization**: State components support serde for persistence
+//! ECS components for fog of war system including vision sources, chunks, and state management.
 
 use crate::prelude::*;
 use bevy::asset::RenderAssetUsages;
@@ -46,87 +17,24 @@ pub struct FogOfWarCamera;
 #[reflect(Component)]
 pub struct VisionSource {
     /// Vision range in world units (radius for circle/cone, half-width for square).
-    /// 视野范围（世界单位）
-    ///
-    /// Determines how far the vision extends from the entity's position.
-    /// For circles and cones, this is the radius. For squares, this is the
-    /// half-width (distance from center to edge).
-    ///
-    /// **Range**: Typically 50.0 - 1000.0 world units
-    /// **Performance**: Larger ranges check more chunks (O(R²) complexity)
     pub range: f32,
 
     /// Whether this vision source is currently active.
-    /// 是否启用
-    ///
-    /// Disabled vision sources are completely ignored during visibility calculations,
-    /// providing an efficient way to temporarily disable vision without removing
-    /// the component.
-    ///
-    /// **Performance**: O(1) - Disabled sources are skipped immediately
     pub enabled: bool,
 
     /// The geometric shape of the vision area.
-    /// 视野形状（默认为圆形）
-    ///
-    /// Determines how the vision area is calculated relative to the entity's position.
-    /// Each shape has different performance characteristics and use cases.
     pub shape: VisionShape,
 
-    /// Direction the vision is facing (radians, 0 = positive X axis).
-    /// 视野方向（弧度，仅在扇形视野时使用）
-    ///
-    /// Only used for cone-shaped vision. Determines the center direction of the cone.
-    /// - 0.0 = facing right (+X)
-    /// - π/2 = facing up (+Y)  
-    /// - π = facing left (-X)
-    /// - 3π/2 = facing down (-Y)
-    ///
-    /// **Range**: 0.0 to 2π radians
-    /// **Ignored**: For Circle and Square shapes
+    /// Direction for cone vision in radians (0 = right, π/2 = up). Ignored for other shapes.
     pub direction: f32,
 
-    /// Cone vision angle in radians (total angle, not half-angle).
-    /// 视野角度（弧度，仅在扇形视野时使用）
-    ///
-    /// For cone vision, this defines the total angular width of the visible area.
-    /// The cone extends from (direction - angle/2) to (direction + angle/2).
-    ///
-    /// **Common Values**:
-    /// - π/6 (30°) = Narrow spotlight
-    /// - π/3 (60°) = Standard unit vision
-    /// - π/2 (90°) = Wide area coverage
-    /// - π (180°) = Semicircle
-    ///
-    /// **Range**: 0.0 to 2π radians
-    /// **Ignored**: For Circle and Square shapes
+    /// Cone vision angle in radians (total angle). Ignored for non-cone shapes.
     pub angle: f32,
 
-    /// Vision intensity multiplier for visibility calculations.
-    /// 视野强度（影响可见性计算）
-    ///
-    /// Affects how "strongly" this vision source reveals fog. Higher values
-    /// can penetrate through areas with partial visibility or fog density.
-    ///
-    /// **Range**: 0.0 to 2.0 (values > 1.0 for enhanced vision)
-    /// **Default**: 1.0 (normal visibility)
-    /// **Performance**: Minimal impact on calculation cost
+    /// Vision intensity multiplier (default: 1.0, >1.0 for enhanced vision).
     pub intensity: f32,
 
-    /// Transition zone ratio for smooth fog edges (0.0 to 1.0).
-    /// 视野过渡比例（从完全可见到不可见的过渡区域占总半径的比例）
-    ///
-    /// Defines the size of the soft transition area at the edge of vision.
-    /// The transition zone creates smooth fog falloff instead of hard edges.
-    ///
-    /// **Calculation**: transition_distance = range × transition_ratio
-    /// **Values**:
-    /// - 0.0 = Hard edge (no transition)
-    /// - 0.1 = Subtle soft edge (10% of range)
-    /// - 0.2 = Standard soft edge (20% of range)
-    /// - 0.5 = Large transition zone (50% of range)
-    ///
-    /// **Performance**: Slightly increases GPU shader complexity
+    /// Transition zone ratio for smooth fog edges (0.0 = hard, 0.2 = soft).
     pub transition_ratio: f32,
 }
 
@@ -194,51 +102,14 @@ impl VisionSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Default)]
 pub enum VisionShape {
-    /// Circular vision providing 360-degree omnidirectional visibility.
-    /// 圆形视野（全方向）
-    ///
-    /// The most common and versatile vision shape. Provides equal visibility
-    /// in all directions from the entity's position.
-    ///
-    /// **Use Cases**:
-    /// - Player units and NPCs
-    /// - Light sources (torches, lamps)
-    /// - Magical detection spells
-    /// - Area-of-effect abilities
-    ///
-    /// **Performance**: O((R/S)²) where R=range, S=chunk_size
+    /// Circular 360-degree omnidirectional vision.
     #[default]
     Circle,
 
-    /// Cone-shaped vision with directional focus and angular limits.
-    /// 扇形视野（有方向和角度）
-    ///
-    /// Directional vision that only reveals areas within a specific angular range.
-    /// Requires additional `direction` and `angle` parameters to define orientation.
-    ///
-    /// **Use Cases**:
-    /// - Units with facing direction
-    /// - Spotlights and flashlights  
-    /// - Security cameras
-    /// - Directional spells or abilities
-    /// - Stealth gameplay mechanics
-    ///
-    /// **Performance**: O((R/S)² × A/2π) where A=angle in radians
+    /// Directional cone-shaped vision with angular limits.
     Cone,
 
-    /// Square (rectangular) vision area centered on the entity.
-    /// 正方形视野
-    ///
-    /// Axis-aligned rectangular vision area. Simple and efficient for
-    /// buildings or large area coverage.
-    ///
-    /// **Use Cases**:
-    /// - Buildings and structures
-    /// - Watchtowers and guard posts
-    /// - Large area-of-effect spells
-    /// - Grid-based game mechanics
-    ///
-    /// **Performance**: O((2R/S)²) - very efficient, simple rectangle math
+    /// Axis-aligned square vision area.
     Square,
 }
 
