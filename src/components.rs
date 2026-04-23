@@ -602,7 +602,8 @@ impl FogChunkImage {
         );
         // Configure texture for bidirectional CPU↔GPU transfers
         fog_image.texture_descriptor.usage = TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
-            | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+            | TextureUsages::COPY_SRC // For GPU->CPU transfer / 用于 GPU->CPU 传输
+            | TextureUsages::TEXTURE_BINDING;
         // Enable linear sampling for smooth fog transitions
         fog_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
         let fog_image_handle = images.add(fog_image);
@@ -622,7 +623,8 @@ impl FogChunkImage {
         );
         // Configure snapshot texture for bidirectional CPU↔GPU transfers
         snapshot_image.texture_descriptor.usage = TextureUsages::COPY_DST // For CPU->GPU transfer / 用于 CPU->GPU 传输
-            | TextureUsages::COPY_SRC; // For GPU->CPU transfer / 用于 GPU->CPU 传输
+            | TextureUsages::COPY_SRC // For GPU->CPU transfer / 用于 GPU->CPU 传输
+            | TextureUsages::TEXTURE_BINDING;
         // Enable linear sampling for smooth exploration transitions
         snapshot_image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
         let snapshot_image_handle = images.add(snapshot_image);

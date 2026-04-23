@@ -22,6 +22,7 @@
 //! ```
 
 use bevy::diagnostic::FrameCount;
+use bevy::window::WindowResolution;
 use bevy::{
     color::palettes::css::{GOLD, RED},
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -47,7 +48,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Fog of War Example".into(),
-                        resolution: (1280.0, 720.0).into(),
+                        resolution: WindowResolution::new(1280, 720),
                         ..default()
                     }),
                     ..default()
@@ -442,7 +443,7 @@ fn setup_ui(mut commands: Commands) {
             font_size: 16.0,
             ..default()
         },
-        TextLayout::new_with_justify(JustifyText::Left),
+        TextLayout::new_with_justify(Justify::Left),
         // 设置为中灰色
         // Set to medium gray
         TextColor(Color::srgb(0.5, 0.5, 0.5)),
@@ -475,7 +476,7 @@ fn setup_ui(mut commands: Commands) {
             font_size: 14.0,
             ..default()
         },
-        TextLayout::new_with_justify(JustifyText::Left),
+        TextLayout::new_with_justify(Justify::Left),
         TextColor(Color::srgb(0.4, 0.4, 0.4)),
         Node {
             position_type: PositionType::Absolute,
@@ -733,8 +734,8 @@ fn rotate_entities_system(time: Res<Time>, mut query: Query<&mut Transform, With
 
 /// Logs fog reset operation results for debugging and user feedback.
 fn handle_fog_reset_events(
-    mut success_events: EventReader<FogResetSuccess>,
-    mut failure_events: EventReader<FogResetFailed>,
+    mut success_events: MessageReader<FogResetSuccess>,
+    mut failure_events: MessageReader<FogResetFailed>,
 ) {
     for event in success_events.read() {
         info!(
@@ -856,7 +857,7 @@ fn debug_draw_chunks(
 ///
 /// # Integration Points
 /// - **ButtonInput<KeyCode>**: Bevy's keyboard input system
-/// - **EventWriter<ResetFogOfWar>**: Sends reset events to fog system
+/// - **MessageWriter<ResetFogOfWar>**: Sends reset events to fog system
 /// - **Logging**: Provides user feedback via info! macro
 /// - **Reset System**: Triggers complete fog state reset
 ///
@@ -873,7 +874,7 @@ fn debug_draw_chunks(
 /// - **Event System**: Proper event handling ensures reliable reset
 fn handle_reset_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut reset_events: EventWriter<ResetFogOfWar>,
+    mut reset_events: MessageWriter<ResetFogOfWar>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         info!("Resetting fog of war...");
@@ -885,8 +886,8 @@ fn handle_reset_input(
 fn handle_persistence_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
-    mut save_events: EventWriter<SaveFogOfWarRequest>,
-    mut load_events: EventWriter<LoadFogOfWarRequest>,
+    mut save_events: MessageWriter<SaveFogOfWarRequest>,
+    mut load_events: MessageWriter<LoadFogOfWarRequest>,
     capturable_entities: Query<Entity, With<Capturable>>,
     _player_query: Query<&Player>,
 ) {
@@ -957,7 +958,7 @@ fn handle_persistence_input(
 }
 
 /// Writes fog save completion events to disk files with appropriate extensions.
-fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
+fn handle_saved_event(mut events: MessageReader<FogOfWarSaved>) {
     for event in events.read() {
         // 直接使用序列化后的二进制数据
         // Use the serialized binary data directly
@@ -987,7 +988,7 @@ fn handle_saved_event(mut events: EventReader<FogOfWarSaved>) {
 }
 
 /// Logs fog load completion results and any warnings.
-fn handle_loaded_event(mut events: EventReader<FogOfWarLoaded>) {
+fn handle_loaded_event(mut events: MessageReader<FogOfWarLoaded>) {
     for event in events.read() {
         info!("Successfully loaded {} chunks", event.chunk_count);
 
