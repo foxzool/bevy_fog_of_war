@@ -155,6 +155,8 @@ pub struct RequestCleanChunkSnapshot(pub IVec2);
 ///
 /// # Usage
 /// ```rust,no_run
+/// # use bevy::prelude::*;
+/// # use bevy_fog_of_war::prelude::ForceSnapshotCapturables;
 /// fn trigger_force_snapshot_for_entity(mut commands: Commands, entity: Entity) {
 ///     commands.entity(entity).insert(ForceSnapshotCapturables);
 /// }

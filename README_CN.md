@@ -2,467 +2,272 @@
 
 中文 | [English](README.md)
 
-![截屏2025-05-23 19 23 05](https://github.com/user-attachments/assets/d8821536-7c91-4527-9425-c64ee5252b20)
+![战争迷雾截图](https://github.com/user-attachments/assets/d8821536-7c91-4527-9425-c64ee5252b20)
 
 [![CI](https://github.com/foxzool/bevy_fog_of_war/workflows/CI/badge.svg)](https://github.com/foxzool/bevy_fog_of_war/actions)
 [![Crates.io](https://img.shields.io/crates/v/bevy_fog_of_war)](https://crates.io/crates/bevy_fog_of_war)
 [![Downloads](https://img.shields.io/crates/d/bevy_fog_of_war)](https://crates.io/crates/bevy_fog_of_war)
 [![Documentation](https://docs.rs/bevy_fog_of_war/badge.svg)](https://docs.rs/bevy_fog_of_war)
-[![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/Seldom-SE/seldom_pixel#license)
+[![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](LICENSE)
 
-一个为 Bevy 游戏引擎实现的战争迷雾系统。这个库提供了一个简单的方法来为你的 2D 游戏添加战争迷雾效果，支持多个光源、平滑过渡和已探索区域跟踪。
+`bevy_fog_of_war` 是一个面向 Bevy 的 2D 战争迷雾插件，提供 GPU 渲染、分块流式处理、已探索区域快照，以及持久化辅助工具。
 
-## 特性
+## 亮点
 
-- 2D 战争迷雾，支持平滑过渡和可自定义的颜色
-- 支持多个动态视野源，具有各种形状
-- 已探索区域跟踪，可选择已探索区域的显示方式
-- 基于区块的地图处理，高效更新，适合大型地图
-- 快照系统，用于持久化已探索的迷雾数据
-- 原子化迷雾重置功能，支持成功/失败事件通知
-- 保存/加载功能，支持按角色或存档文件持久化迷雾数据
-- 多种序列化格式：JSON、MessagePack、bincode，支持压缩
-- 服务器友好的序列化格式，支持自动格式检测
-- 通过 `FogMapSettings` 资源高度可配置
-- 使用 WGSL 计算着色器的高效 GPU 实现
+- 基于区块的迷雾处理，适合大地图。
+- 支持圆形、方形、扇形 `VisionSource`。
+- 三种可见性状态：`Unexplored`、`Explored`、`Visible`。
+- 支持通过 `Capturable` 控制实体被发现与快照。
+- 原子化迷雾重置，并通过 `FogResetSuccess` / `FogResetFailed` 返回结果。
+- 通过 Bevy message 完成保存 / 加载。
+- 可选 JSON / MessagePack / bincode 序列化。
+- `persistence_utils` 提供可选 gzip / LZ4 / Zstd 文件辅助能力。
 
-## 使用方法
+## 兼容性
 
-要在你的项目中使用 `bevy_fog_of_war`，请按照以下步骤操作：
+| bevy_fog_of_war | Bevy |
+| --- | --- |
+| 0.3.x | 0.18 |
 
-（你可以通过 `use bevy_fog_of_war::prelude::*;` 导入大部分常用项目）
+## 安装
 
-1. **将插件添加到你的应用程序：**
+```toml
+[dependencies]
+bevy = "0.18"
+bevy_fog_of_war = "0.3"
+```
 
-   将 `FogOfWarPlugin` 添加到你的 Bevy `App`：
+默认启用 `format-bincode`。
 
-   ```rust
-   use bevy::prelude::*;
-   use bevy_fog_of_war::FogOfWarPlugin;
+### 可选 feature
 
-   fn main() {
-       App::new()
-           .add_plugins(DefaultPlugins)
-           .add_plugins(FogOfWarPlugin) // 添加战争迷雾插件
-           // ... 其他设置 ...
-           .run();
-   }
-   ```
+```toml
+# 增加 MessagePack 支持
+bevy_fog_of_war = { version = "0.3", features = ["format-messagepack"] }
 
-2. **将 `FogOfWarCamera` 添加到你的摄像机：**
+# 增加 JSON 支持
+bevy_fog_of_war = { version = "0.3", features = ["format-json"] }
 
-   插件需要知道哪个摄像机用于战争迷雾效果。将 `FogOfWarCamera` 组件添加到你的主 2D 摄像机实体。
+# 为 persistence_utils 增加压缩辅助能力
+bevy_fog_of_war = { version = "0.3", features = ["compression-zstd"] }
 
-   ```rust
-   use bevy::prelude::*;
-   use bevy_fog_of_war::prelude::FogOfWarCamera;
+# 全部开启：所有格式 + 所有压缩辅助
+bevy_fog_of_war = { version = "0.3", features = ["all-formats"] }
+```
 
-   fn setup(mut commands: Commands) {
-       commands.spawn((Camera2d, FogOfWarCamera));
-   }
-   ```
+## 快速开始
 
-3. **将 `VisionSource` 添加到实体：**
+大多数场景直接：
 
-   需要揭示地图的实体需要一个 `VisionSource` 组件。你可以为视野区域创建不同的形状，如圆形、方形或锥形。
+```rust
+use bevy_fog_of_war::prelude::*;
+```
 
-   ```rust
-   use bevy::prelude::*;
-   use bevy_fog_of_war::prelude::VisionSource;
+最小接入示例：
 
-   fn setup_entities(mut commands: Commands) {
-       // 生成一个具有圆形视野源的实体
-       commands.spawn((Transform::from_xyz(0.0, 0.0, 0.0), VisionSource::circle(200.0)));
+```rust
+use bevy::prelude::*;
+use bevy::render::render_resource::TextureFormat;
+use bevy_fog_of_war::prelude::*;
 
-       // 生成另一个具有方形视野源的实体
-       commands.spawn((Transform::from_xyz(100.0, 50.0, 0.0), VisionSource::square(150.0)));
-   }
-   ```
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(FogOfWarPlugin)
+        .add_systems(Startup, setup)
+        .run();
+}
 
-4. **（可选）将 `Capturable` 添加到实体：**
+fn setup(mut commands: Commands, mut fog: ResMut<FogMapSettings>) {
+    commands.spawn((Camera2d, FogOfWarCamera, VisionSource::circle(120.0)));
 
-   如果你有只有在 `VisionSource` 与其重叠时才应该变得可见的实体（根据你的迷雾设置，一旦被发现就保持可见），请为它们添加
-   `Capturable` 组件。
+    commands.spawn((
+        Sprite {
+            color: Color::srgb(0.2, 0.8, 0.8),
+            custom_size: Some(Vec2::splat(48.0)),
+            ..default()
+        },
+        Transform::from_xyz(160.0, 0.0, 0.0),
+        Capturable,
+    ));
 
-   ```rust
-   use bevy::prelude::*;
-   use bevy_fog_of_war::prelude::Capturable;
+    *fog = FogMapSettings {
+        enabled: true,
+        chunk_size: UVec2::splat(256),
+        texture_resolution_per_chunk: UVec2::splat(512),
+        fog_color_unexplored: Color::BLACK,
+        fog_color_explored: bevy::color::palettes::basic::GRAY.into(),
+        vision_clear_color: Color::NONE,
+        fog_texture_format: TextureFormat::R8Unorm,
+        snapshot_texture_format: TextureFormat::Rgba8UnormSrgb,
+    };
+}
+```
 
-   fn setup_objects(mut commands: Commands) {
-       commands.spawn((
-           Sprite {
-                color: Color::srgb(0.2, 0.8, 0.8),
-                custom_size: Some(Vec2::new(60.0, 60.0)),
-                ..default()
-           },
-           Capturable, // 这个实体将被视野源揭示
-       ));
-   }
-   ```
+## 核心概念
 
-5. **自定义 `FogMapSettings`（可选）：**
+### `FogOfWarCamera`
 
-   你可以通过插入 `FogMapSettings` 资源来自定义战争迷雾行为。以下是如何配置它的示例：
+给负责迷雾渲染的 2D 相机打上标记：
 
-   ```rust
-   use bevy::prelude::*;
-   use bevy_fog_of_war::prelude::*;
-   use bevy::render::render_resource::TextureFormat;
+```rust
+commands.spawn((Camera2d, FogOfWarCamera));
+```
 
-   fn setup_fog_settings(mut commands: Commands) {
-       commands.insert_resource(FogMapSettings {
-           enabled: true,  // 启用/禁用战争迷雾效果
-           chunk_size: UVec2::new(256, 256),  // 每个区块的世界单位大小
-           texture_resolution_per_chunk: UVec2::new(512, 512),  // 每个区块的纹理分辨率
-           fog_color_unexplored: Color::rgba(0.1, 0.1, 0.1, 0.9),  // 未探索区域的颜色
-           fog_color_explored: Color::rgba(0.3, 0.3, 0.3, 0.5),   // 已探索但不可见区域的颜色
-           vision_clear_color: Color::NONE,  // 可见区域的清除颜色（通常是透明的）
-           fog_texture_format: TextureFormat::R8Unorm,  // 迷雾纹理格式
-           snapshot_texture_format: TextureFormat::R8Unorm  // 快照纹理格式
-       });
-   }
-   ```
+如果你希望相机 / 玩家本身也能开视野，可以同时挂上 `VisionSource`。
 
-   然后将系统添加到你的应用程序：
+### `VisionSource`
 
-   ```rust
-   .add_systems(Startup, setup_fog_settings)
-   ```
+内置常用形状构造器：
 
-查看 [examples](examples/) 目录了解更详细的使用场景，包括动态视野源和不同的视野形状。
+```rust
+commands.spawn((Transform::default(), VisionSource::circle(120.0)));
+commands.spawn((Transform::default(), VisionSource::square(120.0)));
+commands.spawn((
+    Transform::default(),
+    VisionSource::cone(180.0, 0.0, std::f32::consts::FRAC_PI_2),
+));
+```
 
-## 重置战争迷雾
+### `Capturable`
 
-你可以程序化地重置所有战争迷雾数据（已探索区域、可见性状态和纹理数据），而无需销毁实体或摄像机。这在更换场景或重启关卡时很有用：
+给需要“被发现后才显示”的实体添加 `Capturable`。
+
+## 重置迷雾
+
+发送 `ResetFogOfWar` 即可清空探索状态并重建迷雾纹理，不需要重建整张地图：
 
 ```rust
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::*;
 
 fn reset_on_keypress(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut reset_events: EventWriter<ResetFogOfWar>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut reset: MessageWriter<ResetFogOfWar>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::KeyR) {
-        // 重置所有战争迷雾数据
-        reset_events.write(ResetFogOfWar);
+    if keyboard.just_pressed(KeyCode::KeyR) {
+        reset.write(ResetFogOfWar);
     }
 }
 
-// 将此系统添加到你的应用程序
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(FogOfWarPlugin)
-        .add_systems(Update, reset_on_keypress)
-        .run();
+fn handle_reset_messages(
+    mut success: MessageReader<FogResetSuccess>,
+    mut failed: MessageReader<FogResetFailed>,
+) {
+    for event in success.read() {
+        info!(
+            "fog reset finished in {}ms ({} chunks)",
+            event.duration_ms, event.chunks_reset
+        );
+    }
+
+    for event in failed.read() {
+        error!("fog reset failed after {}ms: {}", event.duration_ms, event.error);
+    }
 }
 ```
 
-### 重置事件通知
+## 通过 Bevy message 做持久化
 
-插件提供事件来通知你重置操作何时完成：
+运行时保存 / 加载 API 基于 Bevy message 和原始字节数据；面向压缩文件的辅助能力在 `persistence_utils` 中。
+
+### 保存
 
 ```rust
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::*;
 
-fn handle_fog_reset_events(
-    mut success_events: EventReader<FogResetSuccess>,
-    mut failure_events: EventReader<FogResetFailed>,
-) {
-    for event in success_events.read() {
-        info!("✅ 迷雾重置成功完成！持续时间：{}ms，重置区块数：{}", 
-              event.duration_ms, event.chunks_reset);
-    }
-
-    for event in failure_events.read() {
-        error!("❌ 迷雾重置失败！持续时间：{}ms，错误：{}", 
-               event.duration_ms, event.error);
-    }
-}
-
-// 将事件处理器添加到你的应用程序
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(FogOfWarPlugin)
-        .add_systems(Update, (reset_on_keypress, handle_fog_reset_events))
-        .run();
-}
-```
-
-重置功能：
-
-- 清除所有已探索区域
-- 将所有区块可见性状态重置为未探索
-- 将纹理数据重置为初始状态
-- 保留所有实体、摄像机和视野源
-- 允许无缝场景转换
-- 提供带有时间信息的成功/失败事件
-- 包含失败时的自动回滚
-
-查看 [`playground.rs`](examples/playground.rs) 和 [`simple_2d.rs`](examples/simple_2d.rs) 示例了解完整演示。
-
-## 序列化格式
-
-插件支持多种序列化格式以获得最佳性能和兼容性。选择最适合您需求的格式：
-
-### 可用格式
-
-| 格式              | 大小  | 速度 | 兼容性   | 使用场景            |
-|-----------------|-----|----|-------|-----------------|
-| **JSON**        | 最大  | 慢  | 通用    | 调试、Web API、人类可读 |
-| **MessagePack** | 小   | 快  | 跨语言   | 网络传输、存储高效       |
-| **bincode**     | 最小* | 最快 | 仅Rust | 本地存档、性能关键       |
-
-*结合压缩时
-
-### 功能标志
-
-在您的 `Cargo.toml` 中添加所需格式：
-
-```toml
-[dependencies]
-# 默认包含bincode以获得二进制数据的最佳性能
-bevy_fog_of_war = "0.2.1"
-
-# 添加额外格式：
-bevy_fog_of_war = { version = "0.2.1", features = ["format-messagepack"] }
-
-# 或启用所有功能：
-bevy_fog_of_war = { version = "0.2.1", features = ["all-formats"] }
-
-# 压缩支持：
-bevy_fog_of_war = { version = "0.2.1", features = ["all-formats", "all-compression"] }
-```
-
-### 性能比较
-
-基于典型迷雾数据的基准测试：
-
-```
-格式                  | 文件大小  | 保存时间  | 加载时间
----------------------|----------|----------|----------
-JSON                 | 100%     | 100%     | 100%
-JSON + gzip          | 65%      | 120%     | 110%
-MessagePack          | 45%      | 30%      | 40%
-MessagePack + LZ4    | 35%      | 35%      | 45%
-bincode              | 30%      | 15%      | 20%
-bincode + Zstandard  | 25%      | 20%      | 25%
-```
-
-### 使用示例
-
-#### 基本格式选择
-
-```rust
-use bevy_fog_of_war::prelude::*;
-
-// 请求保存并指定格式
-save_events.write(SaveFogOfWarRequest {
-include_texture_data: true,
-format: Some(SerializationFormat::Json), // 或 MessagePack、Bincode
-});
-
-// 通过读取文件字节数据加载
-let data = std::fs::read("fog_save.msgpack") ?;
-load_events.write(LoadFogOfWarRequest {
-data,
-format: None, // 自动检测格式
-});
-```
-
-#### 压缩格式
-
-```rust
-// 插件根据可用功能自动选择最优格式
-// 优先级：bincode > messagepack > json
-save_events.write(SaveFogOfWarRequest {
-include_texture_data: true,
-format: None, // 使用最佳可用格式
-});
-
-// 加载时自动从文件内容检测格式
-let data = std::fs::read("fog_save.bincode") ?;
-load_events.write(LoadFogOfWarRequest {
-data,
-format: None, // 自动检测bincode格式
-});
-```
-
-#### 智能加载优先级
-
-插件自动按最优顺序尝试格式：
-
-```rust
-// 插件自动按最优顺序尝试格式
-// 优先级：bincode.zst → msgpack.lz4 → bincode → msgpack → json
-let data = std::fs::read("fog_save.bincode") ?;
-load_events.write(LoadFogOfWarRequest { data, format: None });
-```
-
-### 格式建议
-
-- **开发阶段**：使用 JSON 进行调试和手动检查
-- **生产本地**：使用 bincode 获得最快的本地存档
-- **网络/API**：使用 MessagePack 进行高效传输
-- **长期存储**：使用压缩格式（Zstandard 压缩比最高）
-- **跨平台**：使用 MessagePack 与其他语言兼容
-
-## 持久化
-
-插件支持保存和加载雾效数据，允许你在游戏会话之间或按角色/存档文件持久化已探索的区域。
-
-### 保存雾效数据
-
-```rust
-use bevy::prelude::*;
-use bevy_fog_of_war::prelude::*;
-
-fn save_fog_data(
-    mut save_events: EventWriter<SaveFogOfWarRequest>,
-) {
-    // 请求保存雾效数据
-    save_events.write(SaveFogOfWarRequest {
-        include_texture_data: true, // 包含纹理数据以保存部分可见性
-        format: None, // 使用默认格式（优先级：bincode -> messagepack -> json）
+fn request_save(mut save: MessageWriter<SaveFogOfWarRequest>) {
+    save.write(SaveFogOfWarRequest {
+        include_texture_data: true,
+        format: None, // 自动选择当前启用的最佳 SerializationFormat
     });
 }
 
-fn handle_save_complete(
-    mut events: EventReader<FogOfWarSaved>,
-) {
+fn handle_saved(mut events: MessageReader<FogOfWarSaved>) {
     for event in events.read() {
-        let filename = match event.format {
-            SerializationFormat::Json => "fog_save.json",
+        let ext = match event.format {
+            #[cfg(feature = "format-json")]
+            SerializationFormat::Json => "json",
             #[cfg(feature = "format-messagepack")]
-            SerializationFormat::MessagePack => "fog_save.msgpack",
+            SerializationFormat::MessagePack => "msgpack",
             #[cfg(feature = "format-bincode")]
-            SerializationFormat::Bincode => "fog_save.bincode",
+            SerializationFormat::Bincode => "bincode",
         };
 
-        match std::fs::write(filename, &event.data) {
-            Ok(_) => {
-                println!("✅ 保存了 {} 个区块到 '{}' - 格式：{:?}",
-                         event.chunk_count, filename, event.format);
-            }
-            Err(e) => {
-                eprintln!("❌ 保存雾效数据到 '{}' 失败：{}", filename, e);
-            }
-        }
+        let path = format!("fog_save.{ext}");
+        std::fs::write(&path, &event.data).expect("failed to write fog save");
+        info!("saved {} chunks to {}", event.chunk_count, path);
     }
 }
 ```
 
-### 加载雾效数据
+### 加载
 
 ```rust
 use bevy::prelude::*;
 use bevy_fog_of_war::prelude::*;
 
-fn load_fog_data(
-    mut load_events: EventWriter<LoadFogOfWarRequest>,
-) {
-    // 按优先级顺序尝试加载不同格式的文件
-    let format_priorities = [
-        #[cfg(all(feature = "format-bincode", feature = "compression-zstd"))]
-        "fog_save.bincode.zst",
-        #[cfg(all(feature = "format-messagepack", feature = "compression-lz4"))]
-        "fog_save.msgpack.lz4",
-        #[cfg(feature = "format-bincode")]
-        "fog_save.bincode",
-        #[cfg(feature = "format-messagepack")]
-        "fog_save.msgpack",
-        "fog_save.json",
-    ];
-
-    let mut loaded = false;
-    for filename in format_priorities {
-        // 直接读取文件为字节数据
-        match std::fs::read(filename) {
-            Ok(data) => {
-                println!("✅ 从 '{}' 加载雾效数据", filename);
-                load_events.write(LoadFogOfWarRequest {
-                    data,
-                    format: None, // 从数据内容自动检测格式
-                });
-                loaded = true;
-                break;
-            }
-            Err(_) => {
-                // 文件不存在或加载失败，尝试下一个格式
-                continue;
-            }
-        }
-    }
-
-    if !loaded {
-        eprintln!("⚠️ 未找到保存文件");
+fn request_load(mut load: MessageWriter<LoadFogOfWarRequest>) {
+    if let Ok(data) = std::fs::read("fog_save.bincode") {
+        load.write(LoadFogOfWarRequest {
+            data,
+            format: None, // 从字节内容自动检测
+        });
     }
 }
 
-fn handle_load_complete(
-    mut events: EventReader<FogOfWarLoaded>,
-) {
+fn handle_loaded(mut events: MessageReader<FogOfWarLoaded>) {
     for event in events.read() {
-        println!("加载了 {} 个区块", event.chunk_count);
+        info!("loaded {} chunks", event.chunk_count);
 
-        if !event.warnings.is_empty() {
-            println!("警告: {:?}", event.warnings);
+        for warning in &event.warnings {
+            warn!("load warning: {warning}");
         }
     }
 }
 ```
 
-### 服务器集成
+## 持久化文件辅助工具
 
-持久化系统设计用于与服务器端存储配合使用：
+如果你想用基于扩展名的保存 / 加载，或者压缩文件格式，可以使用 `bevy_fog_of_war::persistence_utils`：
 
 ```rust
-// 使用二进制数据的服务器集成示例
-async fn save_to_server(fog_data: &[u8], format: SerializationFormat) {
-    // 将二进制雾效数据发送到你的游戏服务器
-    let response = reqwest::Client::new()
-        .post("https://api.yourgame.com/fog-of-war/save")
-        .header("Content-Type", "application/octet-stream")
-        .header("X-Fog-Format", format!("{:?}", format))
-        .body(fog_data.to_vec())
-        .send()
-        .await
-        .unwrap();
-}
+use bevy_fog_of_war::persistence::FogOfWarSaveData;
+use bevy_fog_of_war::persistence_utils::{load_fog_data, save_fog_data, FileFormat};
 
-async fn load_from_server() -> Vec<u8> {
-    // 从你的游戏服务器获取二进制雾效数据
-    let response = reqwest::Client::new()
-        .get("https://api.yourgame.com/fog-of-war")
-        .send()
-        .await
-        .unwrap();
-
-    response.bytes().await.unwrap().to_vec()
-}
+# fn example(save_data: &FogOfWarSaveData) -> Result<(), Box<dyn std::error::Error>> {
+save_fog_data(save_data, "fog_save.bincode", FileFormat::Bincode)?;
+let restored = load_fog_data("fog_save.bincode", None)?;
+# let _ = restored;
+# Ok(())
+# }
 ```
 
-查看 [`playground.rs`](examples/playground.rs) 示例了解保存和加载雾效数据的完整演示。
+启用对应 feature 后，还可以使用 `FileFormat::BincodeZstd`、`FileFormat::MessagePackLz4` 等压缩变体。
 
-## 兼容性
+## 示例
 
-| Bevy 版本 | 插件版本     |
-|---------|----------|
-| 0.16    | 0.2, 0.3 |
-| 0.15    | 0.1.0    |
+```bash
+cargo run --example simple_2d
+cargo run --example playground
+```
+
+- `simple_2d`：最小场景 + 保存 / 加载演示。
+- `playground`：交互式示例，包含相机控制、实时设置文本、重置流程和持久化。
+
+## API 文档
+
+- Crate 文档：<https://docs.rs/bevy_fog_of_war>
+- 示例源码：[`examples/`](examples/)
 
 ## 许可证
 
-本项目采用以下任一许可证：
+你可以任选其一：
 
-* Apache 许可证 2.0 版（[LICENSE-APACHE](LICENSE-APACHE) 或 https://www.apache.org/licenses/LICENSE-2.0）
-* MIT 许可证（[LICENSE-MIT](LICENSE-MIT) 或 https://opensource.org/licenses/MIT）
-
-由你选择。
+- Apache License, Version 2.0（[LICENSE-APACHE](LICENSE-APACHE)）
+- MIT license（[LICENSE-MIT](LICENSE-MIT)）
 
 ## 贡献
 
-除非你明确声明，否则你有意提交给作品的任何贡献（如 Apache-2.0 许可证中定义的）都应按上述方式双重许可，不附加任何额外条款或条件。
+除非你明确声明，否则你有意提交到本项目中的任何贡献都将按上述双许可证授权，不附加额外条款。

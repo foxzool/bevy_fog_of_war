@@ -1527,7 +1527,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 /// # use bevy::prelude::*;
 /// # use bevy_fog_of_war::prelude::*;
 /// fn save_fog_state(mut save_events: MessageWriter<SaveFogOfWarRequest>) {
-///     save_events.send(SaveFogOfWarRequest {
+///     save_events.write(SaveFogOfWarRequest {
 ///         include_texture_data: true,  // Complete save with GPU data
 ///         format: Some(SerializationFormat::Bincode),
 ///     });
@@ -1542,7 +1542,7 @@ pub fn load_fog_of_war_system(mut params: LoadSystemParams) {
 ///     mut load_events: MessageWriter<LoadFogOfWarRequest>,
 ///     save_data: Vec<u8>  // Previously saved data
 /// ) {
-///     load_events.send(LoadFogOfWarRequest {
+///     load_events.write(LoadFogOfWarRequest {
 ///         data: save_data,
 ///         format: None,  // Auto-detect format
 ///     });
