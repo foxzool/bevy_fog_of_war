@@ -885,11 +885,12 @@ pub fn manage_chunk_texture_transfer(
                     chunk.fog_layer_index.unwrap(),
                     chunk.snapshot_layer_index.unwrap()
                 );
-                let fog_image = images
+                let mut fog_image = images
                     .get_mut(&chunk_image.fog_image_handle)
                     .expect("Failed to get fog image");
                 fog_image.data = Some(event.fog_data.clone());
-                let snapshot_image = images
+                drop(fog_image); // Explicitly drop first borrow before second / 在第二个之前显式释放第一个借用
+                let mut snapshot_image = images
                     .get_mut(&chunk_image.snapshot_image_handle)
                     .expect("Failed to get snapshot image");
                 snapshot_image.data = Some(event.snapshot_data.clone());
@@ -1299,27 +1300,31 @@ fn reset_chunk_images(
     images: &mut ResMut<Assets<Image>>,
 ) -> Result<(), String> {
     for (_entity, chunk_image) in chunk_query.iter_mut() {
-        if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
-            // 使用统一的纹理大小计算器
-            // Use unified texture size calculator
-            let size_info = TextureSizeCalculator::calculate_2d_single_channel(
-                fog_image.texture_descriptor.size.width,
-                fog_image.texture_descriptor.size.height,
-            )
-            .map_err(|e| format!("Failed to calculate fog texture size: {e}"))?;
+        {
+            if let Some(mut fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+                // 使用统一的纹理大小计算器
+                // Use unified texture size calculator
+                let size_info = TextureSizeCalculator::calculate_2d_single_channel(
+                    fog_image.texture_descriptor.size.width,
+                    fog_image.texture_descriptor.size.height,
+                )
+                .map_err(|e| format!("Failed to calculate fog texture size: {e}"))?;
 
-            fog_image.data = Some(vec![0u8; size_info.total_bytes]);
+                fog_image.data = Some(vec![0u8; size_info.total_bytes]);
+            }
         }
-        if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
-            // 使用统一的纹理大小计算器（RGBA）
-            // Use unified texture size calculator (RGBA)
-            let size_info = TextureSizeCalculator::calculate_2d_rgba(
-                snapshot_image.texture_descriptor.size.width,
-                snapshot_image.texture_descriptor.size.height,
-            )
-            .map_err(|e| format!("Failed to calculate snapshot texture size: {e}"))?;
+        {
+            if let Some(mut snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+                // 使用统一的纹理大小计算器（RGBA）
+                // Use unified texture size calculator (RGBA)
+                let size_info = TextureSizeCalculator::calculate_2d_rgba(
+                    snapshot_image.texture_descriptor.size.width,
+                    snapshot_image.texture_descriptor.size.height,
+                )
+                .map_err(|e| format!("Failed to calculate snapshot texture size: {e}"))?;
 
-            snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
+                snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
+            }
         }
     }
     Ok(())
@@ -1334,57 +1339,63 @@ fn reset_main_textures(
     snapshot_texture: &Res<SnapshotTextureArray>,
 ) -> Result<(), String> {
     // Reset fog texture
-    if let Some(fog_image) = images.get_mut(&fog_texture.handle) {
-        // 使用统一的纹理大小计算器（3D单通道）
-        // Use unified texture size calculator (3D single channel)
-        let size_info = TextureSizeCalculator::calculate_3d_single_channel(
-            fog_image.texture_descriptor.size.width,
-            fog_image.texture_descriptor.size.height,
-            fog_image.texture_descriptor.size.depth_or_array_layers,
-        )
-        .map_err(|e| format!("Failed to calculate main fog texture size: {e}"))?;
+    {
+        if let Some(mut fog_image) = images.get_mut(&fog_texture.handle) {
+            // 使用统一的纹理大小计算器（3D单通道）
+            // Use unified texture size calculator (3D single channel)
+            let size_info = TextureSizeCalculator::calculate_3d_single_channel(
+                fog_image.texture_descriptor.size.width,
+                fog_image.texture_descriptor.size.height,
+                fog_image.texture_descriptor.size.depth_or_array_layers,
+            )
+            .map_err(|e| format!("Failed to calculate main fog texture size: {e}"))?;
 
-        fog_image.data = Some(vec![0u8; size_info.total_bytes]);
-        info!("Reset fog texture data: {} bytes", size_info.total_bytes);
+            fog_image.data = Some(vec![0u8; size_info.total_bytes]);
+            info!("Reset fog texture data: {} bytes", size_info.total_bytes);
+        }
     }
 
     // Reset visibility texture
-    if let Some(visibility_image) = images.get_mut(&visibility_texture.handle) {
-        // 使用统一的纹理大小计算器（3D单通道）
-        // Use unified texture size calculator (3D single channel)
-        let size_info = TextureSizeCalculator::calculate_3d_single_channel(
-            visibility_image.texture_descriptor.size.width,
-            visibility_image.texture_descriptor.size.height,
-            visibility_image
-                .texture_descriptor
-                .size
-                .depth_or_array_layers,
-        )
-        .map_err(|e| format!("Failed to calculate main visibility texture size: {e}"))?;
+    {
+        if let Some(mut visibility_image) = images.get_mut(&visibility_texture.handle) {
+            // 使用统一的纹理大小计算器（3D单通道）
+            // Use unified texture size calculator (3D single channel)
+            let size_info = TextureSizeCalculator::calculate_3d_single_channel(
+                visibility_image.texture_descriptor.size.width,
+                visibility_image.texture_descriptor.size.height,
+                visibility_image
+                    .texture_descriptor
+                    .size
+                    .depth_or_array_layers,
+            )
+            .map_err(|e| format!("Failed to calculate main visibility texture size: {e}"))?;
 
-        visibility_image.data = Some(vec![0u8; size_info.total_bytes]);
-        info!(
-            "Reset visibility texture data: {} bytes",
-            size_info.total_bytes
-        );
+            visibility_image.data = Some(vec![0u8; size_info.total_bytes]);
+            info!(
+                "Reset visibility texture data: {} bytes",
+                size_info.total_bytes
+            );
+        }
     }
 
     // Reset snapshot texture
-    if let Some(snapshot_image) = images.get_mut(&snapshot_texture.handle) {
-        // 使用统一的纹理大小计算器（3D RGBA）
-        // Use unified texture size calculator (3D RGBA)
-        let size_info = TextureSizeCalculator::calculate_3d_rgba(
-            snapshot_image.texture_descriptor.size.width,
-            snapshot_image.texture_descriptor.size.height,
-            snapshot_image.texture_descriptor.size.depth_or_array_layers,
-        )
-        .map_err(|e| format!("Failed to calculate main snapshot texture size: {e}"))?;
+    {
+        if let Some(mut snapshot_image) = images.get_mut(&snapshot_texture.handle) {
+            // 使用统一的纹理大小计算器（3D RGBA）
+            // Use unified texture size calculator (3D RGBA)
+            let size_info = TextureSizeCalculator::calculate_3d_rgba(
+                snapshot_image.texture_descriptor.size.width,
+                snapshot_image.texture_descriptor.size.height,
+                snapshot_image.texture_descriptor.size.depth_or_array_layers,
+            )
+            .map_err(|e| format!("Failed to calculate main snapshot texture size: {e}"))?;
 
-        snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
-        info!(
-            "Reset snapshot texture data: {} bytes",
-            size_info.total_bytes
-        );
+            snapshot_image.data = Some(vec![0u8; size_info.total_bytes]);
+            info!(
+                "Reset snapshot texture data: {} bytes",
+                size_info.total_bytes
+            );
+        }
     }
     Ok(())
 }

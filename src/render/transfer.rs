@@ -203,8 +203,8 @@ pub fn process_cpu_to_gpu_copies(
                     aspect: TextureAspect::All, // Copy all texture aspects
                 },
                 Extent3d {
-                    width: upload_fog_image.size.width, // Match source image dimensions
-                    height: upload_fog_image.size.height,
+                    width: upload_fog_image.texture_descriptor.size.width, // Match source image dimensions
+                    height: upload_fog_image.texture_descriptor.size.height,
                     depth_or_array_layers: 1, // Copy single layer
                 },
             );
@@ -229,8 +229,8 @@ pub fn process_cpu_to_gpu_copies(
                     aspect: TextureAspect::All, // Copy all texture aspects
                 },
                 Extent3d {
-                    width: upload_snapshot_image.size.width, // Match source image dimensions
-                    height: upload_snapshot_image.size.height,
+                    width: upload_snapshot_image.texture_descriptor.size.width, // Match source image dimensions
+                    height: upload_snapshot_image.texture_descriptor.size.height,
                     depth_or_array_layers: 1, // Copy single layer
                 },
             );
@@ -306,8 +306,8 @@ pub fn initiate_gpu_to_cpu_copies_and_request_map(
 
     let texture_width = render_fog_settings.texture_resolution_per_chunk.x;
     let texture_height = render_fog_settings.texture_resolution_per_chunk.y;
-    let fog_format = fog_gpu_image.texture_format;
-    let snapshot_format = snapshot_gpu_image.texture_format;
+    let fog_format = fog_gpu_image.texture_descriptor.format;
+    let snapshot_format = snapshot_gpu_image.texture_descriptor.format;
 
     for request in &gpu_read_requests.requests {
         if active_copies

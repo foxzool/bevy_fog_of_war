@@ -8,16 +8,13 @@ use bevy_camera::{
     ScalingMode,
 };
 use bevy_color::Color;
-use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy_image::Image;
 use bevy_math::{IVec2, Rect};
+use bevy_render::Render;
 use bevy_render::RenderApp;
 use bevy_render::extract_component::ExtractComponent;
 use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy_render::render_asset::RenderAssets;
-use bevy_render::render_graph::{
-    Node, NodeRunError, RenderGraphContext, RenderGraphExt, RenderLabel,
-};
 use bevy_render::render_resource::{
     Extent3d, Origin3d, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureUsages,
 };
@@ -108,18 +105,9 @@ impl Plugin for SnapshotPlugin {
             return;
         };
 
-        render_app.add_render_graph_node::<SnapshotNode>(Core2d, SnapshotNodeLabel);
-        // render_app.add_render_graph_edge(Core2d, SnapshotNodeLabel, Node2d::MainTransparentPass);
-
-        render_app.add_render_graph_edges(
-            Core2d,
-            (
-                Node2d::MainTransparentPass,
-                SnapshotNodeLabel,
-                crate::render::FogComputeNodeLabel,
-                crate::render::FogOverlayNodeLabel,
-                Node2d::EndMainPass,
-            ),
+        render_app.add_systems(
+            Render,
+            snapshot_copy_system,
         );
     }
 }
@@ -426,7 +414,7 @@ fn check_snapshot_image_ready(
 /// ```text
 /// Frame N:   prepare_snapshot_camera sets capturing=true, frame_to_wait=2
 /// Frame N+1: Camera renders scene to temporary texture, frame_to_wait=1
-/// Frame N+2: SnapshotNode copies texture to array layer, frame_to_wait=0
+/// Frame N+2: snapshot_copy_system copies texture to array layer, frame_to_wait=0
 /// Frame N+3: check_snapshot_image_ready resets capturing=false
 /// ```
 ///
@@ -459,37 +447,13 @@ pub struct SnapshotCameraState {
     pub need_clear_layer_index: Option<u32>,
 }
 
-/// Render graph label for the snapshot processing node.
-/// 快照处理节点的渲染图标签
+/// System that copies completed snapshot textures to the final texture array.
+/// 将完成的快照纹理复制到最终纹理数组的系统。
 ///
-/// This label is used to identify and reference the SnapshotNode within Bevy's
-/// render graph system. It enables proper ordering and dependency management
-/// between render passes.
-///
-/// # Usage in Render Graph
-/// ```rust,ignore
-/// render_app.add_render_graph_edges(
-///     Core2d,
-///     (
-///         Node2d::MainTransparentPass,
-///         SnapshotNodeLabel,  // This label
-///         FogComputeNodeLabel,
-///         FogOverlayNodeLabel,
-///         Node2d::EndMainPass,
-///     ),
-/// );
-/// ```
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct SnapshotNodeLabel;
-
-/// Render graph node that copies completed snapshot textures to the final texture array.
-/// 将完成的快照纹理复制到最终纹理数组的渲染图节点
-///
-/// # Node Responsibilities
-/// This render node executes during the render graph to transfer snapshot data:
-/// 1. **Timing Verification**: Ensures snapshot capture timing is complete (frame_to_wait=0)
+/// # Execution Logic
+/// 1. **State Verification**: Ensures camera state indicates ready snapshot (frame_to_wait=0)
 /// 2. **Resource Access**: Retrieves temporary and final snapshot texture handles
-/// 3. **Texture Copy**: Performs GPU texture-to-texture copy operation
+/// 3. **Copy Operation**: Executes GPU texture-to-texture copy operation
 /// 4. **Layer Targeting**: Copies to specific array layer based on snapshot request
 ///
 /// # GPU Operations
@@ -497,7 +461,6 @@ pub struct SnapshotNodeLabel;
 /// - **Source**: Temporary snapshot texture (2D render target)
 /// - **Destination**: Final snapshot texture array (3D texture, specific layer)
 /// - **Format**: Preserves original texture format and dimensions
-/// - **Synchronization**: Executes within render graph command buffer
 ///
 /// # Performance Characteristics
 /// - **GPU Cost**: Single texture copy operation (very fast)
@@ -505,104 +468,60 @@ pub struct SnapshotNodeLabel;
 /// - **Time Complexity**: O(1) per snapshot, O(texture_size) for copy
 /// - **Bandwidth**: Limited by GPU memory bandwidth for texture transfer
 ///
-/// # Integration with Render Graph
-/// Positioned in render graph after MainTransparentPass to ensure scene is rendered:
-/// ```text
-/// MainTransparentPass → SnapshotNode → FogComputeNode → FogOverlayNode
-/// ```
-///
 /// # Error Handling
-/// The node gracefully handles missing resources by returning Ok(()) without operation.
-/// This ensures render graph stability when snapshot system is inactive.
-#[derive(Default)]
-pub struct SnapshotNode;
+/// Returns silently in all cases to maintain render stability:
+/// - Camera not ready (frame_to_wait > 0)
+/// - Missing texture resources (GPU assets not loaded)
+/// - No active snapshot layer (snapshot_layer_index = None)
+pub fn snapshot_copy_system(
+    mut render_context: RenderContext,
+    camera_state: Res<SnapshotCameraState>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+    render_snapshot_temp_texture: Res<RenderSnapshotTempTexture>,
+    render_snapshot_texture: Res<RenderSnapshotTexture>,
+) {
+    let Some(layer_index) = camera_state.snapshot_layer_index else {
+        return;
+    };
 
-impl Node for SnapshotNode {
-    /// Executes the snapshot texture copy operation during render graph execution.
-    /// 在渲染图执行期间执行快照纹理复制操作
-    ///
-    /// # Execution Logic
-    /// 1. **View Validation**: Checks if current view entity has SnapshotCamera component
-    /// 2. **State Verification**: Ensures camera state indicates ready snapshot (frame_to_wait=0)
-    /// 3. **Resource Gathering**: Retrieves GPU image assets for source and destination textures
-    /// 4. **Copy Operation**: Executes texture copy from temp texture to array layer
-    ///
-    /// # GPU Texture Copy Details
-    /// - **Source**: snapshot_temp_image.texture (2D render target)
-    /// - **Destination**: snapshot_images.texture (3D array, layer=layer_index)
-    /// - **Extent**: Full texture dimensions (width x height x 1 layer)
-    /// - **Origin**: (0,0,layer_index) for proper array layer targeting
-    ///
-    /// # Performance Impact
-    /// - **GPU Time**: ~0.1ms for typical 256x256 RGBA8 texture copy
-    /// - **Memory Bandwidth**: texture_width × texture_height × bytes_per_pixel
-    /// - **Synchronization**: Automatically handled by render graph command buffer
-    ///
-    /// # Error Conditions
-    /// Returns Ok(()) in all cases to maintain render graph stability:
-    /// - Missing SnapshotCamera component (not our view)
-    /// - Camera not ready (frame_to_wait > 0)
-    /// - Missing texture resources (GPU assets not loaded)
-    /// - No active snapshot layer (snapshot_layer_index = None)
-    fn run<'w>(
-        &self,
-        graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext<'w>,
-        world: &'w World,
-    ) -> Result<(), NodeRunError> {
-        let view_entity = graph.view_entity();
-
-        if world.get::<SnapshotCamera>(view_entity).is_none() {
-            return Ok(());
-        }
-
-        let camera_state = world.resource::<SnapshotCameraState>();
-        if let Some(layer_index) = camera_state.snapshot_layer_index {
-            if camera_state.frame_to_wait > 0 {
-                return Ok(());
-            }
-            let gpu_images = world.resource::<RenderAssets<GpuImage>>();
-            let render_snapshot_temp_texture = world.resource::<RenderSnapshotTempTexture>();
-            let render_snapshot_texture = world.resource::<RenderSnapshotTexture>();
-
-            let Some(snapshot_temp_image) = gpu_images.get(&render_snapshot_temp_texture.0) else {
-                return Ok(());
-            };
-
-            let Some(snapshot_images) = gpu_images.get(&render_snapshot_texture.0) else {
-                return Ok(());
-            };
-
-            render_context.command_encoder().copy_texture_to_texture(
-                snapshot_temp_image.texture.as_image_copy(),
-                TexelCopyTextureInfo {
-                    texture: &snapshot_images.texture,
-                    mip_level: 0,
-                    origin: Origin3d {
-                        x: 0,
-                        y: 0,
-                        z: layer_index,
-                    },
-                    aspect: TextureAspect::All,
-                },
-                Extent3d {
-                    width: snapshot_temp_image.size.width,
-                    height: snapshot_temp_image.size.height,
-                    depth_or_array_layers: 1,
-                },
-            );
-
-            trace!(
-                "Copying temp texture to snapshot layer {}. Temp texture size: {}x{}, format: {:?}",
-                layer_index,
-                snapshot_temp_image.size.width,
-                snapshot_temp_image.size.height,
-                snapshot_temp_image.texture_format
-            );
-        }
-
-        Ok(())
+    if camera_state.frame_to_wait > 0 {
+        return;
     }
+
+    let Some(snapshot_temp_image) = gpu_images.get(&render_snapshot_temp_texture.0) else {
+        return;
+    };
+
+    let Some(snapshot_images) = gpu_images.get(&render_snapshot_texture.0) else {
+        return;
+    };
+
+    render_context.command_encoder().copy_texture_to_texture(
+        snapshot_temp_image.texture.as_image_copy(),
+        TexelCopyTextureInfo {
+            texture: &snapshot_images.texture,
+            mip_level: 0,
+            origin: Origin3d {
+                x: 0,
+                y: 0,
+                z: layer_index,
+            },
+            aspect: TextureAspect::All,
+        },
+        Extent3d {
+            width: snapshot_temp_image.texture_descriptor.size.width,
+            height: snapshot_temp_image.texture_descriptor.size.height,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    trace!(
+        "Copying temp texture to snapshot layer {}. Temp texture size: {}x{}, format: {:?}",
+        layer_index,
+        snapshot_temp_image.texture_descriptor.size.width,
+        snapshot_temp_image.texture_descriptor.size.height,
+        snapshot_temp_image.texture_descriptor.format
+    );
 }
 
 /// Ensures all Capturable entities are visible on the snapshot render layer.
