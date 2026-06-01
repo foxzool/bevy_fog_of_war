@@ -692,7 +692,8 @@ pub fn load_save_data(
             }
 
             if let Some(snapshot_data) = &chunk_data.snapshot_data {
-                if let Some(mut snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+                if let Some(mut snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle)
+                {
                     snapshot_image.data = Some(snapshot_data.clone());
                 }
             }

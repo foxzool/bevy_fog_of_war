@@ -678,7 +678,7 @@ pub fn prepare_fog_bind_groups(
     images: Res<RenderAssets<GpuImage>>,
     fallback_image: Res<FallbackImage>, // For default textures / 用于默认纹理
     fog_compute_pipeline: Res<FogComputePipeline>, // For view uniform binding / 用于视图统一绑定
-    pipeline_cache: Res<PipelineCache>, // Bevy 0.18: needed to get BindGroupLayout from descriptor
+    pipeline_cache: Res<PipelineCache>,
 ) {
     // Get texture views with fallback support for robust resource handling
     // 获取纹理视图，支持回退以实现强大的资源处理
@@ -702,8 +702,6 @@ pub fn prepare_fog_bind_groups(
         vision_source_buffer.buffer.as_ref(), // Vision source storage buffer
         gpu_chunk_buffer.buffer.as_ref(),     // Chunk computation storage buffer
     ) {
-        // Bevy 0.18: get actual BindGroupLayout from descriptor via pipeline_cache
-        // Bevy 0.18: 通过 pipeline_cache 从描述符获取实际的 BindGroupLayout
         let compute_layout =
             pipeline_cache.get_bind_group_layout(&fog_compute_pipeline.compute_layout);
 

@@ -27,14 +27,14 @@
 
 | bevy_fog_of_war | Bevy |
 | --- | --- |
-| 0.3.x | 0.18 |
+| 0.4.x | 0.19.0-rc.2 |
 
 ## 安装
 
 ```toml
 [dependencies]
-bevy = "0.18"
-bevy_fog_of_war = "0.3"
+bevy = "0.19.0-rc.2"
+bevy_fog_of_war = "0.4"
 ```
 
 默认启用 `format-bincode`。
@@ -43,16 +43,16 @@ bevy_fog_of_war = "0.3"
 
 ```toml
 # 增加 MessagePack 支持
-bevy_fog_of_war = { version = "0.3", features = ["format-messagepack"] }
+bevy_fog_of_war = { version = "0.4", features = ["format-messagepack"] }
 
 # 增加 JSON 支持
-bevy_fog_of_war = { version = "0.3", features = ["format-json"] }
+bevy_fog_of_war = { version = "0.4", features = ["format-json"] }
 
 # 为 persistence_utils 增加压缩辅助能力
-bevy_fog_of_war = { version = "0.3", features = ["compression-zstd"] }
+bevy_fog_of_war = { version = "0.4", features = ["compression-zstd"] }
 
 # 全部开启：所有格式 + 所有压缩辅助
-bevy_fog_of_war = { version = "0.3", features = ["all-formats"] }
+bevy_fog_of_war = { version = "0.4", features = ["all-formats"] }
 ```
 
 ## 快速开始

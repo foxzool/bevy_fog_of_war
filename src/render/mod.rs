@@ -66,8 +66,8 @@
 //! - **transfer**: CPU↔GPU memory transfer coordination
 
 use crate::prelude::*;
-use bevy_core_pipeline::schedule::Core2d;
 use bevy_core_pipeline::Core2dSystems;
+use bevy_core_pipeline::schedule::Core2d;
 use bevy_render::renderer::render_system;
 use bevy_render::{Render, RenderApp, RenderSystems};
 

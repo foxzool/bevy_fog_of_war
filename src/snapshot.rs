@@ -105,10 +105,7 @@ impl Plugin for SnapshotPlugin {
             return;
         };
 
-        render_app.add_systems(
-            Render,
-            snapshot_copy_system,
-        );
+        render_app.add_systems(Render, snapshot_copy_system);
     }
 }
 
@@ -341,8 +338,8 @@ fn setup_snapshot_camera(
             is_active: false, // Initially inactive
             ..Default::default()
         },
-        RenderTarget::Image(snapshot_temp_handle.clone().into()), // RenderTarget is now a separate component in Bevy 0.18
-        SnapshotCamera,                                           // Mark it as our snapshot camera
+        RenderTarget::Image(snapshot_temp_handle.clone().into()),
+        SnapshotCamera, // Mark it as our snapshot camera
         SNAPSHOT_RENDER_LAYER,
     ));
 }

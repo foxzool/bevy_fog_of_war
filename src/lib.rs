@@ -575,7 +575,6 @@ fn update_camera_view_chunks(
             // 对于正交投影，大致基于缩放和位置。
             let camera_pos = cam_transform.translation().truncate();
 
-            // 基于投影缩放和视口大小估算半宽/高 (Bevy 0.12+ 在 OrthographicProjection 中使用 `area`)
             let half_width = projection.area.width() * 0.5 * projection.scale;
             let half_height = projection.area.height() * 0.5 * projection.scale;
 
@@ -751,7 +750,7 @@ fn manage_chunk_entities(
                             state: initial_state,
                             world_bounds,
                         },
-                        FogChunkImage::from_setting(&mut images, &settings),
+                        FogChunkImage::from_setting(&mut images, settings.as_ref()),
                     ))
                     .id();
 

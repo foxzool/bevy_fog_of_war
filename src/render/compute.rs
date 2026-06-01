@@ -329,8 +329,7 @@ pub fn fog_compute_system(
     chunk_buffer: Res<GpuChunkInfoBuffer>,
     settings: Res<RenderFogMapSettings>,
 ) {
-    let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id)
-    else {
+    let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id) else {
         // Pipeline not compiled yet / 管线尚未编译
         return;
     };

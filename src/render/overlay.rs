@@ -114,6 +114,7 @@ use crate::snapshot::SnapshotCamera;
 use bevy_asset::DirectAssetAccessExt;
 use bevy_core_pipeline::FullscreenShader;
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_render::{
     render_asset::RenderAssets,
     render_resource::binding_types::{
@@ -258,8 +259,6 @@ impl FromWorld for FogOverlayPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
 
-        // Create bind group layout descriptor (Bevy 0.18: BindGroupLayoutDescriptor not BindGroupLayout)
-        // 创建绑定组布局描述符 (Bevy 0.18: BindGroupLayoutDescriptor 而非 BindGroupLayout)
         let layout = BindGroupLayoutDescriptor::new(
             "fog_overlay_bind_group_layout",
             &BindGroupLayoutEntries::sequential(
@@ -338,6 +337,26 @@ impl FromWorld for FogOverlayPipeline {
     }
 }
 
+#[derive(SystemParam)]
+pub struct FogOverlaySystemParams<'w, 's> {
+    views: Query<
+        'w,
+        's,
+        (Entity, &'static ViewTarget, &'static ViewUniformOffset),
+        Without<SnapshotCamera>,
+    >,
+    overlay_pipeline: Res<'w, FogOverlayPipeline>,
+    pipeline_cache: Res<'w, PipelineCache>,
+    fog_uniforms: Res<'w, FogUniforms>,
+    overlay_chunk_buffer: Res<'w, OverlayChunkMappingBuffer>,
+    visibility_texture: Res<'w, RenderVisibilityTexture>,
+    fog_texture: Res<'w, RenderFogTexture>,
+    snapshot_texture: Res<'w, RenderSnapshotTexture>,
+    images: Res<'w, RenderAssets<GpuImage>>,
+    fallback_image: Res<'w, FallbackImage>,
+    view_uniforms: Res<'w, ViewUniforms>,
+}
+
 /// Executes fog overlay rendering for all non-snapshot camera views.
 /// 为所有非快照相机视图执行雾效覆盖渲染
 ///
@@ -363,60 +382,49 @@ impl FromWorld for FogOverlayPipeline {
 /// - **Missing Pipeline**: Waits for shader compilation without blocking
 /// - **Missing Buffers**: Skips rendering when GPU buffers not ready
 /// - **Missing Textures**: Uses fallback textures for graceful degradation
-pub fn fog_overlay_system(
-    mut render_context: RenderContext,
-    views: Query<(Entity, &ViewTarget, &ViewUniformOffset), Without<SnapshotCamera>>,
-    overlay_pipeline: Res<FogOverlayPipeline>,
-    pipeline_cache: Res<PipelineCache>,
-    fog_uniforms: Res<FogUniforms>,
-    overlay_chunk_buffer: Res<OverlayChunkMappingBuffer>,
-    visibility_texture: Res<RenderVisibilityTexture>,
-    fog_texture: Res<RenderFogTexture>,
-    snapshot_texture: Res<RenderSnapshotTexture>,
-    images: Res<RenderAssets<GpuImage>>,
-    fallback_image: Res<FallbackImage>,
-    view_uniforms: Res<ViewUniforms>,
-) {
+pub fn fog_overlay_system(mut render_context: RenderContext, params: FogOverlaySystemParams) {
     // Retrieve compiled render pipeline from cache
-    let Some(pipeline) = pipeline_cache.get_render_pipeline(overlay_pipeline.pipeline_id)
+    let Some(pipeline) = params
+        .pipeline_cache
+        .get_render_pipeline(params.overlay_pipeline.pipeline_id)
     else {
         // Pipeline not compiled yet, skip this frame gracefully
         return;
     };
 
     // Validate that all required GPU buffers are prepared and ready
-    let (
-        Some(uniform_buf),
-        Some(mapping_buf),
-        Some(view_uniform_binding),
-    ) = (
-        fog_uniforms.buffer.as_ref(),
-        overlay_chunk_buffer.buffer.as_ref(),
-        view_uniforms.uniforms.binding(),
-    )
-    else {
+    let (Some(uniform_buf), Some(mapping_buf), Some(view_uniform_binding)) = (
+        params.fog_uniforms.buffer.as_ref(),
+        params.overlay_chunk_buffer.buffer.as_ref(),
+        params.view_uniforms.uniforms.binding(),
+    ) else {
         // Buffers not ready yet, skip rendering this frame
         return;
     };
 
     // Get GPU texture views for fog texture arrays with fallback support
-    let visibility_texture_view = images
-        .get(&visibility_texture.0)
+    let visibility_texture_view = params
+        .images
+        .get(&params.visibility_texture.0)
         .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.d2.texture_view);
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
-    let fog_texture_view = images
-        .get(&fog_texture.0)
+    let fog_texture_view = params
+        .images
+        .get(&params.fog_texture.0)
         .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.d2.texture_view);
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
-    let snapshot_texture_view = images
-        .get(&snapshot_texture.0)
+    let snapshot_texture_view = params
+        .images
+        .get(&params.snapshot_texture.0)
         .map(|img| &img.texture_view)
-        .unwrap_or(&fallback_image.d2.texture_view);
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
     // Resolve bind group layout from pipeline cache
-    let overlay_layout = pipeline_cache.get_bind_group_layout(&overlay_pipeline.layout);
+    let overlay_layout = params
+        .pipeline_cache
+        .get_bind_group_layout(&params.overlay_pipeline.layout);
 
     // Create shared bind group for all views
     let bind_group = render_context.render_device().create_bind_group(
@@ -424,7 +432,7 @@ pub fn fog_overlay_system(
         &overlay_layout,
         &BindGroupEntries::sequential((
             view_uniform_binding,
-            &overlay_pipeline.sampler,
+            &params.overlay_pipeline.sampler,
             visibility_texture_view,
             fog_texture_view,
             snapshot_texture_view,
@@ -434,7 +442,7 @@ pub fn fog_overlay_system(
     );
 
     // Iterate over all non-snapshot views and render fog overlay
-    for (_view_entity, view_target, view_uniform_offset) in &views {
+    for (_view_entity, view_target, view_uniform_offset) in &params.views {
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_overlay_pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
