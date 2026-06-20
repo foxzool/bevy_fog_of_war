@@ -66,8 +66,8 @@
 //! - **transfer**: CPU↔GPU memory transfer coordination
 
 use crate::prelude::*;
-use bevy_core_pipeline::core_2d::graph::{Core2d, Node2d};
-use bevy_render::render_graph::{RenderGraphExt, ViewNodeRunner};
+use bevy_core_pipeline::Core2dSystems;
+use bevy_core_pipeline::schedule::Core2d;
 use bevy_render::renderer::render_system;
 use bevy_render::{Render, RenderApp, RenderSystems};
 
@@ -88,7 +88,7 @@ use crate::render::transfer::{CpuToGpuRequests, GpuToCpuActiveCopies};
 
 // Compute shader pipeline components
 // 计算着色器管线组件
-pub use compute::{FogComputeNode, FogComputeNodeLabel};
+pub use compute::fog_compute_system;
 
 // Extracted render world resources
 // 提取的渲染世界资源
@@ -96,7 +96,7 @@ pub use extract::{RenderFogMapSettings, RenderSnapshotTempTexture, RenderSnapsho
 
 // Fog overlay rendering components
 // 雾效叠加渲染组件
-pub use overlay::{FogOverlayNode, FogOverlayNodeLabel};
+pub use overlay::fog_overlay_system;
 
 // GPU resource management components
 // GPU资源管理组件
@@ -239,19 +239,18 @@ impl Plugin for FogOfWarRenderPlugin {
                     .in_set(RenderSystems::PrepareBindGroups),
             );
 
-        // Add Render Graph nodes / 添加 Render Graph 节点
-        render_app
-            .add_render_graph_node::<FogComputeNode>(Core2d, FogComputeNodeLabel)
-            .add_render_graph_node::<ViewNodeRunner<FogOverlayNode>>(Core2d, FogOverlayNodeLabel);
-
-        // Add Render Graph edges (define dependencies) / 添加 Render Graph 边 (定义依赖)
-        render_app.add_render_graph_edges(
+        // Add fog compute and overlay systems to Core2d schedule
+        // 向Core2d调度添加雾效计算和叠加系统
+        render_app.add_systems(
             Core2d,
             (
-                Node2d::MainTransparentPass,
-                FogComputeNodeLabel,
-                FogOverlayNodeLabel,
-                Node2d::EndMainPass,
+                fog_compute_system
+                    .after(Core2dSystems::MainPass)
+                    .before(Core2dSystems::PostProcess),
+                fog_overlay_system
+                    .after(Core2dSystems::MainPass)
+                    .after(fog_compute_system)
+                    .before(Core2dSystems::PostProcess),
             ),
         );
     }

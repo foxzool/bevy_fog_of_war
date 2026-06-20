@@ -114,12 +114,9 @@ use crate::snapshot::SnapshotCamera;
 use bevy_asset::DirectAssetAccessExt;
 use bevy_core_pipeline::FullscreenShader;
 use bevy_ecs::prelude::*;
-use bevy_ecs::query::QueryItem;
-use bevy_ecs::system::lifetimeless::Read;
-use bevy_image::BevyDefault;
+use bevy_ecs::system::SystemParam;
 use bevy_render::{
     render_asset::RenderAssets,
-    render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode},
     render_resource::binding_types::{
         sampler, storage_buffer_read_only, texture_2d_array, uniform_buffer,
     },
@@ -142,62 +139,6 @@ use bevy_render::{
 /// - **Color Blending**: Combines fog colors with scene and snapshot content
 /// - **Performance Optimization**: Efficient per-pixel operations with GPU optimization
 const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wgsl";
-
-/// Render graph label for the fog overlay rendering node.
-/// 雾效覆盖渲染节点的渲染图标签
-///
-/// This label identifies the fog overlay node within Bevy's render graph,
-/// enabling proper ordering and dependency management. The overlay node
-/// executes as the final stage in fog rendering, after compute operations.
-///
-/// # Render Graph Integration
-/// Used to establish render graph dependencies:
-/// ```rust,ignore
-/// render_app.add_render_graph_edges(
-///     Core2d,
-///     (
-///         Node2d::MainTransparentPass,
-///         SnapshotNodeLabel,
-///         FogComputeNodeLabel,
-///         FogOverlayNodeLabel,  // This label
-///         Node2d::EndMainPass,
-///     ),
-/// );
-/// ```
-///
-/// # Label Properties
-/// - **Unique**: Distinguishes overlay node from other render nodes
-/// - **Hashable**: Enables efficient render graph operations
-/// - **Debug**: Provides debugging information for render graph inspection
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct FogOverlayNodeLabel;
-
-/// Render graph node that performs fog overlay rendering as a fullscreen effect.
-/// 执行雾效覆盖渲染作为全屏效果的渲染图节点
-///
-/// This node implements the final stage of fog rendering, compositing fog textures
-/// over the main scene to create the visual fog of war effect. It operates as a
-/// fullscreen post-processing effect using GPU fragment shaders.
-///
-/// # Rendering Strategy
-/// - **Fullscreen Triangle**: Uses a single screen-aligned triangle for optimal GPU utilization
-/// - **Fragment-Based**: All fog logic handled in fragment shader for per-pixel control
-/// - **Multi-Texture Sampling**: Accesses visibility, fog, and snapshot texture arrays
-/// - **Alpha Blending**: Proper transparency blending with scene content
-///
-/// # Performance Characteristics
-/// - **Resolution Dependent**: O(screen_width × screen_height) fragment operations
-/// - **GPU Bound**: Limited by fragment shading performance and texture bandwidth
-/// - **Cache Efficient**: Optimized texture array access patterns
-/// - **Fill Rate**: Bounded by GPU fill rate for fullscreen effects
-///
-/// # Integration Points
-/// - **View Node**: Runs once per camera view with view-specific uniforms
-/// - **Render Graph**: Executes after fog compute operations
-/// - **Resource Access**: Uses prepared GPU buffers and texture arrays
-/// - **Fallback Support**: Graceful handling of missing resources
-#[derive(Default)]
-pub struct FogOverlayNode;
 
 /// GPU render pipeline resource for fog overlay shader operations.
 /// 雾效覆盖着色器操作的GPU渲染管线资源
@@ -318,8 +259,6 @@ impl FromWorld for FogOverlayPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
 
-        // Create bind group layout descriptor (Bevy 0.18: BindGroupLayoutDescriptor not BindGroupLayout)
-        // 创建绑定组布局描述符 (Bevy 0.18: BindGroupLayoutDescriptor 而非 BindGroupLayout)
         let layout = BindGroupLayoutDescriptor::new(
             "fog_overlay_bind_group_layout",
             &BindGroupLayoutEntries::sequential(
@@ -342,7 +281,7 @@ impl FromWorld for FogOverlayPipeline {
             label: Some("fog_overlay_sampler"),
             mag_filter: FilterMode::Linear, // Linear magnification for smooth scaling
             min_filter: FilterMode::Linear, // Linear minification for smooth scaling
-            mipmap_filter: FilterMode::Linear, // Linear mip mapping for level transitions
+            mipmap_filter: MipmapFilterMode::Linear, // Linear mip mapping for level transitions
             address_mode_u: AddressMode::ClampToEdge, // Clamp U axis to prevent sampling artifacts
             address_mode_v: AddressMode::ClampToEdge, // Clamp V axis to prevent sampling artifacts
             address_mode_w: AddressMode::ClampToEdge, // Clamp W axis for texture array layers
@@ -376,7 +315,7 @@ impl FromWorld for FogOverlayPipeline {
                         shader_defs: vec![], // No shader preprocessor definitions
                         entry_point: None,   // Use default entry point from shader
                         targets: vec![Some(ColorTargetState {
-                            format: TextureFormat::bevy_default(), // Use Bevy's default HDR format
+                            format: TextureFormat::Rgba8UnormSrgb, // Standard RGBA format for overlay
                             blend: Some(BlendState::ALPHA_BLENDING), // Standard alpha blending for transparency
                             write_mask: ColorWrites::ALL,            // Write to all RGBA channels
                         })],
@@ -384,8 +323,8 @@ impl FromWorld for FogOverlayPipeline {
                     primitive: PrimitiveState::default(), // Default primitive settings (triangle list)
                     depth_stencil: None,                  // No depth testing for fullscreen overlay
                     multisample: MultisampleState::default(), // Default multisampling settings
-                    push_constant_ranges: vec![],         // No push constants used
-                    zero_initialize_workgroup_memory: false, // Not applicable for render pipelines
+                    immediate_size: 0,                    // No immediate mode data
+                    zero_initialize_workgroup_memory: false,
                 });
 
         // Return configured pipeline with all components
@@ -398,201 +337,131 @@ impl FromWorld for FogOverlayPipeline {
     }
 }
 
-/// Implements the view node interface for fog overlay rendering operations.
-/// 为雾效覆盖渲染操作实现视图节点接口
+#[derive(SystemParam)]
+pub struct FogOverlaySystemParams<'w, 's> {
+    views: Query<
+        'w,
+        's,
+        (Entity, &'static ViewTarget, &'static ViewUniformOffset),
+        Without<SnapshotCamera>,
+    >,
+    overlay_pipeline: Res<'w, FogOverlayPipeline>,
+    pipeline_cache: Res<'w, PipelineCache>,
+    fog_uniforms: Res<'w, FogUniforms>,
+    overlay_chunk_buffer: Res<'w, OverlayChunkMappingBuffer>,
+    visibility_texture: Res<'w, RenderVisibilityTexture>,
+    fog_texture: Res<'w, RenderFogTexture>,
+    snapshot_texture: Res<'w, RenderSnapshotTexture>,
+    images: Res<'w, RenderAssets<GpuImage>>,
+    fallback_image: Res<'w, FallbackImage>,
+    view_uniforms: Res<'w, ViewUniforms>,
+}
+
+/// Executes fog overlay rendering for all non-snapshot camera views.
+/// 为所有非快照相机视图执行雾效覆盖渲染
 ///
-/// This implementation defines how the fog overlay node executes within Bevy's
-/// render graph for each camera view. It handles resource gathering, bind group
-/// creation, and fullscreen rendering operations.
-impl ViewNode for FogOverlayNode {
-    /// Query type for view-specific data needed by the overlay node.
-    /// 覆盖节点所需的视图特定数据的查询类型
-    ///
-    /// - **ViewTarget**: Provides access to the view's render target for output
-    /// - **ViewUniformOffset**: Provides dynamic offset for view uniform buffer access
-    type ViewQuery = (Read<ViewTarget>, Read<ViewUniformOffset>);
+/// This system is called by Bevy's render schedule for each frame.
+/// It performs fullscreen fog compositing by sampling fog textures and blending
+/// them over the main scene for each active camera view.
+///
+/// # Execution Flow
+/// 1. **Pipeline Validation**: Ensure render pipeline is compiled and ready
+/// 2. **Buffer Validation**: Verify all uniform and storage buffers are prepared
+/// 3. **Texture Access**: Get texture views for fog, visibility, and snapshot arrays
+/// 4. **Bind Group Creation**: Create shared bind group with all resources
+/// 5. **Render Pass**: Execute fullscreen triangle rendering for each view
+///
+/// # Performance Characteristics
+/// - **Resolution Dependent**: O(screen_width × screen_height) fragment operations per view
+/// - **Texture Bandwidth**: 3-6 texture samples per pixel for fog data
+/// - **Fill Rate Bound**: Limited by GPU fragment processing and texture cache
+/// - **Memory Access**: Coalesced texture array access for cache efficiency
+///
+/// # Error Handling
+/// Returns silently in all cases to maintain render stability:
+/// - **Missing Pipeline**: Waits for shader compilation without blocking
+/// - **Missing Buffers**: Skips rendering when GPU buffers not ready
+/// - **Missing Textures**: Uses fallback textures for graceful degradation
+pub fn fog_overlay_system(mut render_context: RenderContext, params: FogOverlaySystemParams) {
+    // Retrieve compiled render pipeline from cache
+    let Some(pipeline) = params
+        .pipeline_cache
+        .get_render_pipeline(params.overlay_pipeline.pipeline_id)
+    else {
+        // Pipeline not compiled yet, skip this frame gracefully
+        return;
+    };
 
-    /// Executes fog overlay rendering for a specific camera view.
-    /// 为特定相机视图执行雾效覆盖渲染
-    ///
-    /// This method is called by Bevy's render graph system for each camera view
-    /// that requires fog overlay rendering. It performs fullscreen fog compositing
-    /// by sampling fog textures and blending them over the main scene.
-    ///
-    /// # Execution Flow
-    /// 1. **Camera Validation**: Skip snapshot cameras that don't need fog overlay
-    /// 2. **Resource Gathering**: Collect all required GPU resources and buffers
-    /// 3. **Pipeline Validation**: Ensure render pipeline is compiled and ready
-    /// 4. **Buffer Validation**: Verify all uniform and storage buffers are prepared
-    /// 5. **Texture Access**: Get texture views for fog, visibility, and snapshot arrays
-    /// 6. **Bind Group Creation**: Create view-specific bind group with all resources
-    /// 7. **Render Pass**: Execute fullscreen triangle rendering with fog shader
-    ///
-    /// # Resource Dependencies
-    /// - **FogOverlayPipeline**: Compiled render pipeline and bind group layout
-    /// - **FogUniforms**: GPU uniform buffer with fog settings
-    /// - **OverlayChunkMappingBuffer**: Storage buffer with chunk coordinate mappings
-    /// - **Texture Arrays**: Visibility, fog, and snapshot texture arrays
-    /// - **View Uniforms**: Camera-specific uniform data with dynamic offsets
-    ///
-    /// # Rendering Technique
-    /// Uses a fullscreen triangle approach for optimal GPU utilization:
-    /// - **Vertex Stage**: Bevy's fullscreen vertex shader generates screen positions
-    /// - **Fragment Stage**: Custom fog shader samples textures and composites fog
-    /// - **Alpha Blending**: Standard alpha blending for proper fog transparency
-    /// - **Screen Coverage**: Single triangle covers entire screen efficiently
-    ///
-    /// # Performance Characteristics
-    /// - **Resolution Dependent**: O(screen_width × screen_height) fragment operations
-    /// - **Texture Bandwidth**: 3-6 texture samples per pixel for fog data
-    /// - **Fill Rate Bound**: Limited by GPU fragment processing and texture cache
-    /// - **Memory Access**: Coalesced texture array access for cache efficiency
-    ///
-    /// # Error Handling
-    /// Returns Ok(()) in all cases to maintain render graph stability:
-    /// - **Snapshot Camera**: Skips fog overlay for snapshot capture cameras
-    /// - **Missing Pipeline**: Waits for shader compilation without blocking
-    /// - **Missing Buffers**: Skips rendering when GPU buffers not ready
-    /// - **Missing Textures**: Uses fallback textures for graceful degradation
-    ///
-    /// # Bind Group Configuration
-    /// Creates per-view bind group with:
-    /// - **Dynamic Offset**: View uniform offset for multi-view support
-    /// - **Texture Arrays**: All three fog texture arrays (visibility, fog, snapshot)
-    /// - **Uniform Buffers**: Fog settings and view-specific data
-    /// - **Storage Buffer**: Chunk mapping data for coordinate transformations
-    ///
-    /// # Integration Points
-    /// - **Render Graph**: Executes after compute operations in fog pipeline
-    /// - **View System**: Runs once per camera view with view-specific data
-    /// - **Resource System**: Uses prepared GPU buffers and texture arrays
-    /// - **Pipeline Cache**: Retrieves compiled render pipeline from cache
-    fn run(
-        &self,
-        graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (view_target, view_uniform_offset): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        // Get the current view entity for camera-specific processing
-        // 获取当前视图实体以进行相机特定处理
-        let view_entity = graph.view_entity();
+    // Validate that all required GPU buffers are prepared and ready
+    let (Some(uniform_buf), Some(mapping_buf), Some(view_uniform_binding)) = (
+        params.fog_uniforms.buffer.as_ref(),
+        params.overlay_chunk_buffer.buffer.as_ref(),
+        params.view_uniforms.uniforms.binding(),
+    ) else {
+        // Buffers not ready yet, skip rendering this frame
+        return;
+    };
 
-        // Skip fog overlay rendering for snapshot cameras
-        // 为快照相机跳过雾效覆盖渲染
-        if world.get::<SnapshotCamera>(view_entity).is_some() {
-            return Ok(()); // Snapshot cameras don't need fog overlay
-        }
+    // Get GPU texture views for fog texture arrays with fallback support
+    let visibility_texture_view = params
+        .images
+        .get(&params.visibility_texture.0)
+        .map(|img| &img.texture_view)
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
-        // Gather required pipeline and cache resources
-        // 收集所需的管线和缓存资源
-        let overlay_pipeline = world.resource::<FogOverlayPipeline>();
-        let pipeline_cache = world.resource::<PipelineCache>();
+    let fog_texture_view = params
+        .images
+        .get(&params.fog_texture.0)
+        .map(|img| &img.texture_view)
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
-        // Retrieve compiled render pipeline from cache
-        // 从缓存中检索编译的渲染管线
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(overlay_pipeline.pipeline_id)
-        else {
-            // Pipeline not compiled yet, skip this frame gracefully
-            // 管线尚未编译，优雅地跳过此帧
-            return Ok(());
-        };
+    let snapshot_texture_view = params
+        .images
+        .get(&params.snapshot_texture.0)
+        .map(|img| &img.texture_view)
+        .unwrap_or(&params.fallback_image.d2.texture_view);
 
-        // Gather all required GPU resources for fog overlay rendering
-        // 收集雾效覆盖渲染所需的所有GPU资源
-        let fog_uniforms = world.resource::<FogUniforms>();
-        let overlay_chunk_buffer = world.resource::<OverlayChunkMappingBuffer>();
-        let visibility_texture = world.resource::<RenderVisibilityTexture>();
-        let fog_texture = world.resource::<RenderFogTexture>();
-        let snapshot_texture = world.resource::<RenderSnapshotTexture>();
-        let images = world.resource::<RenderAssets<GpuImage>>();
-        let fallback_image = world.resource::<FallbackImage>();
-        let view_uniforms = world.resource::<ViewUniforms>();
+    // Resolve bind group layout from pipeline cache
+    let overlay_layout = params
+        .pipeline_cache
+        .get_bind_group_layout(&params.overlay_pipeline.layout);
 
-        // Validate that all required GPU buffers are prepared and ready
-        // 验证所有必需的GPU缓冲区都已准备就绪
-        let (
-            Some(uniform_buf),          // Fog settings uniform buffer
-            Some(mapping_buf),          // Chunk mapping storage buffer
-            Some(view_uniform_binding), // View uniform buffer binding
-        ) = (
-            fog_uniforms.buffer.as_ref(),
-            overlay_chunk_buffer.buffer.as_ref(),
-            view_uniforms.uniforms.binding(), // Dynamic uniform buffer with offsets
-        )
-        else {
-            // Buffers not ready yet, skip rendering this frame
-            // 缓冲区尚未准备好，跳过本帧渲染
-            return Ok(());
-        };
+    // Create shared bind group for all views
+    let bind_group = render_context.render_device().create_bind_group(
+        "fog_overlay_bind_group",
+        &overlay_layout,
+        &BindGroupEntries::sequential((
+            view_uniform_binding,
+            &params.overlay_pipeline.sampler,
+            visibility_texture_view,
+            fog_texture_view,
+            snapshot_texture_view,
+            uniform_buf.as_entire_binding(),
+            mapping_buf.as_entire_binding(),
+        )),
+    );
 
-        // Get GPU texture views for fog texture arrays with fallback support
-        // 获取雾效纹理数组的GPU纹理视图，支持回退
-        let visibility_texture_view = images
-            .get(&visibility_texture.0) // Try to get real-time visibility texture
-            .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d2.texture_view); // Fallback if not available
-
-        let fog_texture_view = images
-            .get(&fog_texture.0) // Try to get persistent fog texture
-            .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d2.texture_view); // Fallback if not available
-
-        let snapshot_texture_view = images
-            .get(&snapshot_texture.0) // Try to get snapshot texture array
-            .map(|img| &img.texture_view)
-            .unwrap_or(&fallback_image.d2.texture_view); // Fallback if not available
-
-        // Create view-specific bind group with all required GPU resources
-        // 创建包含所有必需GPU资源的视图特定绑定组
-        // Bevy 0.18: use pipeline_cache.get_bind_group_layout() to resolve descriptor
-        let overlay_layout = pipeline_cache.get_bind_group_layout(&overlay_pipeline.layout);
-        let bind_group = render_context.render_device().create_bind_group(
-            "fog_overlay_bind_group",
-            &overlay_layout,
-            &BindGroupEntries::sequential((
-                view_uniform_binding,            // 0: Camera view uniforms (with dynamic offset)
-                &overlay_pipeline.sampler,       // 1: Linear filtering sampler for textures
-                visibility_texture_view,         // 2: Real-time visibility texture array
-                fog_texture_view,                // 3: Persistent fog exploration texture array
-                snapshot_texture_view,           // 4: Captured entity snapshot texture array
-                uniform_buf.as_entire_binding(), // 5: Fog settings uniform buffer
-                mapping_buf.as_entire_binding(), // 6: Chunk coordinate mapping storage buffer
-            )),
-        );
-
-        // Begin fullscreen render pass targeting the current view
-        // 开始针对当前视图的全屏渲染通道
+    // Iterate over all non-snapshot views and render fog overlay
+    for (_view_entity, view_target, view_uniform_offset) in &params.views {
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("fog_overlay_pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: view_target.main_texture_view(), // Render to main view target
-                resolve_target: None,                  // No MSAA resolve needed
-                depth_slice: None,                     // No depth slice for 2D overlay
+                view: view_target.main_texture_view(),
+                resolve_target: None,
+                depth_slice: None,
                 ops: Operations {
-                    load: LoadOp::Load,    // Load existing scene content
-                    store: StoreOp::Store, // Store final composited result
+                    load: LoadOp::Load,
+                    store: StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None, // No depth testing for fullscreen overlay
-            timestamp_writes: None,         // No GPU timing queries
-            occlusion_query_set: None,      // No occlusion queries needed
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
         });
 
-        // Configure render pass with pipeline and resources
-        // 使用管线和资源配置渲染通道
         render_pass.set_render_pipeline(pipeline);
-
-        // Bind all GPU resources with view-specific dynamic offset
-        // 使用视图特定的动态偏移绑定所有GPU资源
         render_pass.set_bind_group(0, &bind_group, &[view_uniform_offset.offset]);
-
-        // Execute fullscreen triangle rendering for fog overlay compositing
-        // 执行全屏三角形渲染以进行雾效覆盖合成
-        // Uses 3 vertices (fullscreen triangle) with 1 instance for optimal GPU utilization
-        // 使用3个顶点（全屏三角形）和1个实例以实现最佳GPU利用率
         render_pass.draw(0..3, 0..1);
-
-        Ok(()) // Rendering completed successfully
     }
 }

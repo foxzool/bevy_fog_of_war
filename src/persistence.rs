@@ -686,13 +686,14 @@ pub fn load_save_data(
             // 恢复纹理数据（如果有）
             // Restore texture data (if available)
             if let Some(fog_data) = &chunk_data.fog_data {
-                if let Some(fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
+                if let Some(mut fog_image) = images.get_mut(&chunk_image.fog_image_handle) {
                     fog_image.data = Some(fog_data.clone());
                 }
             }
 
             if let Some(snapshot_data) = &chunk_data.snapshot_data {
-                if let Some(snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle) {
+                if let Some(mut snapshot_image) = images.get_mut(&chunk_image.snapshot_image_handle)
+                {
                     snapshot_image.data = Some(snapshot_data.clone());
                 }
             }

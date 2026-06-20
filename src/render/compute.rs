@@ -98,11 +98,9 @@
 
 use super::prepare::{FogBindGroups, GpuChunkInfoBuffer};
 use crate::render::extract::{ChunkComputeData, RenderFogMapSettings, VisionSourceData};
-use crate::snapshot::SnapshotCamera;
 use bevy_asset::DirectAssetAccessExt;
 use bevy_ecs::prelude::*;
 use bevy_render::{
-    render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
     render_resource::{
         BindGroupLayoutDescriptor, BindGroupLayoutEntries, CachedComputePipelineId,
         ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache, ShaderStages,
@@ -130,63 +128,6 @@ use bevy_render::{
 /// The shader is loaded as a Bevy asset and compiled into the compute pipeline
 /// during application startup. Compilation errors will prevent fog rendering.
 const SHADER_ASSET_PATH: &str = "shaders/fog_compute.wgsl";
-
-/// Render graph label for the fog compute shader node.
-/// 雾效计算着色器节点的渲染图标签
-///
-/// This label identifies the fog compute node within Bevy's render graph,
-/// enabling proper ordering and dependency management between render passes.
-/// The compute node executes after scene rendering but before fog overlay.
-///
-/// # Render Graph Integration
-/// Used to establish render graph dependencies:
-/// ```rust,ignore
-/// render_app.add_render_graph_edges(
-///     Core2d,
-///     (
-///         Node2d::MainTransparentPass,
-///         SnapshotNodeLabel,
-///         FogComputeNodeLabel,  // This label
-///         FogOverlayNodeLabel,
-///         Node2d::EndMainPass,
-///     ),
-/// );
-/// ```
-///
-/// # Label Properties
-/// - **Unique**: Distinguishes compute node from other render nodes
-/// - **Hashable**: Enables efficient render graph operations
-/// - **Debug**: Provides debugging information for render graph inspection
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct FogComputeNodeLabel;
-
-/// Render graph node that executes the fog of war compute shader.
-/// 执行战争迷雾计算着色器的渲染图节点
-///
-/// This node manages the execution of GPU compute shaders for fog visibility
-/// calculations. It sets up compute passes, binds resources, and dispatches
-/// workgroups to process fog updates across all active chunks.
-///
-/// # Execution Process
-/// 1. **Resource Validation**: Check pipeline and bind group availability
-/// 2. **Workgroup Calculation**: Determine dispatch dimensions based on chunks
-/// 3. **Compute Pass Setup**: Create compute pass with proper descriptors
-/// 4. **Pipeline Binding**: Bind compute pipeline and resource groups
-/// 5. **Workgroup Dispatch**: Execute compute shader across all chunks
-///
-/// # Performance Optimization
-/// - **Early Exit**: Skips execution when no work is needed
-/// - **Batch Processing**: Processes all chunks in single compute pass
-/// - **Resource Reuse**: Reuses pipeline and bind groups across frames
-/// - **Efficient Dispatch**: Optimizes workgroup dimensions for GPU utilization
-///
-/// # Error Resilience
-/// - **Missing Pipeline**: Gracefully handles uncompiled shaders
-/// - **Resource Unavailability**: Skips execution when bind groups not ready
-/// - **Zero Work**: Efficiently handles empty chunk sets
-/// - **Camera Filtering**: Avoids unnecessary work for snapshot cameras
-#[derive(Default)]
-pub struct FogComputeNode;
 
 /// GPU compute pipeline resource for fog of war visibility calculations.
 /// 战争迷雾可见性计算的GPU计算管线资源
@@ -333,7 +274,7 @@ impl FromWorld for FogComputePipeline {
                 shader,
                 shader_defs: vec![], // Add shader defs if needed / 如果需要添加 shader defs
                 entry_point: None,   // Use default entry point "main"
-                push_constant_ranges: vec![],
+                immediate_size: 0,
                 zero_initialize_workgroup_memory: false,
             });
 
@@ -344,122 +285,82 @@ impl FromWorld for FogComputePipeline {
     }
 }
 
-/// Implements the render graph node interface for fog compute operations.
-/// 为雾效计算操作实现渲染图节点接口
+/// Executes the fog compute shader to update visibility and fog textures.
+/// 执行雾效计算着色器以更新可见性和雾效纹理
 ///
-/// This implementation defines how the fog compute node executes within Bevy's
-/// render graph. It handles resource validation, compute pass setup, and
-/// workgroup dispatch for fog visibility calculations.
-impl Node for FogComputeNode {
-    /// Executes the fog compute shader to update visibility and fog textures.
-    /// 执行雾效计算着色器以更新可见性和雾效纹理
-    ///
-    /// This method is called by Bevy's render graph system to execute fog
-    /// calculations. It validates resources, sets up compute passes, and
-    /// dispatches GPU workgroups to process all active fog chunks.
-    ///
-    /// # Execution Flow
-    /// 1. **Camera Validation**: Skip execution for snapshot cameras
-    /// 2. **Resource Gathering**: Retrieve pipeline, bind groups, and settings
-    /// 3. **Pipeline Validation**: Ensure compute pipeline is compiled
-    /// 4. **Bind Group Validation**: Verify compute bind group is ready
-    /// 5. **Work Calculation**: Determine workgroup dispatch dimensions
-    /// 6. **Compute Pass**: Create and execute GPU compute pass
-    /// 7. **Workgroup Dispatch**: Launch compute shader across all chunks
-    ///
-    /// # Workgroup Dispatch Calculation
-    /// ```rust,ignore
-    /// // Each workgroup covers 8x8 texture pixels
-    /// workgroups_x = texture_resolution.x.div_ceil(8)
-    /// workgroups_y = texture_resolution.y.div_ceil(8)
-    /// workgroups_z = active_chunk_count
-    ///
-    /// // Total threads = workgroups_x × workgroups_y × workgroups_z × 64
-    /// ```
-    ///
-    /// # Performance Optimization
-    /// - **Early Exit**: Skips execution when no work is needed
-    /// - **Resource Validation**: Avoids GPU work when resources unavailable
-    /// - **Efficient Dispatch**: Optimizes workgroup dimensions for coverage
-    /// - **Single Pass**: Processes all chunks in one compute pass
-    ///
-    /// # Error Handling
-    /// Returns Ok(()) in all cases to maintain render graph stability:
-    /// - **Snapshot Camera**: Not applicable for fog compute
-    /// - **Missing Pipeline**: Shader still compiling, skip this frame
-    /// - **Missing Bind Group**: Resources not ready, skip this frame
-    /// - **Zero Chunks**: No work to do, skip efficiently
-    ///
-    /// # GPU Memory Access
-    /// The compute shader accesses:
-    /// - **Visibility Textures**: Read/write real-time visibility data
-    /// - **Fog Textures**: Write persistent exploration data
-    /// - **Vision Data**: Read vision source parameters
-    /// - **Chunk Data**: Read chunk metadata and transformations
-    /// - **Settings**: Read global fog configuration
-    ///
-    /// # Integration Points
-    /// - **Render Graph**: Executes between scene rendering and fog overlay
-    /// - **Pipeline Cache**: Retrieves compiled compute pipeline
-    /// - **Bind Groups**: Uses prepared GPU resource bindings
-    /// - **Chunk System**: Processes all active GPU-resident chunks
-    fn run(
-        &self,
-        graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let view_entity = graph.view_entity();
+/// This system is called by Bevy's render schedule to execute fog
+/// calculations. It validates resources, sets up compute passes, and
+/// dispatches GPU workgroups to process all active fog chunks.
+///
+/// # Execution Flow
+/// 1. **Resource Gathering**: Retrieve pipeline, bind groups, and settings
+/// 2. **Pipeline Validation**: Ensure compute pipeline is compiled
+/// 3. **Bind Group Validation**: Verify compute bind group is ready
+/// 4. **Work Calculation**: Determine workgroup dispatch dimensions
+/// 5. **Compute Pass**: Create and execute GPU compute pass
+/// 6. **Workgroup Dispatch**: Launch compute shader across all chunks
+///
+/// # Workgroup Dispatch Calculation
+/// ```rust,ignore
+/// // Each workgroup covers 8x8 texture pixels
+/// workgroups_x = texture_resolution.x.div_ceil(8)
+/// workgroups_y = texture_resolution.y.div_ceil(8)
+/// workgroups_z = active_chunk_count
+///
+/// // Total threads = workgroups_x × workgroups_y × workgroups_z × 64
+/// ```
+///
+/// # Performance Optimization
+/// - **Early Exit**: Skips execution when no work is needed
+/// - **Resource Validation**: Avoids GPU work when resources unavailable
+/// - **Efficient Dispatch**: Optimizes workgroup dimensions for coverage
+/// - **Single Pass**: Processes all chunks in one compute pass
+///
+/// # Error Handling
+/// Returns silently in all cases to maintain render stability:
+/// - **Missing Pipeline**: Shader still compiling, skip this frame
+/// - **Missing Bind Group**: Resources not ready, skip this frame
+/// - **Zero Chunks**: No work to do, skip efficiently
+pub fn fog_compute_system(
+    mut render_context: RenderContext,
+    fog_bind_groups: Res<FogBindGroups>,
+    compute_pipeline: Res<FogComputePipeline>,
+    pipeline_cache: Res<PipelineCache>,
+    chunk_buffer: Res<GpuChunkInfoBuffer>,
+    settings: Res<RenderFogMapSettings>,
+) {
+    let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id) else {
+        // Pipeline not compiled yet / 管线尚未编译
+        return;
+    };
 
-        if world.get::<SnapshotCamera>(view_entity).is_some() {
-            return Ok(());
-        }
+    let Some(compute_bind_group) = &fog_bind_groups.compute else {
+        // Bind group not ready / 绑定组未准备好
+        return;
+    };
 
-        let fog_bind_groups = world.resource::<FogBindGroups>();
-        let compute_pipeline = world.resource::<FogComputePipeline>();
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let chunk_buffer = world.resource::<GpuChunkInfoBuffer>();
-        let settings = world.resource::<RenderFogMapSettings>();
-
-        let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipeline.pipeline_id)
-        else {
-            // Pipeline not compiled yet / 管线尚未编译
-            return Ok(());
-        };
-
-        let Some(compute_bind_group) = &fog_bind_groups.compute else {
-            // Bind group not ready / 绑定组未准备好
-            // info!("Compute bind group not ready.");
-            return Ok(());
-        };
-
-        let chunk_count = chunk_buffer.capacity; // Number of active GPU chunks / 活动 GPU 区块的数量
-        if chunk_count == 0 {
-            return Ok(()); // No work to do / 无需工作
-        }
-
-        let texture_res = settings.texture_resolution_per_chunk;
-        let workgroup_size_x = 8;
-        let workgroup_size_y = 8;
-        let workgroups_x = texture_res.x.div_ceil(workgroup_size_x);
-        let workgroups_y = texture_res.y.div_ceil(workgroup_size_y);
-        // Dispatch per chunk / 按区块分派
-        let workgroups_z = chunk_count as u32;
-
-        let mut compute_pass =
-            render_context
-                .command_encoder()
-                .begin_compute_pass(&ComputePassDescriptor {
-                    label: Some("fog_compute_pass"),
-                    timestamp_writes: None,
-                });
-
-        compute_pass.set_pipeline(pipeline);
-        compute_pass.set_bind_group(0, compute_bind_group, &[]);
-        compute_pass.dispatch_workgroups(workgroups_x, workgroups_y, workgroups_z);
-
-        // info!("Dispatched compute shader: {}x{}x{}", workgroups_x, workgroups_y, workgroups_z);
-
-        Ok(())
+    let chunk_count = chunk_buffer.capacity; // Number of active GPU chunks / 活动 GPU 区块的数量
+    if chunk_count == 0 {
+        return; // No work to do / 无需工作
     }
+
+    let texture_res = settings.texture_resolution_per_chunk;
+    let workgroup_size_x = 8;
+    let workgroup_size_y = 8;
+    let workgroups_x = texture_res.x.div_ceil(workgroup_size_x);
+    let workgroups_y = texture_res.y.div_ceil(workgroup_size_y);
+    // Dispatch per chunk / 按区块分派
+    let workgroups_z = chunk_count as u32;
+
+    let mut compute_pass =
+        render_context
+            .command_encoder()
+            .begin_compute_pass(&ComputePassDescriptor {
+                label: Some("fog_compute_pass"),
+                timestamp_writes: None,
+            });
+
+    compute_pass.set_pipeline(pipeline);
+    compute_pass.set_bind_group(0, compute_bind_group, &[]);
+    compute_pass.dispatch_workgroups(workgroups_x, workgroups_y, workgroups_z);
 }

@@ -482,7 +482,6 @@ impl FileFormat {
             }
         }
 
-
         // 单扩展名
         // Single extension
         match ext {

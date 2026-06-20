@@ -160,8 +160,8 @@ fn setup(
     commands.spawn((
         Text2d("Count".to_string()),
         TextFont {
-            font: font_handle.clone(),
-            font_size: 20.0,
+            font: FontSource::Handle(font_handle.clone()),
+            font_size: FontSize::Px(20.0),
             ..Default::default()
         },
         TextColor(RED.into()),
@@ -408,7 +408,7 @@ fn setup_ui(mut commands: Commands) {
             // Create a Text with multiple sections
             Text::new("FPS: "),
             TextFont {
-                font_size: 24.0,
+                font_size: FontSize::Px(24.0),
                 ..default()
             },
             // 设置节点样式
@@ -426,7 +426,7 @@ fn setup_ui(mut commands: Commands) {
         .with_child((
             TextSpan::default(),
             TextFont {
-                font_size: 24.0,
+                font_size: FontSize::Px(24.0),
                 ..default()
             },
             // 设置为中灰色
@@ -440,10 +440,10 @@ fn setup_ui(mut commands: Commands) {
     commands.spawn((
         Text::new(""),
         TextFont {
-            font_size: 16.0,
+            font_size: FontSize::Px(16.0),
             ..default()
         },
-        TextLayout::new_with_justify(Justify::Left),
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
         // 设置为中灰色
         // Set to medium gray
         TextColor(Color::srgb(0.5, 0.5, 0.5)),
@@ -473,10 +473,10 @@ fn setup_ui(mut commands: Commands) {
              Automatic format selection & compression",
         ),
         TextFont {
-            font_size: 14.0,
+            font_size: FontSize::Px(14.0),
             ..default()
         },
-        TextLayout::new_with_justify(Justify::Left),
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
         TextColor(Color::srgb(0.4, 0.4, 0.4)),
         Node {
             position_type: PositionType::Absolute,
@@ -491,7 +491,7 @@ fn setup_ui(mut commands: Commands) {
     commands.spawn((
         Text::new("Fog of War"),
         TextFont {
-            font_size: 32.0,
+            font_size: FontSize::Px(32.0),
             ..default()
         },
         // 设置为中灰色
@@ -795,8 +795,8 @@ fn debug_draw_chunks(
             } else {
                 let font = asset_server.load("fonts/FiraSans-Bold.ttf");
                 let text_font = TextFont {
-                    font: font.clone(),
-                    font_size: 13.0,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(13.0),
                     ..default()
                 };
                 let pos = fog_settings.chunk_coord_to_world(chunk.coords)

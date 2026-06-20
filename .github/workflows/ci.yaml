@@ -15,7 +15,9 @@ env:
   RUSTFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
   RUSTDOCFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
   # Use the same Rust toolchain across jobs so they can share a cache.
-  toolchain: nightly-2025-06-26
+  toolchain: nightly-2026-04-06
+  bevy_lint_toolchain: nightly-2026-03-05
+  bevy_lint_rev: 76e0288e719be1d0de25818cb22e97f73c0ca44d
 
 jobs:
   # Check formatting.
@@ -102,14 +104,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up environment
-        run: echo "RUSTFLAGS=${RUSTFLAGS:+$RUSTFLAGS }-Zcodegen-backend=cranelift" >> "${GITHUB_ENV}"
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          components: rustc-codegen-cranelift-preview, rustc-dev, llvm-tools-preview
-          toolchain: ${{ env.toolchain }}
+          components: rust-src, rustc-dev, llvm-tools-preview
+          toolchain: ${{ env.bevy_lint_toolchain }}
 
       - name: Restore Rust cache
         id: cache
@@ -123,7 +122,7 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
       - name: Install Bevy Lint
-        run: cargo install --git https://github.com/TheBevyFlock/bevy_cli --rev 949b808e6bbf11be0f61b236fbbc4e35854698af --locked bevy_lint
+        run: cargo +${{ env.bevy_lint_toolchain }} install --git https://github.com/TheBevyFlock/bevy_cli --rev ${{ env.bevy_lint_rev }} --locked bevy_lint
 
       - name: Run Bevy lints
         run: bevy_lint --locked --workspace --all-targets --profile ci --all-features
