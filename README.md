@@ -27,13 +27,13 @@
 
 | bevy_fog_of_war | Bevy |
 | --- | --- |
-| 0.4.x | 0.19.0-rc.2 |
+| 0.4.x | 0.19.0 |
 
 ## Installation
 
 ```toml
 [dependencies]
-bevy = "0.19.0-rc.2"
+bevy = "0.19.0"
 bevy_fog_of_war = "0.4"
 ```
 
