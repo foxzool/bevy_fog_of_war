@@ -11,6 +11,9 @@ repository = "https://github.com/foxzool/bevy_fog_of_war"
 keywords = ["bevy", "game", "plugin"]
 categories = ["game-development"]
 readme = "README.md"
+# Keep dev-only stray files out of the published crate.
+# 将仅用于开发的杂项文件排除在发布的 crate 之外。
+exclude = ["CLAUDE.md", "test_rect.rs"]
 
 [dependencies]
 bevy_app = { version = "0.19.0" }
