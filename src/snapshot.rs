@@ -472,11 +472,19 @@ pub struct SnapshotCameraState {
 /// - No active snapshot layer (snapshot_layer_index = None)
 pub fn snapshot_copy_system(
     mut render_context: RenderContext,
-    camera_state: Res<SnapshotCameraState>,
+    camera_state: Option<Res<SnapshotCameraState>>,
     gpu_images: Res<RenderAssets<GpuImage>>,
-    render_snapshot_temp_texture: Res<RenderSnapshotTempTexture>,
-    render_snapshot_texture: Res<RenderSnapshotTexture>,
+    render_snapshot_temp_texture: Option<Res<RenderSnapshotTempTexture>>,
+    render_snapshot_texture: Option<Res<RenderSnapshotTexture>>,
 ) {
+    // These resources are populated into the render world by extraction each frame.
+    // On the first frame (before extraction has run) they may not yet exist, so
+    // treat their absence as "no snapshot to copy" rather than panicking.
+    // 这些资源由每帧的提取过程注入渲染世界。
+    // 在首帧（提取尚未执行前）它们可能尚不存在，因此将缺失视为“无需复制快照”，而不是 panic。
+    let Some(camera_state) = camera_state else {
+        return;
+    };
     let Some(layer_index) = camera_state.snapshot_layer_index else {
         return;
     };
@@ -484,6 +492,13 @@ pub fn snapshot_copy_system(
     if camera_state.frame_to_wait > 0 {
         return;
     }
+
+    let Some(render_snapshot_temp_texture) = render_snapshot_temp_texture else {
+        return;
+    };
+    let Some(render_snapshot_texture) = render_snapshot_texture else {
+        return;
+    };
 
     let Some(snapshot_temp_image) = gpu_images.get(&render_snapshot_temp_texture.0) else {
         return;
