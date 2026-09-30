@@ -306,12 +306,14 @@ impl FromWorld for FogOverlayPipeline {
                     layout: vec![layout.clone()], // Use the bind group layout created above
                     vertex: VertexState {
                         shader: fullscreen_shader, // Bevy's built-in fullscreen vertex shader
-                        shader_defs: vec![],       // No shader preprocessor definitions
-                        entry_point: None,         // Use default entry point from shader
-                        buffers: vec![],           // No vertex buffers (fullscreen triangle)
+                        constants: Default::default(),
+                        shader_defs: vec![], // No shader preprocessor definitions
+                        entry_point: None,   // Use default entry point from shader
+                        buffers: vec![],     // No vertex buffers (fullscreen triangle)
                     },
                     fragment: Some(FragmentState {
-                        shader,              // Custom fog overlay fragment shader
+                        shader, // Custom fog overlay fragment shader
+                        constants: Default::default(),
                         shader_defs: vec![], // No shader preprocessor definitions
                         entry_point: None,   // Use default entry point from shader
                         targets: vec![Some(ColorTargetState {

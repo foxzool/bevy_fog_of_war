@@ -27,13 +27,14 @@
 
 | bevy_fog_of_war | Bevy |
 | --- | --- |
+| unreleased (this branch) | 0.20.0-rc.2 |
 | 0.4.x | 0.19.0 |
 
 ## Installation
 
 ```toml
 [dependencies]
-bevy = "0.19.0"
+bevy = "=0.20.0-rc.2"
 bevy_fog_of_war = "0.4"
 ```
 

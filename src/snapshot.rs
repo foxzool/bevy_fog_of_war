@@ -159,6 +159,7 @@ pub struct Capturable;
 /// Marker component for a camera used to render snapshots.
 /// 用于渲染快照的相机的标记组件。
 #[derive(Component, ExtractComponent, Clone, Default, Reflect)]
+#[extract_app(bevy_render::RenderApp)]
 #[reflect(Component)]
 pub struct SnapshotCamera;
 
@@ -429,6 +430,7 @@ fn check_snapshot_image_ready(
 /// Safe for cross-world access via Bevy's extract system. The render world
 /// gets a cloned copy each frame, preventing data races.
 #[derive(Resource, ExtractResource, Clone, Default)]
+#[extract_app(bevy_render::RenderApp)]
 pub struct SnapshotCameraState {
     /// Flag indicating whether camera is currently capturing a snapshot.
     /// 指示相机当前是否正在捕获快照的标志

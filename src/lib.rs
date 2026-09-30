@@ -1413,7 +1413,7 @@ fn cleanup_chunk_entities(
         return Err(format!("Too many entities to cleanup: {entity_count}"));
     }
 
-    for (_coords, entity) in chunk_manager.map.iter() {
+    for entity in chunk_manager.map.values() {
         commands.entity(*entity).despawn();
     }
 
