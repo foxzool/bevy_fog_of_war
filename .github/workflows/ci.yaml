@@ -15,9 +15,9 @@ env:
   RUSTFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
   RUSTDOCFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
   # Use the same Rust toolchain across jobs so they can share a cache.
-  toolchain: nightly-2026-04-06
-  bevy_lint_toolchain: nightly-2026-03-05
-  bevy_lint_rev: 76e0288e719be1d0de25818cb22e97f73c0ca44d
+  toolchain: nightly-2026-09-29
+  bevy_lint_toolchain: nightly-2026-04-16
+  bevy_lint_rev: 928317c80fac77c01a88ccb2e5c52dbc7c24fce5
 
 jobs:
   # Check formatting.
@@ -123,6 +123,16 @@ jobs:
 
       - name: Install Bevy Lint
         run: cargo +${{ env.bevy_lint_toolchain }} install --git https://github.com/TheBevyFlock/bevy_cli --rev ${{ env.bevy_lint_rev }} --locked bevy_lint
+
+      # Bevy lint depends on compiler internals and pins its own nightly.
+      # Keep its workspace copy on the WESL version supported by that compiler;
+      # all other jobs validate the committed WESL 0.4.4 lockfile.
+      - name: Resolve WESL for the Bevy lint compiler
+        run: |
+          cargo update -p wesl --precise 0.4.2
+          cargo update -p wesl-macros --precise 0.4.2
+          cargo update -p wgsl-parse --precise 0.4.2
+          cargo update -p wgsl-types --precise 0.4.2
 
       - name: Run Bevy lints
         run: bevy_lint --locked --workspace --all-targets --profile ci --all-features

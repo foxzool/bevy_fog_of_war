@@ -59,6 +59,7 @@ use bevy_render::extract_resource::ExtractResource;
 /// }
 /// ```
 #[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
+#[extract_app(bevy_render::RenderApp)]
 #[reflect(Resource, Default)]
 pub struct GpuToCpuCopyRequests {
     /// Vector of pending GPU-to-CPU transfer requests.
@@ -157,6 +158,7 @@ pub struct GpuToCpuCopyRequest {
 /// - **Memory Allocation**: GPU texture array must have available layer slots
 /// - **Batch Processing**: Multiple uploads can be batched for efficiency
 #[derive(Resource, Default, Debug, Clone, Reflect, ExtractResource)]
+#[extract_app(bevy_render::RenderApp)]
 #[reflect(Resource, Default)]
 pub struct CpuToGpuCopyRequests {
     /// Vector of pending CPU-to-GPU upload requests.
@@ -634,6 +636,7 @@ pub enum ResetSyncState {
 /// 资源：原子性的跨世界同步重置管理
 /// Resource: Atomic cross-world synchronization reset management
 #[derive(Resource, Debug, Clone, ExtractResource)]
+#[extract_app(bevy_render::RenderApp)]
 pub struct FogResetSync {
     /// 当前同步状态
     /// Current synchronization state
