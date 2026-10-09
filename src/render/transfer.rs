@@ -676,7 +676,9 @@ pub fn map_buffers(mut active_copies: ResMut<GpuToCpuActiveCopies>) {
         fog_slice.map_async(MapMode::Read, move |res| {
             res.expect("Failed to map fog buffer");
             let buffer_slice = fog_buffer.slice(..);
-            let data = buffer_slice.get_mapped_range();
+            let data = buffer_slice
+                .get_mapped_range()
+                .expect("Failed to read mapped fog buffer");
             let result = Vec::from(&*data);
             drop(data);
             fog_buffer.unmap();
@@ -691,7 +693,9 @@ pub fn map_buffers(mut active_copies: ResMut<GpuToCpuActiveCopies>) {
         snapshot_slice.map_async(MapMode::Read, move |res| {
             res.expect("Failed to map snapshot buffer");
             let buffer_slice = snapshot_buffer.slice(..);
-            let data = buffer_slice.get_mapped_range();
+            let data = buffer_slice
+                .get_mapped_range()
+                .expect("Failed to read mapped snapshot buffer");
             let result = Vec::from(&*data);
             drop(data);
             snapshot_buffer.unmap();

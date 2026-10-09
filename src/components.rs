@@ -16,6 +16,7 @@ pub struct FogOfWarCamera;
 /// Component that reveals fog of war in a specified area.
 /// Supports circle, cone, and square vision shapes.
 #[derive(Component, Reflect, ExtractComponent, Clone)]
+#[extract_app(bevy_render::RenderApp)]
 #[reflect(Component)]
 pub struct VisionSource {
     /// Vision range in world units (radius for circle/cone, half-width for square).
@@ -266,6 +267,7 @@ impl Display for ChunkVisibility {
 /// }
 /// ```
 #[derive(Component, ExtractComponent, Reflect, Debug, Clone)]
+#[extract_app(bevy_render::RenderApp)]
 pub struct FogChunk {
     /// Chunk coordinates in chunk-space (not world coordinates).
     /// 区块坐标

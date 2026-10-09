@@ -1,9 +1,5 @@
-#import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
-#import bevy_render::view::View
-#import bevy_pbr::view_transformations::{
-    uv_to_ndc,
-    position_ndc_to_world,
-}
+import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
+import bevy_render::view::View;
 
 struct OverlayChunkData { // Used for mapping world coord to layer index in textures / 用于将世界坐标映射到纹理中的层索引
     coords: vec2<i32>,
@@ -36,6 +32,18 @@ const GFX_INVALID_LAYER: i32 = -1;
 @group(0) @binding(5) var<uniform> settings: FogMapSettings;
 @group(0) @binding(6) var<storage, read> chunk_mapping: array<OverlayChunkData>; // Chunk coord -> layer indices / 区块坐标 -> 层索引
 
+// bevy_pbr::render::view_transformations reads the PBR mesh-view bind group.
+// This overlay has its own View uniform, so the two helpers stay local.
+// bevy_pbr::render::view_transformations 读取 PBR 网格视图绑定组。
+// 此覆盖层使用自己的 View uniform，因此这两个辅助函数保持在本地。
+fn uv_to_ndc(uv: vec2<f32>) -> vec2<f32> {
+    return uv * vec2(2.0, -2.0) + vec2(-1.0, 1.0);
+}
+
+fn position_ndc_to_world(ndc_pos: vec3<f32>) -> vec3<f32> {
+    let world_pos = view.world_from_clip * vec4(ndc_pos, 1.0);
+    return world_pos.xyz / world_pos.w;
+}
 
 // --- Constants for Blending ---
 // --- 混合常量 ---
@@ -54,7 +62,7 @@ const EXPLORED_TRANSITION_WIDTH: f32 = 0.12; // Adjust this value (e.g., 0.05 to
 // linear sampling will make the boundary average around 0.5.
 // 过渡的中心点。由于 explored_tex 是 0 或 1，线性采样将使边界平均值在 0.5 左右。
 const EXPLORED_TRANSITION_CENTER: f32 = 0.5;
- 
+
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (settings.enabled == 0u) {
@@ -62,7 +70,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     }
 
     let screen_uv = in.uv;
-    
+
     let ndc = uv_to_ndc(screen_uv);
     let ndc_pos = vec3<f32>(ndc, 0.0);
     let world_pos = position_ndc_to_world(ndc_pos);
