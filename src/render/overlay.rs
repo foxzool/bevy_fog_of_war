@@ -126,8 +126,8 @@ use bevy_render::{
     view::{ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms},
 };
 
-/// Path to the WGSL fog overlay shader that implements final fog compositing.
-/// 实现最终雾效合成的WGSL雾效覆盖着色器的路径
+/// Path to the WESL fog overlay shader that implements final fog compositing.
+/// 实现最终雾效合成的 WESL 雾效覆盖着色器的路径
 ///
 /// This shader handles the final stage of fog rendering, compositing fog textures
 /// over the main scene. It performs texture sampling, coordinate transformations,
@@ -138,7 +138,7 @@ use bevy_render::{
 /// - **Coordinate Transformation**: Converts screen space to chunk texture coordinates
 /// - **Color Blending**: Combines fog colors with scene and snapshot content
 /// - **Performance Optimization**: Efficient per-pixel operations with GPU optimization
-const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wgsl";
+const SHADER_ASSET_PATH: &str = "shaders/fog_overlay.wesl";
 
 /// GPU render pipeline resource for fog overlay shader operations.
 /// 雾效覆盖着色器操作的GPU渲染管线资源
@@ -292,9 +292,9 @@ impl FromWorld for FogOverlayPipeline {
         // 加载雾效覆盖片段着色器资源
         let shader = world.load_asset(SHADER_ASSET_PATH);
 
-        // Get the fullscreen vertex shader handle from the FullscreenShader resource
-        // 从 FullscreenShader 资源获取全屏顶点着色器句柄
-        let fullscreen_shader = world.resource::<FullscreenShader>().shader().clone();
+        // Build the fullscreen vertex state from the FullscreenShader resource
+        // 从 FullscreenShader 资源构建全屏顶点阶段状态
+        let fullscreen_shader = world.resource::<FullscreenShader>().to_vertex_state();
 
         // Queue render pipeline for compilation with complete configuration
         // 排队渲染管线以进行完整配置的编译
@@ -304,14 +304,10 @@ impl FromWorld for FogOverlayPipeline {
                 .queue_render_pipeline(RenderPipelineDescriptor {
                     label: Some("fog_overlay_pipeline_init".into()), // Pipeline identifier for debugging
                     layout: vec![layout.clone()], // Use the bind group layout created above
-                    vertex: VertexState {
-                        shader: fullscreen_shader, // Bevy's built-in fullscreen vertex shader
-                        shader_defs: vec![],       // No shader preprocessor definitions
-                        entry_point: None,         // Use default entry point from shader
-                        buffers: vec![],           // No vertex buffers (fullscreen triangle)
-                    },
+                    vertex: fullscreen_shader,    // Bevy's built-in fullscreen vertex shader
                     fragment: Some(FragmentState {
-                        shader,              // Custom fog overlay fragment shader
+                        shader, // Custom fog overlay fragment shader
+                        constants: Default::default(),
                         shader_defs: vec![], // No shader preprocessor definitions
                         entry_point: None,   // Use default entry point from shader
                         targets: vec![Some(ColorTargetState {

@@ -40,7 +40,7 @@ jobs:
       # Use same flags as CI for consistency
       RUSTFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
       RUSTDOCFLAGS: -Dwarnings -Zshare-generics=y -Zthreads=0
-      toolchain: nightly-2025-06-26
+      toolchain: nightly-2026-10-08
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
   test-examples:
     runs-on: ubuntu-latest
     env:
-      toolchain: nightly-2025-06-26
+      toolchain: nightly-2026-10-08
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

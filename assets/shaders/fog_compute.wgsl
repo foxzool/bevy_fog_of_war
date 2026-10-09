@@ -1,4 +1,3 @@
-#import bevy_render::view::View
 struct VisionSourceData {
     position: vec2<f32>,
     radius: f32,

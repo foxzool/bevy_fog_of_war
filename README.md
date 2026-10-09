@@ -27,14 +27,15 @@
 
 | bevy_fog_of_war | Bevy |
 | --- | --- |
+| 0.5.x | 0.20.0 |
 | 0.4.x | 0.19.0 |
 
 ## Installation
 
 ```toml
 [dependencies]
-bevy = "0.19.0"
-bevy_fog_of_war = "0.4"
+bevy = "0.20.0"
+bevy_fog_of_war = "0.5"
 ```
 
 Default features enable `format-bincode`.
@@ -43,16 +44,16 @@ Default features enable `format-bincode`.
 
 ```toml
 # Add MessagePack support
-bevy_fog_of_war = { version = "0.4", features = ["format-messagepack"] }
+bevy_fog_of_war = { version = "0.5", features = ["format-messagepack"] }
 
 # Add JSON support
-bevy_fog_of_war = { version = "0.4", features = ["format-json"] }
+bevy_fog_of_war = { version = "0.5", features = ["format-json"] }
 
 # Add compression helpers for persistence_utils
-bevy_fog_of_war = { version = "0.4", features = ["compression-zstd"] }
+bevy_fog_of_war = { version = "0.5", features = ["compression-zstd"] }
 
 # Everything: all formats + all compression helpers
-bevy_fog_of_war = { version = "0.4", features = ["all-formats"] }
+bevy_fog_of_war = { version = "0.5", features = ["all-formats"] }
 ```
 
 ## Quick start

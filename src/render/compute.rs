@@ -272,6 +272,7 @@ impl FromWorld for FogComputePipeline {
                 label: Some("fog_compute_pipeline".into()),
                 layout: vec![compute_layout.clone()], // Use the prepared layout / 使用准备好的布局
                 shader,
+                constants: Default::default(),
                 shader_defs: vec![], // Add shader defs if needed / 如果需要添加 shader defs
                 entry_point: None,   // Use default entry point "main"
                 immediate_size: 0,
