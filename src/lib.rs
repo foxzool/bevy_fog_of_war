@@ -851,8 +851,9 @@ fn circle_intersects_rect(
 /// - **Transfer Cost**: Only moves chunks when necessary, with intelligent buffering
 ///
 /// # Buffer Zone Strategy
-/// Maintains a 2-chunk radius buffer around explored areas to ensure smooth
-/// rendering during camera movement and reduce transfer frequency.
+/// Keeps explored chunks within a 2-chunk Chebyshev radius of a chunk that must
+/// stay on the GPU (visible, or explored and inside the camera view). Explored
+/// chunks outside that set are copied back to the CPU so the layer pool can be reused.
 ///
 /// # Dependencies
 /// - Processes `ChunkGpuDataReady` and `ChunkCpuDataUploaded` events
@@ -962,43 +963,14 @@ pub fn manage_chunk_texture_transfer(
 
     // --- 2. 决定哪些区块应该在 GPU 上 ---
     // --- 2. Decide which chunks should be on GPU ---
-    let mut target_gpu_chunks = HashSet::new();
-    // 可见区块必须在 GPU
-    // Visible chunks must be on GPU
-    for &coords in &chunk_cache.visible_chunks {
-        target_gpu_chunks.insert(coords);
-    }
-    // 在相机视野内且已探索的区块也应该在 GPU
-    // Explored chunks within camera view should also be on GPU
-    for &coords in &chunk_cache.camera_view_chunks {
-        if chunk_cache.explored_chunks.contains(&coords) {
-            target_gpu_chunks.insert(coords);
-        }
-    }
-
-    // 为已探索区域添加缓冲区，确保持久化加载后的区域能被渲染
-    // Add buffer zone for explored areas to ensure persistence-loaded areas are rendered
-    let buffer_radius = 2; // 缓冲区半径（以chunk为单位）/ Buffer radius in chunks
-    let mut buffered_coords = std::collections::HashSet::new();
-
-    // 为所有已探索的chunk添加缓冲区
-    // Add buffer zone around all explored chunks
-    for &explored_coord in &chunk_cache.explored_chunks {
-        for dy in -buffer_radius..=buffer_radius {
-            for dx in -buffer_radius..=buffer_radius {
-                let buffered_coord = explored_coord + IVec2::new(dx, dy);
-                if chunk_cache.explored_chunks.contains(&buffered_coord) {
-                    buffered_coords.insert(buffered_coord);
-                }
-            }
-        }
-    }
-
-    // 将缓冲区内的已探索chunk添加到GPU目标列表
-    // Add buffered explored chunks to GPU target list
-    for &coords in &buffered_coords {
-        target_gpu_chunks.insert(coords);
-    }
+    // 只保留可见区块、相机内已探索区块，以及它们周围的已探索缓冲。
+    // 不能把全部已探索区块都留在 GPU 上，否则会打满 MAX_LAYERS。
+    let target_gpu_chunks = gpu_resident_targets(
+        &chunk_cache.visible_chunks,
+        &chunk_cache.camera_view_chunks,
+        &chunk_cache.explored_chunks,
+        2,
+    );
 
     // --- 3. 遍历所有区块，确定是否需要传输 ---
     // --- 3. Iterate all chunks to determine if transfer is needed ---
@@ -1572,5 +1544,246 @@ fn monitor_reset_sync_system(
 
             reset_sync.reset_to_idle();
         }
+    }
+}
+
+/// Chunks that must occupy a GPU texture layer this frame.
+/// 本帧必须占用 GPU 纹理层的区块。
+///
+/// Visible chunks always stay. An explored chunk stays when it is inside the
+/// camera view, or within `buffer_radius` chunks (Chebyshev) of one of those
+/// targets. The buffer is not seeded from every explored chunk.
+fn gpu_resident_targets(
+    visible_chunks: &std::collections::HashSet<IVec2>,
+    camera_view_chunks: &std::collections::HashSet<IVec2>,
+    explored_chunks: &std::collections::HashSet<IVec2>,
+    buffer_radius: i32,
+) -> std::collections::HashSet<IVec2> {
+    let mut targets = std::collections::HashSet::new();
+    targets.extend(visible_chunks.iter().copied());
+    for &coords in camera_view_chunks {
+        if explored_chunks.contains(&coords) {
+            targets.insert(coords);
+        }
+    }
+
+    let seeds: Vec<IVec2> = targets.iter().copied().collect();
+    for seed in seeds {
+        for dy in -buffer_radius..=buffer_radius {
+            for dx in -buffer_radius..=buffer_radius {
+                let buffered = seed + IVec2::new(dx, dy);
+                if explored_chunks.contains(&buffered) {
+                    targets.insert(buffered);
+                }
+            }
+        }
+    }
+    targets
+}
+
+#[cfg(test)]
+mod gpu_target_tests {
+    use super::*;
+
+    fn coords(points: &[(i32, i32)]) -> std::collections::HashSet<IVec2> {
+        points.iter().map(|(x, y)| IVec2::new(*x, *y)).collect()
+    }
+
+    #[test]
+    fn distant_explored_chunks_leave_the_gpu() {
+        let visible = coords(&[(0, 0)]);
+        let camera = coords(&[(0, 0), (1, 0)]);
+        let explored = coords(&[(0, 0), (1, 0), (2, 0), (20, 20)]);
+
+        let targets = gpu_resident_targets(&visible, &camera, &explored, 2);
+
+        assert!(targets.contains(&IVec2::new(0, 0)));
+        assert!(targets.contains(&IVec2::new(1, 0)));
+        assert!(targets.contains(&IVec2::new(2, 0)));
+        assert!(!targets.contains(&IVec2::new(20, 20)));
+    }
+
+    #[test]
+    fn buffer_does_not_keep_unexplored_neighbors() {
+        let visible = coords(&[(0, 0)]);
+        let camera = coords(&[(0, 0)]);
+        let explored = coords(&[(0, 0)]);
+
+        let targets = gpu_resident_targets(&visible, &camera, &explored, 2);
+
+        assert_eq!(targets.len(), 1);
+        assert!(targets.contains(&IVec2::new(0, 0)));
+    }
+
+    #[test]
+    fn camera_explored_chunk_keeps_its_own_buffer() {
+        let visible = coords(&[]);
+        let camera = coords(&[(5, 5)]);
+        let explored = coords(&[(5, 5), (7, 5), (8, 5)]);
+
+        let targets = gpu_resident_targets(&visible, &camera, &explored, 2);
+
+        assert!(targets.contains(&IVec2::new(5, 5)));
+        assert!(targets.contains(&IVec2::new(7, 5)));
+        assert!(!targets.contains(&IVec2::new(8, 5)));
+    }
+
+    #[test]
+    fn gpu_copy_completion_frees_layers_and_keeps_pixels() {
+        use bevy_asset::Assets;
+        use bevy_ecs::message::Messages;
+        use bevy_ecs::system::RunSystemOnce;
+        use bevy_ecs::world::World;
+        use bevy_image::Image;
+
+        let settings = FogMapSettings {
+            texture_resolution_per_chunk: bevy_math::UVec2::new(1, 1),
+            ..FogMapSettings::default()
+        };
+
+        let mut images = Assets::<Image>::default();
+        let mut manager = TextureArrayManager::new(MAX_LAYERS);
+        let mut world = World::new();
+        let mut explored = std::collections::HashSet::new();
+
+        for x in 0..MAX_LAYERS as i32 {
+            let coords = IVec2::new(x, 0);
+            let (fog_idx, snap_idx) = manager
+                .allocate_layer_indices(coords)
+                .expect("the first 64 chunks fit in the texture array");
+            let mut chunk = FogChunk::new(coords, settings.chunk_size, 1.0);
+            chunk.fog_layer_index = Some(fog_idx);
+            chunk.snapshot_layer_index = Some(snap_idx);
+            chunk.state.visibility = ChunkVisibility::Explored;
+            chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+            world.spawn((
+                chunk,
+                FogChunkImage::from_setting_raw(&mut images, &settings),
+            ));
+            explored.insert(coords);
+        }
+        assert!(
+            manager
+                .allocate_layer_indices(IVec2::new(MAX_LAYERS as i32, 0))
+                .is_none(),
+            "chunk 65 must fail while every layer is still held"
+        );
+
+        let mut cache = ChunkStateCache::default();
+        cache.visible_chunks.insert(IVec2::new(0, 0));
+        cache.camera_view_chunks.insert(IVec2::new(0, 0));
+        cache.explored_chunks = explored;
+
+        world.insert_resource(manager);
+        world.insert_resource(cache);
+        world.insert_resource(images);
+        world.init_resource::<GpuToCpuCopyRequests>();
+        world.init_resource::<CpuToGpuCopyRequests>();
+        world.init_resource::<MainWorldSnapshotRequestQueue>();
+        world.init_resource::<Messages<ChunkGpuDataReady>>();
+        world.init_resource::<Messages<ChunkCpuDataUploaded>>();
+
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let requests = world.resource::<GpuToCpuCopyRequests>().requests.clone();
+        // (0,0) plus the 2-chunk buffer stay. The other 61 must be waiting on the copy.
+        assert_eq!(requests.len(), (MAX_LAYERS - 3) as usize);
+        assert!(
+            world
+                .resource_mut::<TextureArrayManager>()
+                .allocate_layer_indices(IVec2::new(1_000, 0))
+                .is_none(),
+            "PendingCopyToCpu must not free a layer before GpuDataReady"
+        );
+
+        for request in &requests {
+            let marker = request.chunk_coords.x as u8;
+            world.write_message(ChunkGpuDataReady {
+                chunk_coords: request.chunk_coords,
+                fog_data: vec![marker],
+                snapshot_data: vec![marker, marker, marker, marker],
+            });
+        }
+        world.resource_mut::<Messages<ChunkGpuDataReady>>().update();
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let returned = chunk_state(&mut world, IVec2::new(10, 0));
+        assert_eq!(returned.memory_location, ChunkMemoryLocation::Cpu);
+        assert!(returned.fog_layer_index.is_none());
+        assert!(returned.snapshot_layer_index.is_none());
+        assert_eq!(
+            image_byte(&mut world, returned.fog_handle),
+            10,
+            "explored fog pixels must survive the GPU readback"
+        );
+        assert_eq!(image_byte(&mut world, returned.snapshot_handle), 10);
+
+        {
+            let mut manager = world.resource_mut::<TextureArrayManager>();
+            let recycled = manager.allocate_layer_indices(IVec2::new(1_000, 0));
+            assert!(recycled.is_some(), "a freed layer must be reusable");
+            manager.free_layer_indices_for_coord(IVec2::new(1_000, 0));
+        }
+
+        {
+            let mut cache = world.resource_mut::<ChunkStateCache>();
+            cache.visible_chunks.clear();
+            cache.camera_view_chunks.clear();
+            cache.visible_chunks.insert(IVec2::new(10, 0));
+            cache.camera_view_chunks.insert(IVec2::new(10, 0));
+        }
+        world.resource_mut::<Messages<ChunkGpuDataReady>>().clear();
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let back = chunk_state(&mut world, IVec2::new(10, 0));
+        assert_eq!(back.memory_location, ChunkMemoryLocation::PendingCopyToGpu);
+        assert!(back.fog_layer_index.is_some());
+        assert_eq!(
+            image_byte(&mut world, back.fog_handle),
+            10,
+            "returning to an old chunk must not wipe its explored pixels"
+        );
+    }
+
+    struct SavedChunk {
+        memory_location: ChunkMemoryLocation,
+        fog_layer_index: Option<u32>,
+        snapshot_layer_index: Option<u32>,
+        fog_handle: bevy_asset::Handle<bevy_image::Image>,
+        snapshot_handle: bevy_asset::Handle<bevy_image::Image>,
+    }
+
+    fn chunk_state(world: &mut bevy_ecs::world::World, coords: IVec2) -> SavedChunk {
+        let mut query = world.query::<(&FogChunk, &FogChunkImage)>();
+        let (chunk, image) = query
+            .iter(world)
+            .find(|(chunk, _)| chunk.coords == coords)
+            .unwrap();
+        SavedChunk {
+            memory_location: chunk.state.memory_location,
+            fog_layer_index: chunk.fog_layer_index,
+            snapshot_layer_index: chunk.snapshot_layer_index,
+            fog_handle: image.fog_image_handle.clone(),
+            snapshot_handle: image.snapshot_image_handle.clone(),
+        }
+    }
+
+    fn image_byte(
+        world: &mut bevy_ecs::world::World,
+        handle: bevy_asset::Handle<bevy_image::Image>,
+    ) -> u8 {
+        world
+            .resource::<bevy_asset::Assets<bevy_image::Image>>()
+            .get(&handle)
+            .unwrap()
+            .data
+            .as_ref()
+            .unwrap()[0]
     }
 }
