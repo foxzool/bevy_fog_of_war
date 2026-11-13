@@ -1627,4 +1627,163 @@ mod gpu_target_tests {
         assert!(targets.contains(&IVec2::new(7, 5)));
         assert!(!targets.contains(&IVec2::new(8, 5)));
     }
+
+    #[test]
+    fn gpu_copy_completion_frees_layers_and_keeps_pixels() {
+        use bevy_asset::Assets;
+        use bevy_ecs::message::Messages;
+        use bevy_ecs::system::RunSystemOnce;
+        use bevy_ecs::world::World;
+        use bevy_image::Image;
+
+        let settings = FogMapSettings {
+            texture_resolution_per_chunk: bevy_math::UVec2::new(1, 1),
+            ..FogMapSettings::default()
+        };
+
+        let mut images = Assets::<Image>::default();
+        let mut manager = TextureArrayManager::new(MAX_LAYERS);
+        let mut world = World::new();
+        let mut explored = std::collections::HashSet::new();
+
+        for x in 0..MAX_LAYERS as i32 {
+            let coords = IVec2::new(x, 0);
+            let (fog_idx, snap_idx) = manager
+                .allocate_layer_indices(coords)
+                .expect("the first 64 chunks fit in the texture array");
+            let mut chunk = FogChunk::new(coords, settings.chunk_size, 1.0);
+            chunk.fog_layer_index = Some(fog_idx);
+            chunk.snapshot_layer_index = Some(snap_idx);
+            chunk.state.visibility = ChunkVisibility::Explored;
+            chunk.state.memory_location = ChunkMemoryLocation::Gpu;
+            world.spawn((
+                chunk,
+                FogChunkImage::from_setting_raw(&mut images, &settings),
+            ));
+            explored.insert(coords);
+        }
+        assert!(
+            manager
+                .allocate_layer_indices(IVec2::new(MAX_LAYERS as i32, 0))
+                .is_none(),
+            "chunk 65 must fail while every layer is still held"
+        );
+
+        let mut cache = ChunkStateCache::default();
+        cache.visible_chunks.insert(IVec2::new(0, 0));
+        cache.camera_view_chunks.insert(IVec2::new(0, 0));
+        cache.explored_chunks = explored;
+
+        world.insert_resource(manager);
+        world.insert_resource(cache);
+        world.insert_resource(images);
+        world.init_resource::<GpuToCpuCopyRequests>();
+        world.init_resource::<CpuToGpuCopyRequests>();
+        world.init_resource::<MainWorldSnapshotRequestQueue>();
+        world.init_resource::<Messages<ChunkGpuDataReady>>();
+        world.init_resource::<Messages<ChunkCpuDataUploaded>>();
+
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let requests = world.resource::<GpuToCpuCopyRequests>().requests.clone();
+        // (0,0) plus the 2-chunk buffer stay. The other 61 must be waiting on the copy.
+        assert_eq!(requests.len(), (MAX_LAYERS - 3) as usize);
+        assert!(
+            world
+                .resource_mut::<TextureArrayManager>()
+                .allocate_layer_indices(IVec2::new(1_000, 0))
+                .is_none(),
+            "PendingCopyToCpu must not free a layer before GpuDataReady"
+        );
+
+        for request in &requests {
+            let marker = request.chunk_coords.x as u8;
+            world.write_message(ChunkGpuDataReady {
+                chunk_coords: request.chunk_coords,
+                fog_data: vec![marker],
+                snapshot_data: vec![marker, marker, marker, marker],
+            });
+        }
+        world.resource_mut::<Messages<ChunkGpuDataReady>>().update();
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let returned = chunk_state(&mut world, IVec2::new(10, 0));
+        assert_eq!(returned.memory_location, ChunkMemoryLocation::Cpu);
+        assert!(returned.fog_layer_index.is_none());
+        assert!(returned.snapshot_layer_index.is_none());
+        assert_eq!(
+            image_byte(&mut world, returned.fog_handle),
+            10,
+            "explored fog pixels must survive the GPU readback"
+        );
+        assert_eq!(image_byte(&mut world, returned.snapshot_handle), 10);
+
+        {
+            let mut manager = world.resource_mut::<TextureArrayManager>();
+            let recycled = manager.allocate_layer_indices(IVec2::new(1_000, 0));
+            assert!(recycled.is_some(), "a freed layer must be reusable");
+            manager.free_layer_indices_for_coord(IVec2::new(1_000, 0));
+        }
+
+        {
+            let mut cache = world.resource_mut::<ChunkStateCache>();
+            cache.visible_chunks.clear();
+            cache.camera_view_chunks.clear();
+            cache.visible_chunks.insert(IVec2::new(10, 0));
+            cache.camera_view_chunks.insert(IVec2::new(10, 0));
+        }
+        world.resource_mut::<Messages<ChunkGpuDataReady>>().clear();
+        world
+            .run_system_once(manage_chunk_texture_transfer)
+            .unwrap();
+
+        let back = chunk_state(&mut world, IVec2::new(10, 0));
+        assert_eq!(back.memory_location, ChunkMemoryLocation::PendingCopyToGpu);
+        assert!(back.fog_layer_index.is_some());
+        assert_eq!(
+            image_byte(&mut world, back.fog_handle),
+            10,
+            "returning to an old chunk must not wipe its explored pixels"
+        );
+    }
+
+    struct SavedChunk {
+        memory_location: ChunkMemoryLocation,
+        fog_layer_index: Option<u32>,
+        snapshot_layer_index: Option<u32>,
+        fog_handle: bevy_asset::Handle<bevy_image::Image>,
+        snapshot_handle: bevy_asset::Handle<bevy_image::Image>,
+    }
+
+    fn chunk_state(world: &mut bevy_ecs::world::World, coords: IVec2) -> SavedChunk {
+        let mut query = world.query::<(&FogChunk, &FogChunkImage)>();
+        let (chunk, image) = query
+            .iter(world)
+            .find(|(chunk, _)| chunk.coords == coords)
+            .unwrap();
+        SavedChunk {
+            memory_location: chunk.state.memory_location,
+            fog_layer_index: chunk.fog_layer_index,
+            snapshot_layer_index: chunk.snapshot_layer_index,
+            fog_handle: image.fog_image_handle.clone(),
+            snapshot_handle: image.snapshot_image_handle.clone(),
+        }
+    }
+
+    fn image_byte(
+        world: &mut bevy_ecs::world::World,
+        handle: bevy_asset::Handle<bevy_image::Image>,
+    ) -> u8 {
+        world
+            .resource::<bevy_asset::Assets<bevy_image::Image>>()
+            .get(&handle)
+            .unwrap()
+            .data
+            .as_ref()
+            .unwrap()[0]
+    }
 }
